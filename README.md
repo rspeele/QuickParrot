@@ -1,22 +1,24 @@
 QuickParrot is open source soundboard software for gaming. Like existing soundboard alternatives such as Resanance, it
-relies on Virtual Audio Cable for microphone playback. What it adds is:
+relies on a virtual audio cable (VB-Audio's VB-CABLE, or Muzychenko's Virtual Audio Cable) for microphone playback. What
+it adds is:
 
 * Mumble-style visual overlay with chord controls instead of a zillion keybinds
 * Automatic push-to-talk control
 * Recording tool to easily add sounds
-* Self-diagnosis and repair tool for Virtual Audio Cable setup on Windows
+* Self-diagnosis and repair tool for virtual audio cable setup on Windows
 
 # The visual overlay
 
-Like Mumble or Fraps, QuickParrot can hook into a 3d (DirectX, OpenGL?) game and display its overlay. The overlay shows
-nothing at all until you press and hold the *chord hotkey*, B by default.
+QuickParrot displays its overlay over your game. The overlay shows nothing at all until you press and hold the *chord
+hotkey*, B by default.
 
 While you hold the chord key, your folders are displayed in a ring at the center of the screen, with numbers on each.
-E.g. "1: Trump", "2: Movies & TV Quotes", "3: Arnold Schwarzenegger".
+E.g. "1: Trump", "2: Movies & TV Quotes", "3: Arnold Schwarzenegger". Folders are listed first, then sound files, each
+alphabetically.
 
 Still holding the chord key, you press the number to navigate into a folder which shows the same ring-display. Once an
-option is an audio file, rather than a folder, and you hit that key, it plays that audio file down both the VAC and your
-output device.
+option is an audio file, rather than a folder, and you hit that key, it plays that audio file down both the virtual
+cable and your output device.
 
 Releasing B before navigating all the way to an audio file cancels the whole thing, and hitting B again starts over from
 the beginning (top level folder).
@@ -29,15 +31,40 @@ B+0 goes up a folder. B+shift+(repeated 0 keypresses) can therefore return one p
 stops at the folder QuickParrot was originally pointed at. You can't navigate up beyond that to browse the broader
 filesystem.
 
+## Stopping and replacing clips
+
+Pressing and releasing the chord key on its own, without pressing any number, stops the clip that's playing. Picking a
+new clip while one is playing stops the first one; clips never overlap.
+
+## Large folders
+
+A folder with 10 or more entries is shown as a grid instead of a ring: columns of 9, filled in order, so adding a file
+only shifts the entries after it. The first number zooms into a column, the second selects within it, and 0 backs out of
+the zoomed column. Long names are truncated to fit.
+
+That handles up to 81 entries per folder. Beyond that, make some subfolders: the desktop app warns about it, and the
+overlay silently shows only the first 81.
+
+## Choosing a chord key
+
+The chord key is configurable, and QuickParrot fully owns it: the game never sees it. B is the default because the
+number row is easy to reach with one hand, but it conflicts with some games (e.g. the Counter-Strike buy menu). A more
+conservative choice is "-", which pairs well with the numpad for right-handed use. Keys are matched by physical position,
+so the numpad works regardless of NumLock.
+
+Number keys pressed while the chord key is held are also swallowed, so they don't switch weapons in-game.
+
 # Automatic push to talk control
 
 QuickParrot can be configured with your in-game push-to-talk key or mouse button, e.g. V. It will simulate a keypress,
 like autohotkey, holding that key down for the duration of the audio file with a configurable (default: 500ms) margin on
 each end to ensure the sound doesn't get cut off. This eliminates the need for you to jump onto your push-to-talk as
-soon as you pick the file and hold it till it finishes playing.
+soon as you pick the file and hold it till it finishes playing. If one clip replaces another, the key stays held through
+the switch, and QuickParrot won't release the key if you're physically holding it yourself.
 
 It can also be configured to mute or attenuate your real microphone input while the soundboard clip is playing so your
-keyboard mashing gameplay sounds don't interfere with the comedy.
+keyboard mashing gameplay sounds don't interfere with the comedy. The original mic state is saved before changing it, so
+it's restored even if QuickParrot crashes mid-clip.
 
 # Recording tool
 
@@ -47,10 +74,10 @@ audio". This opens a window with stop/start capture buttons. Navigate to a YouTu
 intended capture, start capture, and play. Then stop capture once the clip you wanted to grab has finished playing.
 
 QuickParrot will then display the wave of the captured audio. You can scrub through it, replay, and you can click and
-drag to trim the start/end of the clip in case you didn't bracket it perfectly with your start/stop.
+drag to trim the start/end of the clip in case you didn't bracket it perfectly with your start/stop. Captured clips are
+loudness-normalized so they're neither whisper-quiet nor ear-splitting in voice chat.
 
-It may also be able to do some basic noise-removal on the captured clip to help remove e.g. a laugh track or background
-wind noise. Possibly too ambitious.
+Noise removal (e.g. laugh tracks, wind) is out of scope for now.
 
 If you configure QuickParrot with a LiteLLM endpoint, it will attempt to automatically name the capture based on
 speech-to-text + AI summary. Otherwise you are prompted to enter the name.
@@ -60,19 +87,36 @@ bites you're going to grab from playing one Youtube video, you can get through t
 
 # Self-diagnosis
 
-QuickParrot is Windows-only software and can inspect the Windows audio setup to troubleshoot issues. It's not unusual
-for Windows updates to break Virtual Audio Cable configuration, e.g. by disabling the "listen to this device" setting or
-changing the default microphone/communication device. So some of this should be a check that happens silently on every
-startup.
+QuickParrot is Windows-only software and can inspect the Windows audio setup to troubleshoot issues. The expected setup
+is: your game or voice app uses the cable's output ("CABLE Output") as its microphone, and your real mic has "Listen to
+this device" enabled with the cable's input as the playback target. That way your mic works through the cable even when
+QuickParrot isn't running.
 
-It can also detect if Virtual Audio Cable is not installed or enabled.
+It's not unusual for Windows updates to break this, e.g. by disabling the "listen to this device" setting or changing
+the default microphone/communication device. So some of this should be a check that happens silently on every startup.
+It also checks for Windows communications ducking, which by default turns other sounds down by 80% when a voice app
+opens the mic.
 
-It may be able to offer a 1-click "repair" option that changes these settings to the correct setup. (sets default devices, sets the "listen to this device" option)
+It can also detect if a virtual audio cable is not installed or enabled.
 
-Once it thinks everything is set up, it can also have a 1-click "test" function that records from VAC while playing a
-test sound down it, then plays back. The user hits the test button, says something, and confirms that they hear both their
-spoken input *and* the artificial soundboard test sound in the playback.
+It may be able to offer a 1-click "repair" option that changes these settings to the correct setup. (sets default
+devices, sets the "listen to this device" option)
+
+Once it thinks everything is set up, it can also have a 1-click "test" function that records from the cable while
+playing a test sound down it, then plays back. The user hits the test button, says something, and confirms that they
+hear both their spoken input *and* the artificial soundboard test sound in the playback.
 
 # Tech
 
-QuickParrot is written in C#, runs on .NET 10.0, and has a simple XAML WPF desktop UI. Since it is highly tied to Windows (VAC, mic settings) there is no need to use a cross-platform UI like Avalonia.
+QuickParrot is written in C#, runs on .NET 10.0, and has a simple XAML WPF desktop UI. Since it is highly tied to Windows
+(virtual cable, mic settings) there is no need to use a cross-platform UI like Avalonia.
+
+Everything runs in one process:
+
+* The overlay is a separate always-on-top window over the game, not code injected into the game, so anti-cheat has
+  nothing to object to. It never takes focus, ignores the mouse, and is hidden entirely when not in use. It's a WinForms
+  layered window drawn with GDI+, on its own UI thread. It works with borderless windowed games but not true exclusive
+  fullscreen.
+* A low-level keyboard hook reads the chord and number keys, on its own thread.
+* The chord navigation logic is a pure, unit-tested state machine with no Windows dependencies.
+* If your game runs as administrator, QuickParrot must too, or Windows blocks its hotkeys and simulated push-to-talk.

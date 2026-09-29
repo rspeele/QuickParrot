@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/QuickParrot.App/QuickParrot.App.csproj" />
+    <Project Path="src/QuickParrot.Core/QuickParrot.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/QuickParrot.Core.Tests/QuickParrot.Core.Tests.csproj" />
+  </Folder>
+</Solution>
