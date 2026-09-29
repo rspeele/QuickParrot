@@ -54,6 +54,11 @@ public sealed class FakeFolderSource : IFolderSource
         return sorted;
     }
 
+    public string? GetFullPath(string relativePath) =>
+        string.IsNullOrEmpty(relativePath) || relativePath.Contains("..") ? null : $"{FullPathPrefix}{relativePath}";
+
+    public const string FullPathPrefix = "fake:/";
+
     private static string Combine(string parentPath, string name) =>
         string.IsNullOrEmpty(parentPath) ? name : $"{parentPath}/{name}";
 }

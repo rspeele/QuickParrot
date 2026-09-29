@@ -8,4 +8,7 @@ public interface IFolderSource
 {
     /// <summary>Returns the entries of the folder at <paramref name="relativePath"/>, or null if it doesn't exist.</summary>
     IReadOnlyList<FolderEntry>? GetEntries(string relativePath);
+
+    /// <summary>Maps a relative clip path to an absolute file path, or null if it's empty or would escape the root.</summary>
+    string? GetFullPath(string relativePath);
 }

@@ -1,12 +1,53 @@
-﻿<Window x:Class="QuickParrot.App.MainWindow"
+<Window x:Class="QuickParrot.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:QuickParrot.App"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="QuickParrot" Height="560" Width="720" MinWidth="480" MinHeight="360">
+    <DockPanel Margin="8">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Left" Content="Choose library…" Padding="8,2" Click="ChooseLibrary_Click" />
+            <TextBlock Text="{Binding LibraryRoot}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
 
-    </Grid>
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="160" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="Cable:" VerticalAlignment="Center" Margin="0,0,8,4" />
+            <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding CableChoices}"
+                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCableId}" />
+            <Slider Grid.Row="0" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
+                    Value="{Binding CableVolume}" ToolTip="Cable volume" />
+
+            <TextBlock Grid.Row="1" Text="Monitor:" VerticalAlignment="Center" Margin="0,0,8,4" />
+            <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding MonitorChoices}"
+                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMonitorId}" />
+            <Slider Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
+                    Value="{Binding MonitorVolume}" ToolTip="Monitor volume" />
+
+            <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="3" Content="Refresh" Padding="8,2" Margin="0,0,0,4"
+                    Click="Refresh_Click" />
+
+            <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding DeviceStatus}" TextWrapping="Wrap" Foreground="Gray" />
+        </Grid>
+
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
+
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+            <Button DockPanel.Dock="Left" Content="Up" Padding="8,2" IsEnabled="{Binding CanGoUp}" Click="Up_Click" />
+            <Button DockPanel.Dock="Right" Content="Stop" Padding="12,2" Click="Stop_Click" />
+            <TextBlock Text="{Binding CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+
+        <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
+                 MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown" />
+    </DockPanel>
 </Window>

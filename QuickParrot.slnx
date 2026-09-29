@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/QuickParrot.App/QuickParrot.App.csproj" />
+    <Project Path="src/QuickParrot.Audio/QuickParrot.Audio.csproj" />
     <Project Path="src/QuickParrot.Core/QuickParrot.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">

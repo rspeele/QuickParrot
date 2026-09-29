@@ -18,10 +18,21 @@ public sealed class ChordNavigator
         PersistentPath = persistentPath;
     }
 
+    /// <summary>Raised with the new value whenever <see cref="PersistentPath"/> changes, so it can be saved.</summary>
+    public event Action<string>? PersistentPathChanged;
+
     public string PersistentPath
     {
         get;
-        set => field = string.Join('/', value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries));
+        set
+        {
+            var normalized = string.Join('/', value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries));
+            if (normalized == field)
+                return;
+
+            field = normalized;
+            PersistentPathChanged?.Invoke(normalized);
+        }
     }
 
     /// <summary>
