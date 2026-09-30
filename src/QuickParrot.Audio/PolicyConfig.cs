@@ -34,16 +34,6 @@ internal struct NativePropVariant
     /// <summary>The caller must free <see cref="Pointer"/> with <see cref="Marshal.FreeCoTaskMem"/>.</summary>
     public static NativePropVariant FromString(string value) =>
         new() { VarType = VtLpwstr, Pointer = Marshal.StringToCoTaskMemUni(value) };
-
-    public object? ToObject() => VarType switch
-    {
-        VtBool => BoolValue != 0,
-        VtLpwstr => Marshal.PtrToStringUni(Pointer),
-        _ => null,
-    };
-
-    [DllImport("ole32.dll")]
-    public static extern int PropVariantClear(ref NativePropVariant value);
 }
 
 // Undocumented Windows 7+ interface, laid out as in EarTrumpet, SoundSwitch and AudioDeviceCmdlets. Methods this
@@ -92,19 +82,6 @@ internal static class PolicyConfig
     /// <summary>Throws <see cref="UnauthorizedAccessException"/> when Windows refuses the write.</summary>
     public static void SetPropertyValue(string deviceId, NativePropertyKey key, NativePropVariant value) =>
         Use(policy => Marshal.ThrowExceptionForHR(policy.SetPropertyValue(deviceId, 0, ref key, ref value)));
-
-    public static object? GetPropertyValue(string deviceId, NativePropertyKey key) => Use(policy =>
-    {
-        Marshal.ThrowExceptionForHR(policy.GetPropertyValue(deviceId, 0, ref key, out var value));
-        try
-        {
-            return value.ToObject();
-        }
-        finally
-        {
-            NativePropVariant.PropVariantClear(ref value);
-        }
-    });
 
     private static void Use(Action<IPolicyConfig> action) => Use<object?>(policy =>
     {

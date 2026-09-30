@@ -201,6 +201,53 @@ public sealed class QuickParrotEngineTests : IDisposable
         Assert.Contains(_errors, e => e.Contains("Stop failed."));
     }
 
+    [Fact]
+    public async Task SuppressPlayback_IgnoresDirectPlayRequests()
+    {
+        _library.AddFile("", "wall.wav");
+
+        _engine.SuppressPlayback(true);
+        _engine.Play("wall.wav");
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
+        await _engine.FlushAsync();
+
+        Assert.Empty(_log);
+    }
+
+    [Fact]
+    public async Task SuppressPlayback_IgnoresChordSelectionButStillNavigates()
+    {
+        _library.AddFile("", "wall.wav");
+        var states = new List<OverlayViewState?>();
+        _engine.ViewStateChanged += s => { lock (states) states.Add(s); };
+
+        _engine.SuppressPlayback(true);
+        _engine.Post(new ChordPressed());
+        _engine.Post(new DigitPressed(1, false));
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
+        await _engine.FlushAsync();
+
+        Assert.Empty(_log);
+        Assert.NotEmpty(states); // chord navigation still updated the overlay
+    }
+
+    [Fact]
+    public async Task SuppressPlayback_ClearedAfterwards_AllowsPlaybackAgain()
+    {
+        _library.AddFile("", "wall.wav");
+
+        _engine.SuppressPlayback(true);
+        _engine.SuppressPlayback(false);
+        _engine.Play("wall.wav");
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
+        await _engine.FlushAsync();
+
+        Assert.Contains("play:fake:/wall.wav", _log);
+    }
+
     public void Dispose() => _engine.Dispose();
 
     // A finished prepare is posted back to the worker by the item that started it, so needs a second pass.

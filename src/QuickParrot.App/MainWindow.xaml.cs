@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace QuickParrot.App;
@@ -55,4 +56,14 @@ public partial class MainWindow : Window
 
     // Otherwise a capture left armed would eat the next key pressed in the game and rebind the chord to it.
     private void MainWindow_Deactivated(object? sender, EventArgs e) => _viewModel.CancelKeyCapture();
+
+    // Mute/volume changes don't raise SetupChanged, so a fix made in Windows itself only clears promptly here.
+    private void MainWindow_Activated(object? sender, EventArgs e) => _viewModel.Diagnostics.RequestCheck();
+
+    private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // SelectionChanged bubbles up from combo boxes elsewhere in the window, so only react to the tab itself.
+        if (ReferenceEquals(e.OriginalSource, MainTabControl) && ReferenceEquals(MainTabControl.SelectedItem, DiagnosticsTab))
+            _viewModel.Diagnostics.RequestCheck();
+    }
 }

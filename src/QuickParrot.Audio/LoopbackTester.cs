@@ -50,7 +50,7 @@ public sealed class LoopbackTester : ILoopbackTester
         progress?.Report("Checking the recording…");
         var result = LoopbackTestAnalyzer.Analyze(samples, sampleRate, _signal);
 
-        if (monitorRenderId is null || monitorRenderId == cableRenderId)
+        if (monitorRenderId is null || string.Equals(monitorRenderId, cableRenderId, StringComparison.OrdinalIgnoreCase))
             return result with { PlaybackError = "no headphones or speakers are selected apart from the cable." };
 
         progress?.Report("Playing back what the game hears…");

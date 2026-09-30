@@ -88,6 +88,7 @@ public sealed class LoopbackTestViewModel : ObservableObject
             return;
 
         _engine.Stop(); // don't let a playing clip pollute the recording
+        _engine.SuppressPlayback(true); // ...or a chord played mid-test start playing into it
         Result = null;
         Progress = "";
         IsRunning = true;
@@ -105,8 +106,10 @@ public sealed class LoopbackTestViewModel : ObservableObject
         }
         finally
         {
+            _engine.SuppressPlayback(false);
             if (_cts == cts)
                 _cts = null;
+            cts.Dispose();
             IsRunning = false;
             _diagnostics.RequestCheck();
         }

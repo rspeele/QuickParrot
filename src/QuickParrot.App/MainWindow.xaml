@@ -3,14 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:QuickParrot.App"
         Title="QuickParrot" Height="640" Width="760" MinWidth="520" MinHeight="420"
-        Closing="MainWindow_Closing" Deactivated="MainWindow_Deactivated">
+        Closing="MainWindow_Closing" Deactivated="MainWindow_Deactivated" Activated="MainWindow_Activated">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </Window.Resources>
     <DockPanel Margin="8">
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
 
-        <TabControl>
+        <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged">
             <TabItem Header="Library">
                 <DockPanel Margin="8">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
@@ -163,7 +163,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Diagnostics" DataContext="{Binding Diagnostics}">
+            <TabItem x:Name="DiagnosticsTab" Header="Diagnostics" DataContext="{Binding Diagnostics}">
                 <DockPanel Margin="8">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                         <Button DockPanel.Dock="Right" Content="Re-check" Padding="12,2" IsEnabled="{Binding IsIdle}"

@@ -29,6 +29,7 @@ public sealed class QuickParrotEngine : IDisposable
     private ITimer? _saveTimer;
     private OverlayViewState? _publishedViewState;
     private bool _started;
+    private bool _suppressPlayback;
 
     public QuickParrotEngine(
         IClipPlayer player,
@@ -76,6 +77,10 @@ public sealed class QuickParrotEngine : IDisposable
     public void Play(string relativePath) => Post(() => PlayRelative(relativePath));
 
     public void Stop() => Post(_controller.Stop);
+
+    /// <summary>While suppressed, Play and chord PlayClip requests are ignored; chord navigation itself still works.
+    /// Used by the loopback test so it doesn't record a clip playing over itself.</summary>
+    public void SuppressPlayback(bool suppress) => Post(() => _suppressPlayback = suppress);
 
     /// <summary>Call when capture devices change, e.g. a mic that couldn't be restored is plugged back in.</summary>
     public void RetryMicRestore() => Post(_micMuter.RetryRestore);
@@ -183,6 +188,9 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void PlayRelative(string relativePath)
     {
+        if (_suppressPlayback)
+            return;
+
         var fullPath = _library?.GetFullPath(relativePath);
         if (fullPath is null)
         {

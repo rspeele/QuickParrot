@@ -25,13 +25,14 @@ public static class ElevatedListenRepair
             if (mic.DataFlow != DataFlow.Capture || target.DataFlow != DataFlow.Render)
                 return (int)RepairExitCode.InvalidArguments;
 
+            // Goes through the audio service first, like the Sound control panel, since it's more likely to apply live.
             try
             {
-                WriteToPropertyStore(mic, request.TargetId);
+                new WindowsAudioSystemWriter("").SetListen(request.MicId, request.TargetId);
             }
             catch (Exception)
             {
-                new WindowsAudioSystemWriter("").SetListen(request.MicId, request.TargetId);
+                WriteToPropertyStore(mic, request.TargetId);
             }
 
             return (int)RepairExitCode.Success;
