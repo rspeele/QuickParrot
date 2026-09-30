@@ -14,13 +14,15 @@ public sealed class PlaybackController : IDisposable
 
     private ITimer? _timer;
     private long _timerGeneration;
-    private IPreparedClip? _pendingClip;
+    private PrepareRequest? _request;
+    private IPreparedClip? _readyClip;
+    private bool _preRollElapsed;
     private string _currentPath = "";
     private long _playId;
     private bool _pushToTalkHeld;
     private bool _micMuted;
 
-    /// <param name="dispatch">Routes timer and player callbacks back onto the controller's thread.
+    /// <param name="dispatch">Routes timer, prepare and player callbacks back onto the controller's thread.
     /// Defaults to running them inline.</param>
     public PlaybackController(
         IClipPlayer player,
@@ -47,45 +49,28 @@ public sealed class PlaybackController : IDisposable
     /// <summary>Raised when a clip can't be loaded, can't start, or fails mid-play.</summary>
     public event Action<PlaybackError>? PlaybackFailed;
 
+    /// <summary>
+    /// Starts preparing <paramref name="fullPath"/>. From idle it plays once both the pre-roll and the prepare are
+    /// done; otherwise it replaces whatever is pending or playing as soon as it's prepared.
+    /// </summary>
     public void Play(string fullPath)
     {
-        var requestedAt = _time.GetTimestamp();
         Engage();
+        CancelPending();
 
-        // Preparing (decode + opening devices) overlaps the pre-roll when idle, so it adds no latency.
-        IPreparedClip clip;
-        try
+        if (Phase == PlaybackPhase.Idle)
         {
-            clip = _player.Prepare(fullPath);
+            Phase = PlaybackPhase.PreRoll;
+            _preRollElapsed = Options.PreRoll <= TimeSpan.Zero;
+            if (!_preRollElapsed)
+                StartTimer(Options.PreRoll);
         }
-        catch (Exception e)
+        else if (Phase == PlaybackPhase.PostRoll)
         {
-            Fail(fullPath, e);
-            return;
+            CancelTimer(); // keep the key held for the replacement
         }
 
-        switch (Phase)
-        {
-            case PlaybackPhase.Idle:
-                _pendingClip = clip;
-                Phase = PlaybackPhase.PreRoll;
-                var remaining = Options.PreRoll - _time.GetElapsedTime(requestedAt);
-                if (remaining > TimeSpan.Zero)
-                    StartTimer(remaining);
-                else
-                    StartPendingClip();
-                break;
-
-            case PlaybackPhase.PreRoll:
-                _pendingClip?.Dispose();
-                _pendingClip = clip; // the pre-roll timer already running still applies
-                break;
-
-            default:
-                CancelTimer();
-                StartClip(clip);
-                break;
-        }
+        BeginPrepare(fullPath);
     }
 
     /// <summary>Cuts playback off and releases immediately; no post-roll is needed after an abrupt stop.</summary>
@@ -97,9 +82,66 @@ public sealed class PlaybackController : IDisposable
 
     public void Dispose()
     {
-        Stop();
-        CancelTimer();
-        _player.Finished -= OnPlayerFinished;
+        try
+        {
+            Stop();
+        }
+        finally
+        {
+            CancelTimer();
+            _player.Finished -= OnPlayerFinished;
+        }
+    }
+
+    private void BeginPrepare(string fullPath)
+    {
+        var request = new PrepareRequest(fullPath);
+        _request = request;
+
+        Task<IPreparedClip> task;
+        try
+        {
+            task = _player.PrepareAsync(fullPath, request.Token);
+        }
+        catch (Exception e)
+        {
+            task = Task.FromException<IPreparedClip>(e);
+        }
+
+        // Attached last: with inline dispatch and an already-finished task, this runs OnPrepared right away.
+        task.ContinueWith(
+            completed =>
+            {
+                if (request.TryComplete(completed))
+                    _dispatch(() => OnPrepared(request));
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private void OnPrepared(PrepareRequest request)
+    {
+        if (request != _request || request.Take() is not { } result)
+            return; // superseded: whoever cancelled it disposes the clip
+
+        _request = null;
+        if (!result.IsCompletedSuccessfully)
+        {
+            Fail(request.FullPath, Unwrap(result));
+            return;
+        }
+
+        var clip = result.Result;
+        if (Phase == PlaybackPhase.PreRoll && !_preRollElapsed)
+        {
+            _readyClip = clip;
+        }
+        else
+        {
+            CancelTimer();
+            StartClip(clip);
+        }
     }
 
     private void OnPlayerFinished(ClipFinished finished) => _dispatch(() => HandleFinished(finished));
@@ -116,6 +158,9 @@ public sealed class PlaybackController : IDisposable
         }
 
         Phase = PlaybackPhase.PostRoll;
+        if (_request is not null)
+            return; // a replacement is being prepared; hold the key until it starts
+
         if (Options.PostRoll > TimeSpan.Zero)
             StartTimer(Options.PostRoll);
         else
@@ -129,16 +174,18 @@ public sealed class PlaybackController : IDisposable
 
         CancelTimer();
         if (Phase == PlaybackPhase.PreRoll)
-            StartPendingClip();
+        {
+            _preRollElapsed = true;
+            if (_readyClip is { } clip)
+            {
+                _readyClip = null;
+                StartClip(clip);
+            }
+        }
         else if (Phase == PlaybackPhase.PostRoll)
+        {
             Reset();
-    }
-
-    private void StartPendingClip()
-    {
-        var clip = _pendingClip!;
-        _pendingClip = null;
-        StartClip(clip);
+        }
     }
 
     private void StartClip(IPreparedClip clip)
@@ -158,24 +205,55 @@ public sealed class PlaybackController : IDisposable
 
     private void Fail(string clipPath, Exception error)
     {
-        Reset();
-        PlaybackFailed?.Invoke(new PlaybackError(clipPath, Describe(error)));
+        try
+        {
+            Reset();
+        }
+        finally
+        {
+            PlaybackFailed?.Invoke(new PlaybackError(clipPath, Describe(error)));
+        }
     }
 
     // The library can change after the overlay was drawn, so a vanished file is an expected failure.
     private static string Describe(Exception error) =>
         error is FileNotFoundException or DirectoryNotFoundException ? "The file no longer exists." : error.Message;
 
+    private static Exception Unwrap(Task task) =>
+        task.Exception?.InnerException ?? new OperationCanceledException("Preparing the clip was cancelled.");
+
+    // Releasing the key and unmuting must happen even if stopping the audio throws.
     private void Reset()
     {
-        CancelTimer();
-        _pendingClip?.Dispose();
-        _pendingClip = null;
-        if (Phase != PlaybackPhase.Idle)
-            _player.Stop();
+        var wasPlaying = Phase is PlaybackPhase.Playing or PlaybackPhase.PostRoll;
+        try
+        {
+            CancelTimer();
+            CancelPending();
+            if (wasPlaying)
+                _player.Stop();
+        }
+        finally
+        {
+            Phase = PlaybackPhase.Idle;
+            Disengage();
+        }
+    }
 
-        Phase = PlaybackPhase.Idle;
-        Disengage();
+    private void CancelPending()
+    {
+        var request = _request;
+        var readyClip = _readyClip;
+        _request = null;
+        _readyClip = null;
+        try
+        {
+            request?.Cancel();
+        }
+        finally
+        {
+            readyClip?.Dispose();
+        }
     }
 
     private void Engage()
@@ -195,16 +273,21 @@ public sealed class PlaybackController : IDisposable
 
     private void Disengage()
     {
-        if (_pushToTalkHeld)
+        try
         {
-            _pushToTalkHeld = false;
-            _pushToTalk.Release();
+            if (_pushToTalkHeld)
+            {
+                _pushToTalkHeld = false;
+                _pushToTalk.Release();
+            }
         }
-
-        if (_micMuted)
+        finally
         {
-            _micMuted = false;
-            _micMuter.Unmute();
+            if (_micMuted)
+            {
+                _micMuted = false;
+                _micMuter.Unmute();
+            }
         }
     }
 

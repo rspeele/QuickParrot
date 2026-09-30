@@ -46,6 +46,8 @@ public sealed class QuickParrotEngineTests : IDisposable
     {
         _library.AddFile("", "wall.wav");
         _engine.Play("wall.wav");
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
         await _engine.FlushAsync();
 
         _engine.Post(new ChordPressed());
@@ -71,7 +73,7 @@ public sealed class QuickParrotEngineTests : IDisposable
         _player.UnloadablePaths.Add("fake:/Trump/wall.wav");
 
         _engine.Play("Trump/wall.wav");
-        await _engine.FlushAsync();
+        await SettleAsync();
 
         Assert.Equal("Couldn't play wall.wav: The file no longer exists.", Assert.Single(_errors));
     }
@@ -144,5 +146,28 @@ public sealed class QuickParrotEngineTests : IDisposable
         Assert.Equal(0.25f, Assert.Single(_store.Saved).CableVolume);
     }
 
+    [Fact]
+    public async Task Dispose_SavesPendingSettings_EvenIfStoppingPlaybackThrows()
+    {
+        _engine.Play("wall.wav");
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
+        _engine.UpdateSettings(s => s with { CableVolume = 0.25f });
+        await _engine.FlushAsync();
+        _player.ThrowOnStop = true;
+
+        _engine.Dispose();
+
+        Assert.Equal(0.25f, Assert.Single(_store.Saved).CableVolume);
+        Assert.Contains(_errors, e => e.Contains("Stop failed."));
+    }
+
     public void Dispose() => _engine.Dispose();
+
+    // A finished prepare is posted back to the worker by the item that started it, so needs a second pass.
+    private async Task SettleAsync()
+    {
+        await _engine.FlushAsync();
+        await _engine.FlushAsync();
+    }
 }

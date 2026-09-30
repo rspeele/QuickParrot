@@ -54,10 +54,10 @@ internal sealed class DeviceOutput : IDisposable
             // Match the device's mix format ourselves rather than relying on the engine to resample.
             var mixFormat = player.DeviceMixFormat;
             ISampleProvider source = new ClipSampleProvider(clip);
-            if (source.WaveFormat.SampleRate != mixFormat.SampleRate)
-                source = new WdlResamplingSampleProvider(source, mixFormat.SampleRate);
             if (source.WaveFormat.Channels != mixFormat.Channels)
                 source = new ChannelMapSampleProvider(source, mixFormat.Channels);
+            if (source.WaveFormat.SampleRate != mixFormat.SampleRate)
+                source = new WdlResamplingSampleProvider(source, mixFormat.SampleRate);
 
             var volumeProvider = new VolumeSampleProvider(source) { Volume = volume };
             player.Init(new SampleToWaveProvider(volumeProvider));

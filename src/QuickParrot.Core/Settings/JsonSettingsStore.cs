@@ -21,17 +21,31 @@ public sealed class JsonSettingsStore : ISettingsStore
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "QuickParrot", "settings.json");
 
-    /// <summary>Returns defaults if the file is missing, unreadable or corrupt.</summary>
-    public AppSettings Load()
+    public string BackupPath => _path + ".bad";
+
+    /// <summary>
+    /// Returns defaults if the file is missing, unreadable or corrupt. A corrupt file is renamed to
+    /// <see cref="BackupPath"/> first, so the next save doesn't silently destroy it.
+    /// </summary>
+    public SettingsLoadResult Load()
     {
+        string json;
         try
         {
-            return File.Exists(_path) ? Deserialize(File.ReadAllText(_path)) : new AppSettings();
+            if (!File.Exists(_path))
+                return new SettingsLoadResult(new AppSettings());
+
+            json = File.ReadAllText(_path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return new AppSettings();
+            return new SettingsLoadResult(new AppSettings(), $"Couldn't read settings, using defaults: {e.Message}");
         }
+
+        if (TryDeserialize(json, out var settings))
+            return new SettingsLoadResult(settings);
+
+        return new SettingsLoadResult(new AppSettings(), SetAsideCorruptFile());
     }
 
     // Written to a temp file and moved into place, so a crash mid-write can't leave a truncated file.
@@ -45,15 +59,34 @@ public sealed class JsonSettingsStore : ISettingsStore
 
     public static string Serialize(AppSettings settings) => JsonSerializer.Serialize(settings, JsonOptions);
 
-    public static AppSettings Deserialize(string json)
+    public static AppSettings Deserialize(string json) => TryDeserialize(json, out var settings) ? settings : new AppSettings();
+
+    public static bool TryDeserialize(string json, out AppSettings settings)
     {
+        AppSettings? loaded;
         try
         {
-            return (JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings()).Sanitized();
+            loaded = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
         }
         catch (JsonException)
         {
-            return new AppSettings();
+            loaded = null;
+        }
+
+        settings = loaded?.Sanitized() ?? new AppSettings();
+        return loaded is not null;
+    }
+
+    private string SetAsideCorruptFile()
+    {
+        try
+        {
+            File.Move(_path, BackupPath, overwrite: true);
+            return $"Your settings file was corrupt, so defaults are in use. The old file was kept as {BackupPath}.";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Your settings file was corrupt, so defaults are in use, and it couldn't be set aside: {e.Message}";
         }
     }
 }

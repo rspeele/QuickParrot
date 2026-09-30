@@ -4,7 +4,7 @@ using QuickParrot.Core.Tests.Fakes;
 
 namespace QuickParrot.Core.Tests.Playback;
 
-public abstract class PlaybackControllerFixture
+public abstract class PlaybackControllerFixture : IDisposable
 {
     protected const string ClipA = @"C:\lib\a.wav";
     protected const string ClipB = @"C:\lib\b.wav";
@@ -13,6 +13,7 @@ public abstract class PlaybackControllerFixture
     protected PlaybackControllerFixture()
     {
         Player = new FakeClipPlayer(Log);
+        PushToTalk = new FakePushToTalk(Log);
     }
 
     protected List<string> Log { get; } = [];
@@ -21,12 +22,18 @@ public abstract class PlaybackControllerFixture
 
     protected FakeClipPlayer Player { get; }
 
+    protected FakePushToTalk PushToTalk { get; }
+
     protected List<PlaybackError> Errors { get; } = [];
+
+    /// <summary>Exceptions thrown by dispatched callbacks, which a prepare's continuation would otherwise swallow.</summary>
+    protected List<Exception> DispatchErrors { get; } = [];
 
     protected PlaybackController Create(PlaybackOptions? options = null, Action<Action>? dispatch = null)
     {
         var controller = new PlaybackController(
-            Player, new FakePushToTalk(Log), new FakeMicMuter(Log), Time, options ?? PlaybackOptions.Default, dispatch);
+            Player, PushToTalk, new FakeMicMuter(Log), Time, options ?? PlaybackOptions.Default,
+            dispatch ?? RunInline);
         controller.PlaybackFailed += Errors.Add;
         return controller;
     }
@@ -42,7 +49,26 @@ public abstract class PlaybackControllerFixture
         Log.Clear();
     }
 
+    public void Dispose()
+    {
+        Assert.Empty(DispatchErrors);
+        GC.SuppressFinalize(this);
+    }
+
     protected static string Prepared(string path) => $"prepare:{path}";
 
     protected static string Play(string path) => $"play:{path}";
+
+    private void RunInline(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception e)
+        {
+            DispatchErrors.Add(e);
+            throw;
+        }
+    }
 }

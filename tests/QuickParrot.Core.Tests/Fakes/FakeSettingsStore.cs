@@ -6,7 +6,7 @@ public sealed class FakeSettingsStore : ISettingsStore
 {
     public List<AppSettings> Saved { get; } = [];
 
-    public AppSettings Load() => Saved.LastOrDefault() ?? new AppSettings();
+    public SettingsLoadResult Load() => new(Saved.LastOrDefault() ?? new AppSettings());
 
     public void Save(AppSettings settings) => Saved.Add(settings);
 }

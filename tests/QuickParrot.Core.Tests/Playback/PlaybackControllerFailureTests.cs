@@ -172,6 +172,50 @@ public class PlaybackControllerFailureTests : PlaybackControllerFixture
     }
 
     [Fact]
+    public void PlayerStopThrowing_StillReleasesAndUnmutes()
+    {
+        var controller = Create();
+        PlayThroughPreRoll(controller, ClipA);
+        Player.ThrowOnStop = true;
+
+        Assert.Throws<InvalidOperationException>(controller.Stop);
+
+        Assert.Equal(["stop", "ptt:release", "mic:unmute"], Log);
+        Assert.Equal(PlaybackPhase.Idle, controller.Phase);
+        Player.ThrowOnStop = false;
+        PlayThroughPreRoll(controller, ClipB);
+    }
+
+    [Fact]
+    public void PlayerStopThrowing_WhenReplacementFails_StillReleasesAndReportsError()
+    {
+        var controller = Create();
+        PlayThroughPreRoll(controller, ClipA);
+        Player.UnloadablePaths.Add(ClipB);
+        Player.ThrowOnStop = true;
+
+        controller.Play(ClipB);
+
+        Assert.Equal([Prepared(ClipB), "stop", "ptt:release", "mic:unmute"], Log);
+        Assert.Equal(PlaybackPhase.Idle, controller.Phase);
+        Assert.Single(Errors);
+        Assert.Equal("Stop failed.", Assert.Single(DispatchErrors).Message);
+        DispatchErrors.Clear();
+    }
+
+    [Fact]
+    public void PushToTalkReleaseThrowing_StillUnmutes()
+    {
+        var controller = Create();
+        PlayThroughPreRoll(controller, ClipA);
+        PushToTalk.ThrowOnRelease = true;
+
+        Assert.Throws<InvalidOperationException>(controller.Stop);
+
+        Assert.Equal(["stop", "ptt:release", "mic:unmute"], Log);
+    }
+
+    [Fact]
     public void Dispose_StopsAndReleases_AndIgnoresLaterCallbacks()
     {
         var controller = Create();

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Playback;
 
@@ -10,7 +11,7 @@ namespace QuickParrot.Audio;
 public sealed class NAudioClipPlayer : IClipPlayer, IDisposable
 {
     private readonly IAudioDeviceCatalog _devices;
-    private OutputSettings _settings = new(null, null, 1f, 1f);
+    private volatile OutputSettings _settings = new(null, null, 1f, 1f);
     private PreparedClip? _current;
 
     public NAudioClipPlayer(IAudioDeviceCatalog devices)
@@ -20,12 +21,33 @@ public sealed class NAudioClipPlayer : IClipPlayer, IDisposable
 
     public event Action<ClipFinished>? Finished;
 
-    public IPreparedClip Prepare(string fullPath)
+    /// <summary>
+    /// Decodes a silent MP3, lists devices and opens (without playing) the outputs once, so the first real
+    /// play doesn't pay those one-off costs. Never faults.
+    /// </summary>
+    public Task WarmUpAsync() => Task.Run(() =>
     {
-        var clip = DecodedClip.Decode(fullPath);
-        var selection = OutputDeviceSelector.Select(
-            _devices.GetRenderDevices(), _settings.CableDeviceId, _settings.MonitorDeviceId, _devices.GetDefaultRenderDeviceId());
-        return PreparedClip.Open(clip, selection, _settings);
+        try
+        {
+            Open(DecodedClip.DecodeWarmUpClip(), _settings).Dispose();
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine($"QuickParrot: audio warm-up failed: {e.Message}");
+        }
+    });
+
+    public Task<IPreparedClip> PrepareAsync(string fullPath, CancellationToken cancellationToken)
+    {
+        var settings = _settings;
+        return Task.Run<IPreparedClip>(
+            () =>
+            {
+                var clip = DecodedClip.Decode(fullPath, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                return Open(clip, settings);
+            },
+            cancellationToken);
     }
 
     public void Play(IPreparedClip clip, long playId)
@@ -55,4 +77,11 @@ public sealed class NAudioClipPlayer : IClipPlayer, IDisposable
     }
 
     public void Dispose() => Stop();
+
+    private PreparedClip Open(DecodedClip clip, OutputSettings settings)
+    {
+        var selection = OutputDeviceSelector.Select(
+            _devices.GetRenderDevices(), settings.CableDeviceId, settings.MonitorDeviceId, _devices.GetDefaultRenderDeviceId());
+        return PreparedClip.Open(clip, selection, settings);
+    }
 }

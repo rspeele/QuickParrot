@@ -10,10 +10,10 @@ public interface IClipPlayer
     event Action<ClipFinished>? Finished;
 
     /// <summary>
-    /// Decodes a clip and opens its outputs so <see cref="Play"/> starts without delay. Throws if the file is
-    /// missing or undecodable, or no output can be opened. The caller disposes the clip if it never plays it.
+    /// Decodes a clip and opens its outputs off the calling thread, faulting if either fails. The caller disposes
+    /// (from any thread) a clip it never plays, including one completed after cancellation.
     /// </summary>
-    IPreparedClip Prepare(string fullPath);
+    Task<IPreparedClip> PrepareAsync(string fullPath, CancellationToken cancellationToken);
 
     /// <summary>Starts <paramref name="clip"/>, replacing anything playing. Takes ownership of the clip, even if it throws.</summary>
     void Play(IPreparedClip clip, long playId);

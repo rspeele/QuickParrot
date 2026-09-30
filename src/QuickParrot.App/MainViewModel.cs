@@ -29,7 +29,7 @@ public sealed class MainViewModel : ObservableObject
     private string _deviceStatus = "";
     private string _status = "";
 
-    public MainViewModel(QuickParrotEngine engine, IAudioDeviceCatalog devices)
+    public MainViewModel(QuickParrotEngine engine, IAudioDeviceCatalog devices, string? startupWarning = null)
     {
         _engine = engine;
         _devices = devices;
@@ -43,6 +43,7 @@ public sealed class MainViewModel : ObservableObject
         _monitorVolume = settings.MonitorVolume;
         OpenLibrary(settings.LibraryRoot);
         RefreshDevices();
+        Status = startupWarning ?? "";
     }
 
     public string LibraryRoot

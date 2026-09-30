@@ -46,6 +46,8 @@ public class AppSettingsTests
     [InlineData("null")]
     public void CorruptJson_GivesDefaults(string json)
     {
+        Assert.False(JsonSettingsStore.TryDeserialize(json, out var settings));
+        Assert.Equal(new AppSettings(), settings);
         Assert.Equal(new AppSettings(), JsonSettingsStore.Deserialize(json));
     }
 
@@ -95,12 +97,36 @@ public class AppSettingsTests
         try
         {
             var store = new JsonSettingsStore(Path.Combine(directory.FullName, "nested", "settings.json"));
-            Assert.Equal(new AppSettings(), store.Load());
+            Assert.Equal(new SettingsLoadResult(new AppSettings()), store.Load());
 
             store.Save(new AppSettings { LibraryRoot = @"C:\Sounds" });
             store.Save(new AppSettings { LibraryRoot = @"D:\Clips" });
 
-            Assert.Equal(@"D:\Clips", store.Load().LibraryRoot);
+            Assert.Equal(@"D:\Clips", store.Load().Settings.LibraryRoot);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Store_SetsAsideCorruptFile_AndWarns()
+    {
+        var directory = Directory.CreateTempSubdirectory("quickparrot-settings-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "settings.json");
+            var store = new JsonSettingsStore(path);
+            File.WriteAllText(store.BackupPath, "older corrupt file");
+            File.WriteAllText(path, "{ not json");
+
+            var result = store.Load();
+
+            Assert.Equal(new AppSettings(), result.Settings);
+            Assert.Contains(store.BackupPath, result.Warning);
+            Assert.False(File.Exists(path));
+            Assert.Equal("{ not json", File.ReadAllText(store.BackupPath));
         }
         finally
         {

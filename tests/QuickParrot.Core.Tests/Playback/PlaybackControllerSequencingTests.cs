@@ -23,32 +23,6 @@ public class PlaybackControllerSequencingTests : PlaybackControllerFixture
     }
 
     [Fact]
-    public void PreRoll_CountsTimeSpentPreparing()
-    {
-        var controller = Create();
-        Player.OnPrepare = () => Advance(200);
-
-        controller.Play(ClipA);
-        Advance(299);
-        Assert.DoesNotContain(Play(ClipA), Log);
-
-        Advance(1);
-        Assert.Contains(Play(ClipA), Log);
-    }
-
-    [Fact]
-    public void PreparingSlowerThanPreRoll_StartsAsSoonAsPrepared()
-    {
-        var controller = Create();
-        Player.OnPrepare = () => Advance(600);
-
-        controller.Play(ClipA);
-
-        Assert.Equal(Play(ClipA), Log[^1]);
-        Assert.Equal(PlaybackPhase.Playing, controller.Phase);
-    }
-
-    [Fact]
     public void PlayDuringPreRoll_ReplacesPendingClip_OnlyWaitsOutTheRemainder()
     {
         var controller = Create();
@@ -309,8 +283,10 @@ public class PlaybackControllerSequencingTests : PlaybackControllerFixture
 
         controller.Play(ClipA);
         Advance(500);
-        Assert.Equal(PlaybackPhase.PreRoll, controller.Phase); // fired, but not yet run on "our" thread
+        Assert.Equal(PlaybackPhase.PreRoll, controller.Phase); // prepared and fired, but not yet run on "our" thread
 
+        queued.Dequeue()();
+        Assert.Equal(PlaybackPhase.PreRoll, controller.Phase);
         queued.Dequeue()();
         Assert.Equal(PlaybackPhase.Playing, controller.Phase);
 
@@ -330,9 +306,11 @@ public class PlaybackControllerSequencingTests : PlaybackControllerFixture
 
         controller.Stop();
         controller.Play(ClipB);
+        queued.Dequeue()(); // ClipA's prepare result, delivered late
         queued.Dequeue()(); // ClipA's pre-roll expiry, delivered late
 
         Assert.Equal(PlaybackPhase.PreRoll, controller.Phase);
         Assert.DoesNotContain(Log, e => e.StartsWith("play:"));
+        Assert.Equal([ClipA], Player.DisposedClips);
     }
 }

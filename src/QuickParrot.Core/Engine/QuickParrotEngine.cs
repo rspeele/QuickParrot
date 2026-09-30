@@ -82,7 +82,10 @@ public sealed class QuickParrotEngine : IDisposable
         CommitSettings(updated);
     });
 
-    /// <summary>Completes once everything queued before this call has run.</summary>
+    /// <summary>
+    /// Completes once everything queued before this call has run. Work those items queue in turn (like a
+    /// finished prepare) may still be pending.
+    /// </summary>
     public Task FlushAsync()
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -219,7 +222,13 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void Shutdown()
     {
-        _controller.Dispose();
-        SaveNow();
+        try
+        {
+            _controller.Dispose();
+        }
+        finally
+        {
+            SaveNow();
+        }
     }
 }
