@@ -120,3 +120,25 @@ Everything runs in one process:
 * A low-level keyboard hook reads the chord and number keys, on its own thread.
 * The chord navigation logic is a pure, unit-tested state machine with no Windows dependencies.
 * If your game runs as administrator, QuickParrot must too, or Windows blocks its hotkeys and simulated push-to-talk.
+
+# Future ideas
+
+## Mouse gesture navigation
+
+A third small-folder layout, alongside list and ring, that lets you pick clips without moving your hand off WASD+mouse.
+It's modelled on Autodesk-style "marking menus":
+
+* Hold the chord key: the ring appears with a virtual cursor in a small dead zone at its center. Mouse movement is
+  swallowed while the chord is held, so the camera doesn't turn. Clicks still pass through.
+* Moving out of the dead zone highlights the item in that direction.
+* Crossing a folder's outer edge enters it, and its ring re-centers at the cursor. So one zigzag stroke ("up, then
+  right") navigates into a folder and picks a clip within it. A reserved direction (e.g. straight down) goes back up.
+* Releasing the chord key over a file plays it. Releasing back in the current ring's dead zone cancels. A bare tap
+  (never leaving the first dead zone) still stops the playing clip. Shift+release could persist the folder like
+  Shift+number does.
+* Keyboard digits keep working in the same chord session.
+
+Limits: 8 directions per ring (7 in subfolders, with one reserved for "back"), and accuracy drops past two levels deep,
+so it suits a small curated set of favourites rather than a big library. Expert use becomes a single memorized flick,
+no overlay-reading required. The low-level mouse hook would only be installed while the chord key is held, so it costs
+nothing the rest of the time.
