@@ -14,10 +14,12 @@ internal sealed class OverlayWindow : NativeWindow
         WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
 
     private readonly Action<int> _onAppMessage;
+    private readonly Action<Exception> _onError;
 
-    public OverlayWindow(Action<int> onAppMessage)
+    public OverlayWindow(Action<int> onAppMessage, Action<Exception> onError)
     {
         _onAppMessage = onAppMessage;
+        _onError = onError;
         CreateHandle(new CreateParams
         {
             Caption = "QuickParrot overlay",
@@ -50,7 +52,20 @@ internal sealed class OverlayWindow : NativeWindow
         IsShown = false;
     }
 
+    // Nothing may escape: WinForms would otherwise show its focus-stealing exception dialog, or crash.
     protected override void WndProc(ref Message m)
+    {
+        try
+        {
+            HandleMessage(ref m);
+        }
+        catch (Exception e)
+        {
+            _onError(e);
+        }
+    }
+
+    private void HandleMessage(ref Message m)
     {
         switch (m.Msg)
         {

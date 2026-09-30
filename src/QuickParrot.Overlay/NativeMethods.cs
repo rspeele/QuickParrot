@@ -128,14 +128,14 @@ internal static partial class NativeMethods
     [LibraryImport("shcore.dll")]
     public static partial int GetDpiForMonitor(nint monitor, int type, out uint dpiX, out uint dpiY);
 
-    [LibraryImport("gdi32.dll")]
+    [LibraryImport("gdi32.dll", SetLastError = true)]
     public static partial nint CreateCompatibleDC(nint hdc);
 
     [LibraryImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DeleteDC(nint hdc);
 
-    [LibraryImport("gdi32.dll")]
+    [LibraryImport("gdi32.dll", SetLastError = true)]
     public static partial nint CreateDIBSection(nint hdc, in BITMAPINFOHEADER info, uint usage, out nint bits, nint section, uint offset);
 
     [LibraryImport("gdi32.dll")]

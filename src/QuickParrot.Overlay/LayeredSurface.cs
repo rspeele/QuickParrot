@@ -30,11 +30,14 @@ internal sealed class LayeredSurface : IDisposable
         };
 
         _dc = CreateCompatibleDC(0);
-        _bitmap = CreateDIBSection(_dc, header, DIB_RGB_COLORS, out _bits, 0, 0);
+        if (_dc != 0)
+            _bitmap = CreateDIBSection(_dc, header, DIB_RGB_COLORS, out _bits, 0, 0);
+
         if (_dc == 0 || _bitmap == 0)
         {
+            var error = Marshal.GetLastPInvokeError();
             Dispose();
-            throw new Win32Exception("Couldn't create the overlay surface.");
+            throw new Win32Exception(error, "Couldn't create the overlay surface.");
         }
 
         _previous = SelectObject(_dc, _bitmap);

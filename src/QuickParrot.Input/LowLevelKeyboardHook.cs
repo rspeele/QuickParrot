@@ -15,6 +15,10 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 {
     private const string WindowClassName = "QuickParrot.KeyboardHook";
     private const uint WM_RUN_COMMANDS = WM_APP + 1;
+    private const nuint WatchdogTimerId = 1;
+    private const uint WatchdogIntervalMs = 5000;
+
+    private static readonly uint s_processId = (uint)Environment.ProcessId;
 
     [ThreadStatic]
     private static LowLevelKeyboardHook? t_current;
@@ -31,8 +35,11 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     private bool _enabled = true;
 
     // Hook thread only.
+    private nint _module;
     private nint _hook;
     private nint _window;
+    private nint _foregroundEvents;
+    private nint _desktopEvents;
     private TaskCompletionSource<ScanKey?>? _capture;
 
     private long _keyEventsSeen;
@@ -142,7 +149,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     public void Reset()
     {
         lock (_lock)
-            Execute(() => Emit(_filter.Reset()));
+            Execute(ResetFilter);
     }
 
     /// <summary>
@@ -210,13 +217,21 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         try
         {
             _threadId = GetCurrentThreadId();
-            var module = GetModuleHandleW(null);
-            _window = CreateMessageWindow(module);
+            _module = GetModuleHandleW(null);
+            _window = CreateMessageWindow(_module);
             WTSRegisterSessionNotification(_window, NOTIFY_FOR_THIS_SESSION);
 
-            _hook = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, module, 0);
+            _hook = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, _module, 0);
             if (_hook == 0)
                 throw new Win32Exception(Marshal.GetLastPInvokeError(), "Couldn't install the keyboard hook.");
+
+            // Best effort: without these a lost chord-key up, or a dead hook, goes unnoticed as before.
+            _foregroundEvents = SetWinEventHook(
+                EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+            _desktopEvents = SetWinEventHook(
+                EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+            SetTimer(_window, WatchdogTimerId, WatchdogIntervalMs, 0);
+            ResetFilter(); // picks up a chord key held down since before the hook existed
         }
         catch (Exception e)
         {
@@ -242,6 +257,12 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         if (_hook != 0)
             UnhookWindowsHookEx(_hook);
 
+        if (_foregroundEvents != 0)
+            UnhookWinEvent(_foregroundEvents);
+
+        if (_desktopEvents != 0)
+            UnhookWinEvent(_desktopEvents);
+
         if (_window != 0)
         {
             WTSUnRegisterSessionNotification(_window);
@@ -250,6 +271,8 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 
         _hook = 0;
         _window = 0;
+        _foregroundEvents = 0;
+        _desktopEvents = 0;
         RunCommands();
         Emit(_filter.Reset());
         _filter.CancelCapture();
@@ -303,7 +326,8 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
             (int)key->scanCode,
             isExtended: (flags & LLKHF_EXTENDED) != 0,
             isKeyDown: (flags & LLKHF_UP) == 0,
-            isInjected: (flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0);
+            isInjected: (flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0,
+            captureAllowed: !_filter.Capturing || OwnsForeground());
 
         Emit(result.Event);
         if (result.CaptureEnded)
@@ -315,13 +339,38 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         return result.Swallow;
     }
 
+    private static bool OwnsForeground()
+    {
+        GetWindowThreadProcessId(GetForegroundWindow(), out var processId);
+        return processId == s_processId;
+    }
+
     [UnmanagedCallersOnly]
     private static nint WndProc(nint hwnd, uint msg, nint wParam, nint lParam)
     {
-        if (msg == WM_WTSSESSION_CHANGE && t_current is { } hook)
-            hook.OnSessionChange((int)wParam);
+        if (t_current is { } hook)
+        {
+            if (msg == WM_WTSSESSION_CHANGE)
+                hook.OnSessionChange((int)wParam);
+            else if (msg == WM_TIMER && (nuint)wParam == WatchdogTimerId)
+                hook.OnWatchdogTick();
+        }
 
         return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+
+    // Key-ups are lost if they go to a more-elevated window, and always on the secure desktop (UAC).
+    [UnmanagedCallersOnly]
+    private static void WinEventProc(
+        nint hook, uint eventType, nint hwnd, int idObject, int idChild, uint eventThread, uint eventTime)
+    {
+        if (t_current is not { } current)
+            return;
+
+        if (eventType == EVENT_SYSTEM_DESKTOPSWITCH)
+            current.ResetFilter();
+        else
+            current.Emit(current._filter.ResetIfChordActive(current.IsChordKeyDown()));
     }
 
     // The secure desktop swallows key-ups, so anything held across a lock or user switch is stale.
@@ -330,8 +379,34 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         if (reason is WTS_SESSION_LOCK or WTS_SESSION_UNLOCK or WTS_CONSOLE_CONNECT or WTS_CONSOLE_DISCONNECT
             or WTS_REMOTE_CONNECT or WTS_REMOTE_DISCONNECT)
         {
-            Emit(_filter.Reset());
+            ResetFilter();
         }
+    }
+
+    // Windows silently removes a hook that times out (GC pause, heavy load), even mid-chord. A fresh one goes
+    // in before the old comes out, so no key slips past.
+    private void OnWatchdogTick()
+    {
+        var fresh = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, _module, 0);
+        if (fresh == 0)
+            return;
+
+        var oldWasAlive = UnhookWindowsHookEx(_hook);
+        _hook = fresh;
+        if (!oldWasAlive)
+            ResetFilter(); // keys went unseen while it was gone
+    }
+
+    private void ResetFilter() => Emit(_filter.Reset(IsChordKeyDown()));
+
+    // The async key state never sees presses the hook hid, so this tells whether other apps saw it go down.
+    private bool IsChordKeyDown()
+    {
+        var key = _filter.ChordKey;
+        var layout = GetKeyboardLayout(GetWindowThreadProcessId(GetForegroundWindow(), out _));
+        var scanCode = (uint)(key.IsExtended ? 0xE000 | key.ScanCode : key.ScanCode);
+        var vk = MapVirtualKeyExW(scanCode, MAPVK_VSC_TO_VK_EX, layout);
+        return vk != 0 && GetAsyncKeyState((int)vk) < 0;
     }
 
     // An exception escaping into the native hook chain would take down the process.

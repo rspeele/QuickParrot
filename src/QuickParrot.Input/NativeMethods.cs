@@ -13,6 +13,7 @@ internal static unsafe partial class NativeMethods
     public const uint LLKHF_UP = 0x80;
 
     public const uint WM_QUIT = 0x0012;
+    public const uint WM_TIMER = 0x0113;
     public const uint WM_WTSSESSION_CHANGE = 0x02B1;
     public const uint WM_APP = 0x8000;
 
@@ -25,6 +26,12 @@ internal static unsafe partial class NativeMethods
     public const uint NOTIFY_FOR_THIS_SESSION = 0;
 
     public const int ERROR_CLASS_ALREADY_EXISTS = 1410;
+
+    public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    public const uint EVENT_SYSTEM_DESKTOPSWITCH = 0x0020;
+    public const uint WINEVENT_OUTOFCONTEXT = 0;
+
+    public const uint MAPVK_VSC_TO_VK_EX = 3;
 
     public static readonly nint HWND_MESSAGE = -3;
 
@@ -75,6 +82,34 @@ internal static unsafe partial class NativeMethods
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool UnhookWindowsHookEx(nint hhk);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint SetWinEventHook(
+        uint eventMin, uint eventMax, nint hmodWinEventProc,
+        delegate* unmanaged<nint, uint, nint, int, int, uint, uint, void> pfnWinEventProc,
+        uint idProcess, uint idThread, uint dwFlags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnhookWinEvent(nint hWinEventHook);
+
+    [LibraryImport("user32.dll")]
+    public static partial nuint SetTimer(nint hWnd, nuint nIDEvent, uint uElapse, nint lpTimerFunc);
+
+    [LibraryImport("user32.dll")]
+    public static partial short GetAsyncKeyState(int vKey);
+
+    [LibraryImport("user32.dll")]
+    public static partial uint MapVirtualKeyExW(uint uCode, uint uMapType, nint dwhkl);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetKeyboardLayout(uint idThread);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
 
     [LibraryImport("user32.dll")]
     public static partial nint CallNextHookEx(nint hhk, int nCode, nint wParam, nint lParam);

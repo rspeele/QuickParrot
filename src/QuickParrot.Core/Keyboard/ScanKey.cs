@@ -42,11 +42,16 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
     }
 
     /// <summary>
-    /// Whether this key can be the chord key. Digits and shift are used within the chord, and Escape cancels
-    /// key capture, so none of them can be.
+    /// Whether this key can be the chord key. Digits and shift are used within the chord, Escape cancels key
+    /// capture, and hiding Ctrl, Alt or Windows would break system shortcuts, so none of them can be.
     /// </summary>
     [JsonIgnore]
-    public bool IsValidChordKey => ScanCode is > 0 and <= 0xFF && Digit < 0 && !IsShift && this != Escape;
+    public bool IsValidChordKey =>
+        ScanCode is > 0 and <= 0xFF && Digit < 0 && !IsShift && !IsSystemModifier && this != Escape;
+
+    /// <summary>Either Ctrl, Alt or Windows key.</summary>
+    [JsonIgnore]
+    public bool IsSystemModifier => ScanCode is 0x1D or 0x38 || (IsExtended && ScanCode is 0x5B or 0x5C);
 
     public override string ToString() => ScanKeyNames.GetDisplayName(this);
 }

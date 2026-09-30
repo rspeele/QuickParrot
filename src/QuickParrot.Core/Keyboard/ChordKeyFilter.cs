@@ -41,7 +41,11 @@ public sealed class ChordKeyFilter
 
     public bool Capturing => _capturing;
 
-    public KeyFilterResult Process(int scanCode, bool isExtended, bool isKeyDown, bool isInjected)
+    /// <param name="captureAllowed">
+    /// If false, a key that would be captured instead cancels the capture and is processed normally.
+    /// </param>
+    public KeyFilterResult Process(
+        int scanCode, bool isExtended, bool isKeyDown, bool isInjected, bool captureAllowed = true)
     {
         if (isInjected)
             return KeyFilterResult.PassThrough;
@@ -63,8 +67,10 @@ public sealed class ChordKeyFilter
         if (scanCode is <= 0 or > 0xFF)
             return KeyFilterResult.PassThrough;
 
-        var slot = scanCode | (isExtended ? 0x100 : 0);
-        return isKeyDown ? KeyDown(slot, new ScanKey(scanCode, isExtended)) : KeyUp(slot, scanCode, isExtended);
+        var slot = SlotOf(scanCode, isExtended);
+        return isKeyDown
+            ? KeyDown(slot, new ScanKey(scanCode, isExtended), captureAllowed)
+            : KeyUp(slot, scanCode, isExtended);
     }
 
     /// <summary>The next fresh, non-injected key down (other than shift) is reported and hidden, with its up.</summary>
@@ -94,17 +100,26 @@ public sealed class ChordKeyFilter
     }
 
     /// <summary>
-    /// Forgets all key state, for when events may have been missed (session lock, hook reinstall).
-    /// Returns <see cref="ChordCancelled"/> if a chord was active.
+    /// Forgets key state after events may have been missed; if <paramref name="chordKeyDown"/>, other apps saw
+    /// it go down, so its repeats and up pass through. Returns <see cref="ChordCancelled"/> if a chord was active.
     /// </summary>
-    public ChordEvent? Reset()
+    public ChordEvent? Reset(bool chordKeyDown = false)
     {
         Array.Clear(_held);
         Array.Clear(_swallowed);
         _leftShift = false;
         _rightShift = false;
+        if (chordKeyDown)
+            _held[SlotOf(ChordKey.ScanCode, ChordKey.IsExtended)] = true;
+
         return EndChord();
     }
+
+    /// <summary>
+    /// <see cref="Reset"/>s only if a chord is active, for when its release may have gone missing (focus
+    /// switch); otherwise hidden keys stay hidden through their up.
+    /// </summary>
+    public ChordEvent? ResetIfChordActive(bool chordKeyDown) => _chordActive ? Reset(chordKeyDown) : null;
 
     public static void ThrowIfInvalid(ScanKey chordKey)
     {
@@ -112,20 +127,25 @@ public sealed class ChordKeyFilter
             throw new ArgumentException($"{chordKey} can't be the chord key.", nameof(chordKey));
     }
 
-    private KeyFilterResult KeyDown(int slot, ScanKey key)
+    private KeyFilterResult KeyDown(int slot, ScanKey key, bool captureAllowed)
     {
         if (_held[slot]) // auto-repeat: treat it like the original press
             return _swallowed[slot] ? KeyFilterResult.SwallowSilently : KeyFilterResult.PassThrough;
 
         _held[slot] = true;
+        if (!_capturing)
+            return FreshKeyDown(slot, key);
 
-        if (_capturing)
-        {
-            _capturing = false;
-            _swallowed[slot] = true;
-            return KeyFilterResult.Captured(key == ScanKey.Escape ? null : key);
-        }
+        _capturing = false;
+        if (!captureAllowed)
+            return FreshKeyDown(slot, key) with { CaptureEnded = true };
 
+        _swallowed[slot] = true;
+        return KeyFilterResult.Captured(key == ScanKey.Escape ? null : key);
+    }
+
+    private KeyFilterResult FreshKeyDown(int slot, ScanKey key)
+    {
         if (!Enabled)
             return KeyFilterResult.PassThrough;
 
@@ -170,6 +190,8 @@ public sealed class ChordKeyFilter
         _chordActive = false;
         return Cancelled;
     }
+
+    private static int SlotOf(int scanCode, bool isExtended) => scanCode | (isExtended ? 0x100 : 0);
 
     private static ChordEvent[] BuildDigitEvents(bool shift) =>
         Enumerable.Range(0, 10).Select(ChordEvent (d) => new DigitPressed(d, shift)).ToArray();

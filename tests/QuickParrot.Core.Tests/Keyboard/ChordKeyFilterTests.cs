@@ -17,8 +17,8 @@ public class ChordKeyFilterTests
 
     private readonly ChordKeyFilter _filter = new(B);
 
-    private KeyFilterResult Down(ScanKey key, bool injected = false) =>
-        _filter.Process(key.ScanCode, key.IsExtended, isKeyDown: true, injected);
+    private KeyFilterResult Down(ScanKey key, bool injected = false, bool captureAllowed = true) =>
+        _filter.Process(key.ScanCode, key.IsExtended, isKeyDown: true, injected, captureAllowed);
 
     private KeyFilterResult Up(ScanKey key, bool injected = false) =>
         _filter.Process(key.ScanCode, key.IsExtended, isKeyDown: false, injected);
@@ -316,6 +316,65 @@ public class ChordKeyFilterTests
     }
 
     [Fact]
+    public void Reset_WithChordKeyAlreadyDown_LetsItsRepeatsAndUpThrough()
+    {
+        Assert.Null(_filter.Reset(chordKeyDown: true));
+
+        AssertPassed(Down(B)); // auto-repeat of a press other apps already saw
+        AssertPassed(Down(B));
+        AssertPassed(Up(B));
+        Assert.False(_filter.ChordActive);
+        AssertSwallowed(Down(B), new ChordPressed());
+    }
+
+    [Fact]
+    public void Reset_WithExtendedChordKeyDown_MarksTheExtendedKey()
+    {
+        var numpadEnter = new ScanKey(0x1C, true);
+        var filter = new ChordKeyFilter(numpadEnter);
+
+        filter.Reset(chordKeyDown: true);
+
+        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(0x1C, true, isKeyDown: true, isInjected: false));
+        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(0x1C, true, isKeyDown: false, isInjected: false));
+    }
+
+    [Fact]
+    public void Reset_MidChord_WithChordKeyDown_CancelsAndReleasesOwnership()
+    {
+        Down(B);
+
+        Assert.Equal(new ChordCancelled(), _filter.Reset(chordKeyDown: true));
+        AssertPassed(Down(B));
+        AssertPassed(Up(B));
+    }
+
+    [Fact]
+    public void ResetIfChordActive_MidChord_Cancels()
+    {
+        Down(B);
+        Down(One);
+
+        Assert.Equal(new ChordCancelled(), _filter.ResetIfChordActive(chordKeyDown: false));
+        Assert.False(_filter.ChordActive);
+        AssertPassed(Up(One));
+        AssertSwallowed(Down(B), new ChordPressed()); // repeat of an owned press that other apps never saw
+    }
+
+    [Fact]
+    public void ResetIfChordActive_WhenIdle_KeepsHiddenKeysHidden()
+    {
+        Down(B);
+        Down(One);
+        Up(B);
+
+        Assert.Null(_filter.ResetIfChordActive(chordKeyDown: true));
+        AssertSwallowed(Down(One));
+        AssertSwallowed(Up(One));
+        AssertSwallowed(Down(B), new ChordPressed());
+    }
+
+    [Fact]
     public void Disabled_PassesEverythingThrough()
     {
         Assert.Null(_filter.SetEnabled(false));
@@ -368,6 +427,12 @@ public class ChordKeyFilterTests
     [InlineData(0x36, false)]
     [InlineData(0x2A, true)]
     [InlineData(0x01, false)]
+    [InlineData(0x1D, false)] // Left Ctrl
+    [InlineData(0x1D, true)] // Right Ctrl
+    [InlineData(0x38, false)] // Left Alt
+    [InlineData(0x38, true)] // Right Alt
+    [InlineData(0x5B, true)] // Left Windows
+    [InlineData(0x5C, true)] // Right Windows
     [InlineData(0, false)]
     [InlineData(0x100, false)]
     public void InvalidChordKeys_AreRejected(int scanCode, bool extended)
@@ -387,6 +452,7 @@ public class ChordKeyFilterTests
     [InlineData(0x52, true)] // Insert
     [InlineData(0x29, false)]
     [InlineData(0x3A, false)]
+    [InlineData(0x5D, true)] // Menu
     public void ValidChordKeys_AreAccepted(int scanCode, bool extended)
     {
         Assert.True(new ScanKey(scanCode, extended).IsValidChordKey);
@@ -446,6 +512,39 @@ public class ChordKeyFilterTests
         _filter.BeginCapture();
         _filter.CancelCapture();
         AssertPassed(Down(Two));
+    }
+
+    [Fact]
+    public void Capture_NotAllowed_CancelsAndProcessesTheKeyNormally()
+    {
+        _filter.BeginCapture();
+
+        var result = Down(V, captureAllowed: false);
+
+        Assert.Equal(new KeyFilterResult(false, null, CaptureEnded: true), result);
+        Assert.False(_filter.Capturing);
+        AssertPassed(Up(V));
+    }
+
+    [Fact]
+    public void Capture_NotAllowed_ChordKeyStillChords()
+    {
+        _filter.BeginCapture();
+
+        Assert.Equal(new KeyFilterResult(true, new ChordPressed(), CaptureEnded: true), Down(B, captureAllowed: false));
+        AssertSwallowed(Up(B), new ChordReleased());
+    }
+
+    [Fact]
+    public void Capture_NotAllowed_OnlyAffectsCandidateKeys()
+    {
+        Down(V);
+        _filter.BeginCapture();
+
+        AssertPassed(Down(ScanKey.LeftShift, captureAllowed: false));
+        AssertPassed(Down(Minus, injected: true, captureAllowed: false));
+        AssertPassed(Down(V, captureAllowed: false)); // auto-repeat
+        Assert.True(_filter.Capturing);
     }
 
     [Fact]

@@ -76,11 +76,13 @@ public sealed class OverlayHost : IDisposable
     {
         try
         {
+            // Never let WinForms show its exception dialog, which would steal focus from the game.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException, threadScope: true);
             // Makes this thread per-monitor-v2 aware even if the process manifest isn't.
             SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
             _renderer = new OverlayRenderer();
             WarmUp(_renderer);
-            _window = new OverlayWindow(OnAppMessage);
+            _window = new OverlayWindow(OnAppMessage, OnWindowError);
             _hwnd = _window.Handle;
         }
         catch (Exception e)
@@ -96,12 +98,54 @@ public sealed class OverlayHost : IDisposable
         if (_startupError is not null)
             return;
 
-        Application.Run();
+        try
+        {
+            Application.Run();
+        }
+        catch (Exception e)
+        {
+            ReportError($"The overlay stopped working: {e.Message}");
+        }
 
-        _window?.Hide();
-        _window?.DestroyHandle();
-        _surface?.Dispose();
-        _renderer?.Dispose();
+        _hwnd = 0;
+        try
+        {
+            _window?.Hide();
+            _window?.DestroyHandle();
+            _surface?.Dispose();
+            _renderer?.Dispose();
+        }
+        catch
+        {
+            // Teardown is best effort; throwing here would crash the process.
+        }
+    }
+
+    private void OnWindowError(Exception e)
+    {
+        try
+        {
+            Hide();
+        }
+        catch
+        {
+            // Already reporting a failure; the next draw will try again.
+        }
+
+        _drawn = null;
+        ReportError($"Overlay error: {e.Message}");
+    }
+
+    private void ReportError(string message)
+    {
+        try
+        {
+            ErrorOccurred?.Invoke(message);
+        }
+        catch
+        {
+            // A broken handler mustn't take the overlay thread down with it.
+        }
     }
 
     private void OnAppMessage(int message)
@@ -127,7 +171,7 @@ public sealed class OverlayHost : IDisposable
         catch (Exception e)
         {
             Hide();
-            ErrorOccurred?.Invoke($"Couldn't draw the overlay: {e.Message}");
+            ReportError($"Couldn't draw the overlay: {e.Message}");
         }
     }
 
