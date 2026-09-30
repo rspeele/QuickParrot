@@ -134,6 +134,36 @@ public sealed class QuickParrotEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ChordSession_RaisesViewStateChangedOnWorker()
+    {
+        _library.AddFile("", "wall.wav");
+        var states = new List<OverlayViewState?>();
+        _engine.ViewStateChanged += s => { lock (states) states.Add(s); };
+
+        _engine.Post(new ChordPressed());
+        _engine.Post(new ChordReleased());
+        await _engine.FlushAsync();
+
+        Assert.Equal(2, states.Count);
+        Assert.Equal("wall.wav", Assert.Single(states[0]!.WheelEntries).Name);
+        Assert.Null(states[1]);
+    }
+
+    [Fact]
+    public async Task EventsThatDontChangeViewState_DontRaiseViewStateChanged()
+    {
+        var raised = 0;
+        _engine.ViewStateChanged += _ => Interlocked.Increment(ref raised);
+
+        _engine.Post(new DigitPressed(1, false));
+        _engine.Post(new ChordReleased());
+        _engine.Stop();
+        await _engine.FlushAsync();
+
+        Assert.Equal(0, raised);
+    }
+
+    [Fact]
     public async Task Dispose_ReleasesPushToTalkAndSavesPendingSettings()
     {
         _engine.Play("wall.wav");

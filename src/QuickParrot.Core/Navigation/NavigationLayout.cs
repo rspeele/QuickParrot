@@ -14,7 +14,9 @@ internal static class LayoutBuilder
 {
     private const int WheelMaxEntries = 9;
     private const int ColumnSize = 9;
-    private const int GridMaxEntries = 81;
+
+    /// <summary>Shared with <see cref="Library.LibraryBrowser.OverlayTruncationWarning"/> so both agree on the limit.</summary>
+    internal const int GridMaxEntries = 81;
 
     public static NavigationLayout Build(IReadOnlyList<FolderEntry> entries)
     {

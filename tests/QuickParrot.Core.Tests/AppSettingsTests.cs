@@ -1,3 +1,4 @@
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Settings;
 
 namespace QuickParrot.Core.Tests;
@@ -11,6 +12,8 @@ public class AppSettingsTests
         {
             LibraryRoot = @"C:\Sounds",
             NavigatorPersistentPath = "Movies/Arnold",
+            ChordKey = new ScanKey(0x47, true),
+            HotkeysEnabled = false,
             CableDeviceId = "{0.0.0.00000000}.{cable}",
             MonitorDeviceId = null,
             CableVolume = 0.8f,
@@ -34,6 +37,8 @@ public class AppSettingsTests
 
         Assert.Equal(@"C:\Sounds", settings.LibraryRoot);
         Assert.Equal("", settings.NavigatorPersistentPath);
+        Assert.Equal(ScanKey.DefaultChordKey, settings.ChordKey);
+        Assert.True(settings.HotkeysEnabled);
         Assert.Equal(1f, settings.CableVolume);
         Assert.Equal(500, settings.PreRollMilliseconds);
         Assert.Equal(500, settings.PostRollMilliseconds);
@@ -66,6 +71,31 @@ public class AppSettingsTests
         Assert.Equal(0, settings.PreRollMilliseconds);
         Assert.Equal(AppSettings.MaxMarginMilliseconds, settings.PostRollMilliseconds);
         Assert.Equal("", settings.NavigatorPersistentPath);
+    }
+
+    [Fact]
+    public void ChordKey_IsStoredAsScanCodeAndExtendedFlag()
+    {
+        var json = JsonSettingsStore.Serialize(new AppSettings { ChordKey = new ScanKey(0x0C, false) });
+
+        Assert.Contains("\"chordKey\": {", json);
+        Assert.Contains("\"scanCode\": 12", json);
+        Assert.DoesNotContain("digit", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(new ScanKey(0x0C, false), JsonSettingsStore.Deserialize("""{ "chordKey": { "scanCode": 12 } }""").ChordKey);
+    }
+
+    [Theory]
+    [InlineData("""{ "scanCode": 2, "isExtended": false }""")] // the 1 key
+    [InlineData("""{ "scanCode": 42, "isExtended": false }""")] // left shift
+    [InlineData("""{ "scanCode": 0 }""")]
+    [InlineData("""{ "scanCode": 99999 }""")]
+    [InlineData("""{ }""")]
+    public void InvalidChordKey_FallsBackToDefault(string chordKeyJson)
+    {
+        var settings = JsonSettingsStore.Deserialize($$"""{ "libraryRoot": "C:\\Sounds", "chordKey": {{chordKeyJson}} }""");
+
+        Assert.Equal(ScanKey.DefaultChordKey, settings.ChordKey);
+        Assert.Equal(@"C:\Sounds", settings.LibraryRoot);
     }
 
     [Fact]

@@ -1,7 +1,11 @@
 <Window x:Class="QuickParrot.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="QuickParrot" Height="560" Width="720" MinWidth="480" MinHeight="360">
+        Title="QuickParrot" Height="560" Width="720" MinWidth="480" MinHeight="360"
+        Closing="MainWindow_Closing" Deactivated="MainWindow_Deactivated">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
     <DockPanel Margin="8">
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
             <Button DockPanel.Dock="Left" Content="Choose library…" Padding="8,2" Click="ChooseLibrary_Click" />
@@ -39,6 +43,14 @@
             <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding DeviceStatus}" TextWrapping="Wrap" Foreground="Gray" />
         </Grid>
 
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <TextBlock DockPanel.Dock="Left" Text="Chord key:" VerticalAlignment="Center" />
+            <TextBlock DockPanel.Dock="Left" Text="{Binding ChordKeyDisplay}" Margin="4,0,12,0"
+                       VerticalAlignment="Center" FontWeight="Bold" />
+            <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Margin="0,0,16,0" Click="ChangeChordKey_Click" />
+            <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding HotkeysEnabled}" />
+        </DockPanel>
+
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
 
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
@@ -46,6 +58,9 @@
             <Button DockPanel.Dock="Right" Content="Stop" Padding="12,2" Click="Stop_Click" />
             <TextBlock Text="{Binding CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
         </DockPanel>
+
+        <TextBlock DockPanel.Dock="Top" Text="{Binding LibraryWarning}" Margin="0,0,0,4" TextWrapping="Wrap"
+                   Foreground="OrangeRed" Visibility="{Binding HasLibraryWarning, Converter={StaticResource BoolToVisibility}}" />
 
         <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
                  MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown" />

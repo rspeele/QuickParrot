@@ -67,4 +67,28 @@ public class LibraryBrowserTests
         Assert.Equal(movies, browser.CurrentPath);
         Assert.Empty(browser.Entries);
     }
+
+    [Fact]
+    public void OverlayTruncationWarning_SetWhenMoreThan81Entries()
+    {
+        var source = new FakeFolderSource();
+        for (var i = 0; i < 85; i++)
+            source.AddFile("", $"clip{i}.wav");
+        var browser = new LibraryBrowser(source);
+
+        Assert.Equal(
+            "This folder has 85 entries; the overlay only shows the first 81. Consider subfolders.",
+            browser.OverlayTruncationWarning);
+    }
+
+    [Fact]
+    public void OverlayTruncationWarning_NullAt81OrFewerEntries()
+    {
+        var source = new FakeFolderSource();
+        for (var i = 0; i < 81; i++)
+            source.AddFile("", $"clip{i}.wav");
+        var browser = new LibraryBrowser(source);
+
+        Assert.Null(browser.OverlayTruncationWarning);
+    }
 }

@@ -1,3 +1,4 @@
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Settings;
@@ -9,6 +10,10 @@ public sealed record AppSettings
     public string? LibraryRoot { get; init; }
 
     public string NavigatorPersistentPath { get; init; } = "";
+
+    public ScanKey ChordKey { get; init; } = ScanKey.DefaultChordKey;
+
+    public bool HotkeysEnabled { get; init; } = true;
 
     /// <summary>Null auto-detects the virtual cable.</summary>
     public string? CableDeviceId { get; init; }
@@ -43,6 +48,7 @@ public sealed record AppSettings
     public AppSettings Sanitized() => this with
     {
         NavigatorPersistentPath = NavigatorPersistentPath ?? "",
+        ChordKey = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey,
         CableVolume = ClampVolume(CableVolume),
         MonitorVolume = ClampVolume(MonitorVolume),
         PreRollMilliseconds = Math.Clamp(PreRollMilliseconds, 0, MaxMarginMilliseconds),

@@ -45,6 +45,7 @@ public sealed class ChordNavigator
     {
         ChordPressed => HandleChordPressed(),
         ChordReleased => HandleChordReleased(),
+        ChordCancelled => HandleChordCancelled(),
         DigitPressed d => HandleDigit(d.Digit, d.Shift),
         _ => NoActions,
     };
@@ -70,6 +71,13 @@ public sealed class ChordNavigator
 
         var bareTap = !session.AnyDigitPressed && !session.Spent;
         return bareTap ? [new StopPlayback()] : NoActions;
+    }
+
+    private IReadOnlyList<NavigationAction> HandleChordCancelled()
+    {
+        _session = null;
+        _viewState = null;
+        return NoActions;
     }
 
     private IReadOnlyList<NavigationAction> HandleDigit(int digit, bool shift)

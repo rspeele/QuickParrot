@@ -37,4 +37,12 @@ public partial class MainWindow : Window
         else if (e.Key == Key.Back)
             _viewModel.GoUp();
     }
+
+    private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangeChordKeyAsync();
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) =>
+        _viewModel.CancelChordKeyCapture();
+
+    // Otherwise a capture left armed would eat the next key pressed in the game and rebind the chord to it.
+    private void MainWindow_Deactivated(object? sender, EventArgs e) => _viewModel.CancelChordKeyCapture();
 }

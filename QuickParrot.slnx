@@ -3,8 +3,11 @@
     <Project Path="src/QuickParrot.App/QuickParrot.App.csproj" />
     <Project Path="src/QuickParrot.Audio/QuickParrot.Audio.csproj" />
     <Project Path="src/QuickParrot.Core/QuickParrot.Core.csproj" />
+    <Project Path="src/QuickParrot.Input/QuickParrot.Input.csproj" />
+    <Project Path="src/QuickParrot.Overlay/QuickParrot.Overlay.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/QuickParrot.Core.Tests/QuickParrot.Core.Tests.csproj" />
+    <Project Path="tests/QuickParrot.Overlay.Tests/QuickParrot.Overlay.Tests.csproj" />
   </Folder>
 </Solution>

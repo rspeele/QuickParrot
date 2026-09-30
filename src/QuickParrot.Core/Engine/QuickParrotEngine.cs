@@ -26,6 +26,7 @@ public sealed class QuickParrotEngine : IDisposable
     private volatile ChordNavigator? _navigator;
     private IFolderSource? _library;
     private ITimer? _saveTimer;
+    private OverlayViewState? _publishedViewState;
     private bool _started;
 
     public QuickParrotEngine(
@@ -52,6 +53,9 @@ public sealed class QuickParrotEngine : IDisposable
 
     /// <summary>Raised on the worker thread after any settings change, including navigator persistence.</summary>
     public event Action<AppSettings>? SettingsChanged;
+
+    /// <summary>Raised on the worker thread whenever <see cref="ViewState"/> changes (null = hide the overlay).</summary>
+    public event Action<OverlayViewState?>? ViewStateChanged;
 
     public AppSettings Settings => _settings;
 
@@ -136,6 +140,25 @@ public sealed class QuickParrotEngine : IDisposable
             {
                 ErrorOccurred?.Invoke($"Unexpected error: {e.Message}");
             }
+
+            PublishViewState();
+        }
+    }
+
+    private void PublishViewState()
+    {
+        var current = ViewState;
+        if (ReferenceEquals(current, _publishedViewState))
+            return;
+
+        _publishedViewState = current;
+        try
+        {
+            ViewStateChanged?.Invoke(current);
+        }
+        catch (Exception e)
+        {
+            ErrorOccurred?.Invoke($"Unexpected error: {e.Message}");
         }
     }
 

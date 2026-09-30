@@ -1,0 +1,208 @@
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using QuickParrot.Core.Navigation;
+
+namespace QuickParrot.Overlay;
+
+/// <summary>
+/// Draws an <see cref="OverlayLayout"/> with GDI+. Grayscale antialiasing only: ClearType needs an opaque
+/// background, and this is drawn onto transparency. Expects a cleared, transparent PArgb target. Not thread-safe.
+/// </summary>
+public sealed class OverlayRenderer : IDisposable
+{
+    private static readonly Color Accent = Color.FromArgb(67, 224, 160);
+    private static readonly Color FolderColor = Color.FromArgb(246, 196, 83);
+    private static readonly Color TextColor = Color.FromArgb(244, 246, 250);
+    private static readonly Color MutedText = Color.FromArgb(170, 178, 192);
+    private static readonly Color PanelFill = Color.FromArgb(240, 14, 16, 22);
+    private static readonly Color PanelBorder = Color.FromArgb(46, 255, 255, 255);
+    private static readonly Color PillFill = Color.FromArgb(240, 16, 18, 24);
+    private static readonly Color CellFill = Color.FromArgb(160, 40, 44, 54);
+    private static readonly Color HighlightFill = Color.FromArgb(46, 67, 224, 160);
+    private const int DimmedAlpha = 105;
+    private const string TextFamily = "Segoe UI Semibold";
+    private const string NumberFamily = "Segoe UI";
+
+    private readonly Dictionary<(string Family, float Px, FontStyle Style), Font> _fonts = [];
+    private readonly StringFormat[] _formats =
+        [MakeFormat(StringAlignment.Near), MakeFormat(StringAlignment.Center), MakeFormat(StringAlignment.Far)];
+
+    public void Draw(Graphics g, OverlayLayout layout)
+    {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+
+        // The first panel lands on bare transparency, so copying instead of blending halves its cost.
+        for (var i = 0; i < layout.Panels.Count; i++)
+            DrawPanel(g, layout.Panels[i], layout.Scale, copyFill: i == 0);
+
+        foreach (var header in layout.Headers)
+        {
+            var color = header.Dimmed ? Fade(MutedText) : Accent;
+            DrawText(g, header.Number.ToString(), header.Bounds, Font(NumberFamily, header.FontPx, FontStyle.Bold), color, OverlayTextAlign.Center);
+        }
+
+        foreach (var item in layout.Items)
+            DrawItem(g, item, layout);
+
+        DrawLabel(g, layout.Title, TextColor);
+        DrawLabel(g, layout.Subtitle, MutedText);
+        DrawHint(g, layout.Hint, layout.Scale);
+        DrawLabel(g, layout.Note, MutedText);
+    }
+
+    public void Dispose()
+    {
+        foreach (var font in _fonts.Values)
+            font.Dispose();
+
+        _fonts.Clear();
+        foreach (var format in _formats)
+            format.Dispose();
+    }
+
+    private static void DrawPanel(Graphics g, OverlayPanel panel, float scale, bool copyFill)
+    {
+        var highlighted = panel.Style == OverlayPanelStyle.HighlightedColumn;
+        using var path = RoundedRect(panel.Bounds, panel.CornerRadius);
+        using var fill = new SolidBrush(highlighted ? HighlightFill : PanelFill);
+        using var border = new Pen(highlighted ? Accent : PanelBorder, (highlighted ? 1.5f : 1f) * scale);
+        g.CompositingMode = copyFill ? CompositingMode.SourceCopy : CompositingMode.SourceOver;
+        g.FillPath(fill, path);
+        g.CompositingMode = CompositingMode.SourceOver;
+        g.DrawPath(border, path);
+    }
+
+    private void DrawItem(Graphics g, OverlayItem item, OverlayLayout layout)
+    {
+        var wheel = layout.Kind == OverlayLayoutKind.Wheel;
+        var fillColor = wheel ? PillFill : CellFill;
+        using (var path = RoundedRect(item.Bounds, item.CornerRadius))
+        {
+            using var fill = new SolidBrush(item.Dimmed ? Color.FromArgb(fillColor.A / 2, fillColor) : fillColor);
+            g.FillPath(fill, path);
+            if (wheel)
+            {
+                using var border = new Pen(item.IsFolder ? Color.FromArgb(90, FolderColor) : PanelBorder, layout.Scale);
+                g.DrawPath(border, path);
+            }
+        }
+
+        if (!item.NumberBounds.IsEmpty)
+        {
+            using var badge = RoundedRect(item.NumberBounds, wheel ? item.NumberBounds.Height / 2 : item.CornerRadius - 2);
+            using var badgeFill = new SolidBrush(Color.FromArgb(48, Accent));
+            g.FillPath(badgeFill, badge);
+            DrawText(g, item.Number.ToString(), item.NumberBounds, Font(NumberFamily, item.NumberFontPx, FontStyle.Bold), Accent, OverlayTextAlign.Center);
+        }
+
+        if (!item.IconBounds.IsEmpty)
+            DrawFolderGlyph(g, item.IconBounds, item.Dimmed ? Fade(FolderColor) : FolderColor);
+
+        var nameColor = item.Dimmed ? Fade(TextColor) : TextColor;
+        DrawText(g, item.Name, item.NameBounds, Font(TextFamily, item.NameFontPx, FontStyle.Regular), nameColor, OverlayTextAlign.Near);
+    }
+
+    private static void DrawFolderGlyph(Graphics g, RectangleF r, Color color)
+    {
+        var radius = r.Height * 0.14f;
+        using var brush = new SolidBrush(color);
+        using var tab = RoundedRect(new RectangleF(r.X, r.Y, r.Width * 0.45f, r.Height * 0.4f), radius);
+        using var body = RoundedRect(new RectangleF(r.X, r.Y + r.Height * 0.2f, r.Width, r.Height * 0.8f), radius);
+        g.FillPath(brush, tab);
+        g.FillPath(brush, body);
+    }
+
+    private void DrawLabel(Graphics g, OverlayLabel? label, Color color)
+    {
+        if (label is null)
+            return;
+
+        var family = label.FontPx >= 20 ? TextFamily : NumberFamily;
+        DrawText(g, label.Text, label.Bounds, Font(family, label.FontPx, FontStyle.Regular), color, label.Align);
+    }
+
+    // "0 · Up" is drawn as a keycap holding "0" followed by "Up".
+    private void DrawHint(Graphics g, OverlayLabel? hint, float scale)
+    {
+        var parts = hint?.Text.Split(" · ", 2);
+        if (hint is null || parts is not [var key, var action])
+        {
+            DrawLabel(g, hint, MutedText);
+            return;
+        }
+
+        var bounds = hint.Bounds;
+        var textFont = Font(NumberFamily, hint.FontPx, FontStyle.Regular);
+        var capSize = hint.FontPx * 1.4f;
+        var gap = hint.FontPx * 0.4f;
+        var actionWidth = g.MeasureString(action, textFont, PointF.Empty, _formats[0]).Width;
+        var total = capSize + gap + actionWidth;
+        var x = hint.Align switch
+        {
+            OverlayTextAlign.Near => bounds.X,
+            OverlayTextAlign.Center => bounds.X + (bounds.Width - total) / 2,
+            _ => bounds.Right - total,
+        };
+
+        var cap = new RectangleF(x, bounds.Y + (bounds.Height - capSize) / 2, capSize, capSize);
+        using (var path = RoundedRect(cap, capSize * 0.22f))
+        {
+            using var fill = new SolidBrush(Color.FromArgb(34, 255, 255, 255));
+            using var border = new Pen(Color.FromArgb(120, MutedText), scale);
+            g.FillPath(fill, path);
+            g.DrawPath(border, path);
+        }
+
+        DrawText(g, key, cap, Font(NumberFamily, hint.FontPx, FontStyle.Bold), TextColor, OverlayTextAlign.Center);
+        var actionBounds = new RectangleF(cap.Right + gap, bounds.Y, actionWidth + hint.FontPx, bounds.Height);
+        DrawText(g, action, actionBounds, textFont, MutedText, OverlayTextAlign.Near);
+    }
+
+    private void DrawText(Graphics g, string text, RectangleF bounds, Font font, Color color, OverlayTextAlign align)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+
+        using var brush = new SolidBrush(color);
+        g.DrawString(text, font, brush, bounds, _formats[(int)align]);
+    }
+
+    private Font Font(string family, float px, FontStyle style)
+    {
+        var key = (family, MathF.Round(px, 1), style);
+        if (!_fonts.TryGetValue(key, out var font))
+            _fonts[key] = font = new Font(family, key.Item2, style, GraphicsUnit.Pixel);
+
+        return font;
+    }
+
+    private static Color Fade(Color color) => Color.FromArgb(DimmedAlpha * color.A / 255, color);
+
+    private static StringFormat MakeFormat(StringAlignment alignment) => new(StringFormatFlags.NoWrap | StringFormatFlags.LineLimit)
+    {
+        Alignment = alignment,
+        LineAlignment = StringAlignment.Center,
+        Trimming = StringTrimming.EllipsisCharacter,
+    };
+
+    private static GraphicsPath RoundedRect(RectangleF r, float radius)
+    {
+        var path = new GraphicsPath();
+        var d = Math.Min(2 * radius, Math.Min(r.Width, r.Height));
+        if (d <= 0)
+        {
+            path.AddRectangle(r);
+            return path;
+        }
+
+        path.AddArc(r.X, r.Y, d, d, 180, 90);
+        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
