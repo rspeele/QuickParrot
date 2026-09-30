@@ -13,7 +13,6 @@ internal static unsafe partial class NativeMethods
     public const uint LLKHF_UP = 0x80;
 
     public const uint WM_QUIT = 0x0012;
-    public const uint WM_TIMER = 0x0113;
     public const uint WM_WTSSESSION_CHANGE = 0x02B1;
     public const uint WM_APP = 0x8000;
 
@@ -92,9 +91,6 @@ internal static unsafe partial class NativeMethods
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool UnhookWinEvent(nint hWinEventHook);
-
-    [LibraryImport("user32.dll")]
-    public static partial nuint SetTimer(nint hWnd, nuint nIDEvent, uint uElapse, nint lpTimerFunc);
 
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int vKey);

@@ -15,8 +15,6 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 {
     private const string WindowClassName = "QuickParrot.KeyboardHook";
     private const uint WM_RUN_COMMANDS = WM_APP + 1;
-    private const nuint WatchdogTimerId = 1;
-    private const uint WatchdogIntervalMs = 5000;
 
     private static readonly uint s_processId = (uint)Environment.ProcessId;
 
@@ -81,7 +79,10 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         }
     }
 
-    /// <summary>When false every key passes through, except the ups of keys already hidden.</summary>
+    /// <summary>
+    /// When false every key passes through, except the ups of keys already hidden. Re-enabling reinstalls the
+    /// keyboard hook, as manual recovery if Windows silently dropped it.
+    /// </summary>
     public bool Enabled
     {
         get
@@ -93,8 +94,14 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         {
             lock (_lock)
             {
+                var reinstall = value && !_enabled && _thread is not null;
                 _enabled = value;
-                Execute(() => Emit(_filter.SetEnabled(value)));
+                Execute(() =>
+                {
+                    Emit(_filter.SetEnabled(value));
+                    if (reinstall)
+                        ReinstallHook();
+                });
             }
         }
     }
@@ -230,7 +237,6 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
                 EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
             _desktopEvents = SetWinEventHook(
                 EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
-            SetTimer(_window, WatchdogTimerId, WatchdogIntervalMs, 0);
             ResetFilter(); // picks up a chord key held down since before the hook existed
         }
         catch (Exception e)
@@ -348,13 +354,8 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     [UnmanagedCallersOnly]
     private static nint WndProc(nint hwnd, uint msg, nint wParam, nint lParam)
     {
-        if (t_current is { } hook)
-        {
-            if (msg == WM_WTSSESSION_CHANGE)
-                hook.OnSessionChange((int)wParam);
-            else if (msg == WM_TIMER && (nuint)wParam == WatchdogTimerId)
-                hook.OnWatchdogTick();
-        }
+        if (t_current is { } hook && msg == WM_WTSSESSION_CHANGE)
+            hook.OnSessionChange((int)wParam);
 
         return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
@@ -383,18 +384,22 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         }
     }
 
-    // Windows silently removes a hook that times out (GC pause, heavy load), even mid-chord. A fresh one goes
-    // in before the old comes out, so no key slips past.
-    private void OnWatchdogTick()
+    // Manual recovery for a hook Windows silently dropped: a fresh one goes in before the old comes out, so no
+    // key slips past if the old one was still alive.
+    private void ReinstallHook()
     {
         var fresh = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, _module, 0);
         if (fresh == 0)
+        {
+            RaiseError(new Win32Exception(Marshal.GetLastPInvokeError(), "Couldn't reinstall the keyboard hook.").Message);
             return;
+        }
 
-        var oldWasAlive = UnhookWindowsHookEx(_hook);
+        if (_hook != 0)
+            UnhookWindowsHookEx(_hook);
+
         _hook = fresh;
-        if (!oldWasAlive)
-            ResetFilter(); // keys went unseen while it was gone
+        ResetFilter();
     }
 
     private void ResetFilter() => Emit(_filter.Reset(IsChordKeyDown()));
@@ -418,6 +423,21 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         try
         {
             _onChordEvent(chordEvent);
+        }
+        catch
+        {
+            // Dropped: nothing useful can be done from inside the hook.
+        }
+    }
+
+    /// <summary>Raised on the hook thread when a recovery action, e.g. reinstalling the hook, fails.</summary>
+    public event Action<string>? ErrorOccurred;
+
+    private void RaiseError(string message)
+    {
+        try
+        {
+            ErrorOccurred?.Invoke(message);
         }
         catch
         {

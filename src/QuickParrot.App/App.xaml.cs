@@ -65,8 +65,10 @@ public partial class App : System.Windows.Application
 
         var viewModel = new MainViewModel(_engine, _devices, _hook, warnings.Count == 0 ? null : string.Join(" ", warnings));
 
-        // The overlay raises this on its own thread, so it must be marshalled onto the UI thread.
+        // Both raise these on their own thread, so they must be marshalled onto the UI thread.
         _overlay.ErrorOccurred += message =>
+            Dispatcher.BeginInvoke(() => viewModel.Status = message);
+        _hook.ErrorOccurred += message =>
             Dispatcher.BeginInvoke(() => viewModel.Status = message);
 
         MainWindow = new MainWindow(viewModel);

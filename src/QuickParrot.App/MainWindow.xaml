@@ -48,7 +48,8 @@
             <TextBlock DockPanel.Dock="Left" Text="{Binding ChordKeyDisplay}" Margin="4,0,12,0"
                        VerticalAlignment="Center" FontWeight="Bold" />
             <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Margin="0,0,16,0" Click="ChangeChordKey_Click" />
-            <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding HotkeysEnabled}" />
+            <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding HotkeysEnabled}"
+                      ToolTip="Turn off and on again to reinstall the keyboard hook if hotkeys stop responding." />
         </DockPanel>
 
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
