@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 using QuickParrot.Core.Navigation;
+using QuickParrot.Core.Settings;
 using static QuickParrot.Overlay.NativeMethods;
 
 namespace QuickParrot.Overlay;
@@ -23,12 +24,20 @@ public sealed class OverlayHost : IDisposable
     private volatile nint _hwnd;
     private OverlayViewState? _drawn;
     private int _disposed;
+    private volatile SmallFolderLayout _smallFolderLayout = SmallFolderLayout.List;
 
     /// <summary>A user-facing error message. Raised on the overlay thread.</summary>
     public event Action<string>? ErrorOccurred;
 
     /// <summary>The overlay window's handle, or 0 before <see cref="Start"/>.</summary>
     public nint WindowHandle => _hwnd;
+
+    /// <summary>How folders with 9 or fewer entries are drawn. Safe to set from any thread; takes effect on the next render.</summary>
+    public SmallFolderLayout SmallFolderLayout
+    {
+        get => _smallFolderLayout;
+        set => _smallFolderLayout = value;
+    }
 
     /// <summary>Starts the overlay thread and waits until its (hidden) window exists.</summary>
     public void Start()
@@ -180,7 +189,7 @@ public sealed class OverlayHost : IDisposable
         if (!_window!.IsShown)
             _monitor = MonitorTarget.ForForegroundWindow();
 
-        var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi);
+        var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi, _smallFolderLayout);
         if (_surface?.Size != layout.CanvasSize)
         {
             _surface?.Dispose();

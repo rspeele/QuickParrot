@@ -1,5 +1,6 @@
 using System.Drawing;
 using QuickParrot.Core.Navigation;
+using QuickParrot.Core.Settings;
 
 namespace QuickParrot.Overlay;
 
@@ -17,16 +18,18 @@ public static class OverlayLayoutGeometry
     private const float MaxMonitorFraction = 0.92f;
     private const float DpiScaleWeight = 0.85f;
 
-    public static OverlayLayout Compute(OverlayViewState state, float scale) =>
-        state.Layout == OverlayLayoutKind.Wheel
-            ? WheelGeometry.Compute(state, scale)
-            : GridGeometry.Compute(state, scale);
+    public static OverlayLayout Compute(
+        OverlayViewState state, float scale, SmallFolderLayout smallFolderLayout = SmallFolderLayout.List) =>
+        state.Layout != OverlayLayoutKind.Wheel ? GridGeometry.Compute(state, scale)
+        : smallFolderLayout == SmallFolderLayout.Ring ? WheelGeometry.Compute(state, scale)
+        : ListGeometry.Compute(state, scale);
 
     /// <summary>Lays out for a monitor (physical pixels, effective DPI), scaled to look alike at any resolution.</summary>
-    public static OverlayLayout ComputeForMonitor(OverlayViewState state, Size monitorSize, int dpi)
+    public static OverlayLayout ComputeForMonitor(
+        OverlayViewState state, Size monitorSize, int dpi, SmallFolderLayout smallFolderLayout = SmallFolderLayout.List)
     {
-        var baseSize = Compute(state, 1).CanvasSize;
-        return Compute(state, ChooseScale(monitorSize, dpi, baseSize));
+        var baseSize = Compute(state, 1, smallFolderLayout).CanvasSize;
+        return Compute(state, ChooseScale(monitorSize, dpi, baseSize), smallFolderLayout);
     }
 
     // Tracks monitor height, but small high-DPI screens (laptops) get a bit bigger; never overflows the monitor.

@@ -23,6 +23,7 @@ public class AppSettingsTests
             MicMuteEnabled = true,
             PreRollMilliseconds = 300,
             PostRollMilliseconds = 750,
+            SmallFolderLayout = SmallFolderLayout.Ring,
         };
 
         var roundTripped = JsonSettingsStore.Deserialize(JsonSettingsStore.Serialize(settings));
@@ -42,6 +43,15 @@ public class AppSettingsTests
         Assert.Equal(1f, settings.CableVolume);
         Assert.Equal(500, settings.PreRollMilliseconds);
         Assert.Equal(500, settings.PostRollMilliseconds);
+        Assert.Equal(SmallFolderLayout.List, settings.SmallFolderLayout);
+    }
+
+    [Theory]
+    [InlineData("""{ "smallFolderLayout": 99 }""")]
+    [InlineData("""{ "smallFolderLayout": -1 }""")]
+    public void UnknownSmallFolderLayout_FallsBackToList(string json)
+    {
+        Assert.Equal(SmallFolderLayout.List, JsonSettingsStore.Deserialize(json).SmallFolderLayout);
     }
 
     [Theory]

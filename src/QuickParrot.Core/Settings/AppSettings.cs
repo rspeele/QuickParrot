@@ -3,6 +3,13 @@ using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Settings;
 
+/// <summary>How a folder with 9 or fewer entries is drawn in the overlay.</summary>
+public enum SmallFolderLayout
+{
+    List,
+    Ring,
+}
+
 public sealed record AppSettings
 {
     public const int MaxMarginMilliseconds = 5000;
@@ -36,6 +43,8 @@ public sealed record AppSettings
 
     public int PostRollMilliseconds { get; init; } = 500;
 
+    public SmallFolderLayout SmallFolderLayout { get; init; } = SmallFolderLayout.List;
+
     public PlaybackOptions ToPlaybackOptions() => new(
         TimeSpan.FromMilliseconds(PreRollMilliseconds),
         TimeSpan.FromMilliseconds(PostRollMilliseconds),
@@ -53,6 +62,7 @@ public sealed record AppSettings
         MonitorVolume = ClampVolume(MonitorVolume),
         PreRollMilliseconds = Math.Clamp(PreRollMilliseconds, 0, MaxMarginMilliseconds),
         PostRollMilliseconds = Math.Clamp(PostRollMilliseconds, 0, MaxMarginMilliseconds),
+        SmallFolderLayout = Enum.IsDefined(SmallFolderLayout) ? SmallFolderLayout : SmallFolderLayout.List,
     };
 
     private static float ClampVolume(float volume) => float.IsFinite(volume) ? Math.Clamp(volume, 0f, 1f) : 1f;

@@ -52,6 +52,12 @@
                       ToolTip="Turn off and on again to reinstall the keyboard hook if hotkeys stop responding." />
         </DockPanel>
 
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
+            <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
+                      ItemsSource="{Binding SmallFolderLayoutChoices}" SelectedItem="{Binding SmallFolderLayout}" />
+        </DockPanel>
+
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
 
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">

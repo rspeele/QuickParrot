@@ -41,7 +41,7 @@ public partial class App : System.Windows.Application
         if (loaded.Warning is { } loadWarning)
             warnings.Add(loadWarning);
 
-        _overlay = new OverlayHost();
+        _overlay = new OverlayHost { SmallFolderLayout = loaded.Settings.SmallFolderLayout };
         try
         {
             _overlay.Start();
@@ -63,7 +63,8 @@ public partial class App : System.Windows.Application
             warnings.Add($"Couldn't enable hotkeys: {ex.Message}");
         }
 
-        var viewModel = new MainViewModel(_engine, _devices, _hook, warnings.Count == 0 ? null : string.Join(" ", warnings));
+        var viewModel = new MainViewModel(
+            _engine, _devices, _hook, _overlay, warnings.Count == 0 ? null : string.Join(" ", warnings));
 
         // Both raise these on their own thread, so they must be marshalled onto the UI thread.
         _overlay.ErrorOccurred += message =>

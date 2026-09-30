@@ -2,6 +2,8 @@ using QuickParrot.Core.Devices;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
+using QuickParrot.Core.Settings;
+using QuickParrot.Overlay;
 
 namespace QuickParrot.App;
 
@@ -18,6 +20,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly QuickParrotEngine _engine;
     private readonly IAudioDeviceCatalog _devices;
     private readonly IChordKeyHook _hook;
+    private readonly OverlayHost _overlay;
     private readonly SynchronizationContext _ui;
     private LibraryBrowser? _browser;
     private IReadOnlyList<LibraryItem> _entries = [];
@@ -28,17 +31,20 @@ public sealed class MainViewModel : ObservableObject
     private string _selectedMonitorId;
     private double _cableVolume;
     private double _monitorVolume;
+    private SmallFolderLayout _smallFolderLayout;
     private string _deviceStatus = "";
     private string _status = "";
     private string _libraryWarning = "";
     private CancellationTokenSource? _captureCts;
     private string _statusBeforeCapture = "";
 
-    public MainViewModel(QuickParrotEngine engine, IAudioDeviceCatalog devices, IChordKeyHook hook, string? startupWarning = null)
+    public MainViewModel(
+        QuickParrotEngine engine, IAudioDeviceCatalog devices, IChordKeyHook hook, OverlayHost overlay, string? startupWarning = null)
     {
         _engine = engine;
         _devices = devices;
         _hook = hook;
+        _overlay = overlay;
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
         _engine.ErrorOccurred += message => _ui.Post(_ => Status = message, null);
 
@@ -47,6 +53,7 @@ public sealed class MainViewModel : ObservableObject
         _selectedMonitorId = settings.MonitorDeviceId ?? "";
         _cableVolume = settings.CableVolume;
         _monitorVolume = settings.MonitorVolume;
+        _smallFolderLayout = settings.SmallFolderLayout;
         OpenLibrary(settings.LibraryRoot);
         RefreshDevices();
         Status = startupWarning ?? "";
@@ -123,6 +130,21 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetField(ref _monitorVolume, value))
                 _engine.UpdateSettings(s => s with { MonitorVolume = (float)value });
+        }
+    }
+
+    public IReadOnlyList<SmallFolderLayout> SmallFolderLayoutChoices { get; } = Enum.GetValues<SmallFolderLayout>();
+
+    public SmallFolderLayout SmallFolderLayout
+    {
+        get => _smallFolderLayout;
+        set
+        {
+            if (!SetField(ref _smallFolderLayout, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { SmallFolderLayout = value });
+            _overlay.SmallFolderLayout = value;
         }
     }
 

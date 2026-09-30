@@ -12,11 +12,12 @@ it adds is:
 QuickParrot displays its overlay over your game. The overlay shows nothing at all until you press and hold the *chord
 hotkey*, B by default.
 
-While you hold the chord key, your folders are displayed in a ring at the center of the screen, with numbers on each.
-E.g. "1: Trump", "2: Movies & TV Quotes", "3: Arnold Schwarzenegger". Folders are listed first, then sound files, each
-alphabetically.
+While you hold the chord key, your folders are displayed at the center of the screen, with numbers on each. By default
+this is a numbered list, top to bottom, so the order is obvious at a glance; a ring layout is available in settings for
+those who prefer it. E.g. "1: Trump", "2: Movies & TV Quotes", "3: Arnold Schwarzenegger". Folders are listed first, then
+sound files, each alphabetically.
 
-Still holding the chord key, you press the number to navigate into a folder which shows the same ring-display. Once an
+Still holding the chord key, you press the number to navigate into a folder which shows the same display. Once an
 option is an audio file, rather than a folder, and you hit that key, it plays that audio file down both the virtual
 cable and your output device.
 
@@ -38,9 +39,9 @@ new clip while one is playing stops the first one; clips never overlap.
 
 ## Large folders
 
-A folder with 10 or more entries is shown as a grid instead of a ring: columns of 9, filled in order, so adding a file
-only shifts the entries after it. The first number zooms into a column, the second selects within it, and 0 backs out of
-the zoomed column. Long names are truncated to fit.
+A folder with 10 or more entries is shown as a grid instead of a list or ring: columns of 9, filled in order, so adding a
+file only shifts the entries after it. The first number zooms into a column, the second selects within it, and 0 backs
+out of the zoomed column. Long names are truncated to fit.
 
 That handles up to 81 entries per folder. Beyond that, make some subfolders: the desktop app warns about it, and the
 overlay silently shows only the first 81.
