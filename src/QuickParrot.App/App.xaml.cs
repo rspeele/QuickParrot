@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using QuickParrot.Audio;
+using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Mic;
@@ -20,11 +21,20 @@ public partial class App : System.Windows.Application
     private LowLevelKeyboardHook? _hook;
     private MicDucker? _micDucker;
     private OverlayHost? _overlay;
+    private AudioDiagnostics? _diagnostics;
     private int _crashCleanupStarted;
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (RepairCommandLine.IsRepair(e.Args))
+        {
+            // The elevated one-shot helper: no UI, hooks or engine, just the repair and its exit code.
+            Environment.ExitCode = ElevatedListenRepair.Run(e.Args);
+            Shutdown(Environment.ExitCode);
+            return;
+        }
+
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
             Trace.WriteLine($"QuickParrot: unhandled exception: {args.ExceptionObject}");
@@ -90,8 +100,21 @@ public partial class App : System.Windows.Application
 
         _engine.ViewStateChanged += _overlay.Show;
 
+        var engine = _engine;
+        _diagnostics = new AudioDiagnostics(
+            new WindowsAudioSetupReader(() => engine.Settings.ToConfiguredDevices(), () => micDucker.HasPendingRestore),
+            new AudioSetupRepairer(new WindowsAudioSystemWriter(Environment.ProcessPath ?? "")),
+            TimeProvider.System);
+        _devices.SetupChanged += _diagnostics.RequestCheck;
+
         var viewModel = new MainViewModel(
-            _engine, _devices, _devices, _hook, _overlay, warnings.Count == 0 ? null : string.Join(" ", warnings));
+            _engine,
+            _devices,
+            _devices,
+            _hook,
+            _overlay,
+            new DiagnosticsViewModel(_diagnostics, new LoopbackTester(), _devices, _devices, _engine),
+            warnings.Count == 0 ? null : string.Join(" ", warnings));
 
         // All raise these on their own thread, so they must be marshalled onto the UI thread.
         _overlay.ErrorOccurred += message =>
@@ -103,6 +126,7 @@ public partial class App : System.Windows.Application
 
         MainWindow = new MainWindow(viewModel);
         MainWindow.Show();
+        _ = _diagnostics.CheckNowAsync();
     }
 
     // Runs on a fresh thread with a deadline, since the crashed state may have the engine or hook threads stuck.
@@ -142,6 +166,9 @@ public partial class App : System.Windows.Application
             _hook.Enabled = false;
         if (_devices is not null && _engine is not null)
             _devices.DevicesChanged -= _engine.RetryMicRestore;
+        if (_devices is not null && _diagnostics is not null)
+            _devices.SetupChanged -= _diagnostics.RequestCheck;
+        _diagnostics?.Dispose();
         _engine?.Dispose();
         _hook?.Dispose();
         if (_engine is not null && _overlay is not null)

@@ -42,6 +42,14 @@ public partial class MainWindow : Window
 
     private async void ChangePushToTalkKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangePushToTalkKeyAsync();
 
+    private async void Recheck_Click(object sender, RoutedEventArgs e) => await _viewModel.Diagnostics.RecheckAsync();
+
+    private async void Fix_Click(object sender, RoutedEventArgs e) =>
+        await _viewModel.Diagnostics.FixAsync((sender as FrameworkElement)?.DataContext as FindingItem);
+
+    private async void RunLoopbackTest_Click(object sender, RoutedEventArgs e) =>
+        await _viewModel.Diagnostics.Test.RunOrCancelAsync();
+
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) =>
         _viewModel.CancelKeyCapture();
 

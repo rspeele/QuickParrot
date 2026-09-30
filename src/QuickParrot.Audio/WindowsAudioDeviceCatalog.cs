@@ -10,9 +10,6 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
 {
     private const DeviceState ListedStates = DeviceState.Active | DeviceState.Disabled | DeviceState.Unplugged;
 
-    // "Listen to this device" enabled flag (VT_BOOL); pid 0 of the same set is the playback target's ID.
-    private static readonly PropertyKey ListenEnabledKey = new(new Guid("24dbb0fc-9311-4b3d-9cf0-18ff155639d4"), 1);
-
     private readonly MMDeviceEnumerator _notificationEnumerator;
     private readonly MMDeviceNotificationClient _notifications;
     private Snapshot? _snapshot;
@@ -23,14 +20,14 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
     {
         _notificationEnumerator = new MMDeviceEnumerator();
         _notifications = _notificationEnumerator.CreateNotificationClient(useSynchronizationContext: false);
-        _notifications.DeviceAdded += (_, _) => InvalidateAndRaise();
-        _notifications.DeviceRemoved += (_, _) => Invalidate();
-        _notifications.DeviceStateChanged += (_, _) => InvalidateAndRaise();
-        _notifications.DefaultDeviceChanged += (_, _) => Invalidate();
+        _notifications.DeviceAdded += (_, _) => InvalidateAndRaise(devicesChanged: true);
+        _notifications.DeviceRemoved += (_, _) => InvalidateAndRaise(devicesChanged: false);
+        _notifications.DeviceStateChanged += (_, _) => InvalidateAndRaise(devicesChanged: true);
+        _notifications.DefaultDeviceChanged += (_, _) => InvalidateAndRaise(devicesChanged: false);
         _notifications.PropertyValueChanged += (_, e) =>
         {
-            if (e.PropertyKey.Equals(PropertyKeys.PKEY_Device_FriendlyName) || e.PropertyKey.Equals(ListenEnabledKey))
-                Invalidate();
+            if (e.PropertyKey.Equals(PropertyKeys.PKEY_Device_FriendlyName) || ListenProperties.IsListenKey(e.PropertyKey))
+                InvalidateAndRaise(devicesChanged: false);
         };
     }
 
@@ -39,6 +36,12 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
     /// return quickly and not touch the audio stack.
     /// </summary>
     public event Action? DevicesChanged;
+
+    /// <summary>
+    /// Raised, like <see cref="DevicesChanged"/>, for anything the audio setup diagnosis looks at: devices, defaults,
+    /// names and Listen settings. Not raised for mute or volume changes.
+    /// </summary>
+    public event Action? SetupChanged;
 
     public IReadOnlyList<AudioDeviceInfo> GetRenderDevices() => GetSnapshot().Devices;
 
@@ -59,12 +62,19 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
     // Runs on a Windows audio thread that holds a lock, so it must not block or touch the audio stack.
     private void Invalidate() => Interlocked.Increment(ref _version);
 
-    private void InvalidateAndRaise()
+    private void InvalidateAndRaise(bool devicesChanged)
     {
         Invalidate();
+        if (devicesChanged)
+            RaiseSafely(DevicesChanged);
+        RaiseSafely(SetupChanged);
+    }
+
+    private static void RaiseSafely(Action? handlers)
+    {
         try
         {
-            DevicesChanged?.Invoke();
+            handlers?.Invoke();
         }
         catch (Exception)
         {
@@ -138,7 +148,7 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
         try
         {
             var properties = device.Properties;
-            return properties.Contains(ListenEnabledKey) && properties[ListenEnabledKey].Value is true;
+            return properties.Contains(ListenProperties.Enabled) && properties[ListenProperties.Enabled].Value is true;
         }
         catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException)
         {

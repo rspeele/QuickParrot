@@ -1,4 +1,5 @@
 using QuickParrot.Core.Devices;
+using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
@@ -29,6 +30,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IChordKeyHook _hook;
     private readonly OverlayHost _overlay;
     private readonly SynchronizationContext _ui;
+    private readonly DiagnosticsStatusLine _diagnosticsStatus = new();
     private LibraryBrowser? _browser;
     private IReadOnlyList<LibraryItem> _entries = [];
     private IReadOnlyList<DeviceChoice> _cableChoices = [];
@@ -58,6 +60,7 @@ public sealed class MainViewModel : ObservableObject
         ICaptureDeviceCatalog captureDevices,
         IChordKeyHook hook,
         OverlayHost overlay,
+        DiagnosticsViewModel diagnostics,
         string? startupWarning = null)
     {
         _engine = engine;
@@ -65,6 +68,12 @@ public sealed class MainViewModel : ObservableObject
         _captureDevices = captureDevices;
         _hook = hook;
         _overlay = overlay;
+        Diagnostics = diagnostics;
+        diagnostics.ReportChanged += report =>
+        {
+            if (_diagnosticsStatus.Update(Status, report) is { } status)
+                Status = status;
+        };
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
         _engine.ErrorOccurred += message => _ui.Post(_ => Status = message, null);
 
@@ -84,6 +93,8 @@ public sealed class MainViewModel : ObservableObject
         RefreshDevices();
         Status = startupWarning ?? "";
     }
+
+    public DiagnosticsViewModel Diagnostics { get; }
 
     public string LibraryRoot
     {
@@ -123,6 +134,7 @@ public sealed class MainViewModel : ObservableObject
 
             _engine.UpdateSettings(s => s with { CableDeviceId = NullIfEmpty(value) });
             UpdateDeviceStatus();
+            Diagnostics.RequestCheck();
         }
     }
 
@@ -136,6 +148,7 @@ public sealed class MainViewModel : ObservableObject
 
             _engine.UpdateSettings(s => s with { MonitorDeviceId = NullIfEmpty(value) });
             UpdateDeviceStatus();
+            Diagnostics.RequestCheck();
         }
     }
 
@@ -322,6 +335,7 @@ public sealed class MainViewModel : ObservableObject
                 return; // WPF writes null while the choices list is being replaced
 
             _engine.UpdateSettings(s => s with { MicDeviceId = NullIfEmpty(value) });
+            Diagnostics.RequestCheck();
         }
     }
 

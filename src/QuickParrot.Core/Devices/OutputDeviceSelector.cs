@@ -36,6 +36,20 @@ public static class OutputDeviceSelector
     public static AudioDeviceInfo? SelectMonitor(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId, string? defaultId) =>
         FindActive(devices, configuredId) ?? FindActive(devices, defaultId);
 
+    /// <summary>
+    /// A real output to make the Windows default in place of the cable: the configured monitor, else the first active
+    /// output that isn't a virtual cable.
+    /// </summary>
+    public static AudioDeviceInfo? SelectRealPlaybackDevice(
+        IReadOnlyList<AudioDeviceInfo> devices, AudioDeviceInfo? cable, string? monitorId)
+    {
+        var real = devices.Where(d => d.IsActive && !IsVirtualCable(d.Name) && (cable is null || !SameId(d.Id, cable.Id))).ToList();
+        return FindActive(real, monitorId) ?? real.FirstOrDefault();
+    }
+
+    public static bool IsVirtualCable(string renderName) =>
+        MicDeviceSelector.IsVirtualCable(renderName) || renderName.Contains(VbCableName, StringComparison.OrdinalIgnoreCase);
+
     private static AudioDeviceInfo? FindActive(IReadOnlyList<AudioDeviceInfo> devices, string? id) =>
         id is null ? null : devices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));
 

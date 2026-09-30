@@ -33,6 +33,9 @@ public sealed class MicDucker : IMicMuter
     /// <summary>A user-facing problem with the mic. Repeats of the same message are suppressed.</summary>
     public event Action<string>? Warning;
 
+    /// <summary>QuickParrot has the mic muted or turned down right now, or is waiting to undo that.</summary>
+    public bool HasPendingRestore => _applied is not null;
+
     public static float AttenuatedVolume(float original, int percent) => Math.Clamp(original * percent / 100f, 0f, 1f);
 
     /// <summary>Turning ducking off also retries a pending restore, since no clip will.</summary>

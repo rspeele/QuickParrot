@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Mic;
 using QuickParrot.Core.Playback;
@@ -65,6 +66,8 @@ public sealed record AppSettings
     public OutputSettings ToOutputSettings() => new(CableDeviceId, MonitorDeviceId, CableVolume, MonitorVolume);
 
     public MicDuckSettings ToMicDuckSettings() => new(MicDuckMode, MicAttenuationPercent, MicDeviceId);
+
+    public ConfiguredDevices ToConfiguredDevices() => new(CableDeviceId, MonitorDeviceId, MicDeviceId);
 
     /// <summary>Clamps out-of-range values, e.g. from a hand-edited settings file.</summary>
     public AppSettings Sanitized() => this with
