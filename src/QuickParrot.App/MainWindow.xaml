@@ -1,75 +1,166 @@
 <Window x:Class="QuickParrot.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="QuickParrot" Height="560" Width="720" MinWidth="480" MinHeight="360"
+        Title="QuickParrot" Height="640" Width="760" MinWidth="520" MinHeight="420"
         Closing="MainWindow_Closing" Deactivated="MainWindow_Deactivated">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </Window.Resources>
     <DockPanel Margin="8">
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <Button DockPanel.Dock="Left" Content="Choose library…" Padding="8,2" Click="ChooseLibrary_Click" />
-            <TextBlock Text="{Binding LibraryRoot}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-        </DockPanel>
-
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="160" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition />
-                <RowDefinition />
-                <RowDefinition />
-            </Grid.RowDefinitions>
-
-            <TextBlock Grid.Row="0" Text="Cable:" VerticalAlignment="Center" Margin="0,0,8,4" />
-            <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding CableChoices}"
-                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCableId}" />
-            <Slider Grid.Row="0" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
-                    Value="{Binding CableVolume}" ToolTip="Cable volume" />
-
-            <TextBlock Grid.Row="1" Text="Monitor:" VerticalAlignment="Center" Margin="0,0,8,4" />
-            <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding MonitorChoices}"
-                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMonitorId}" />
-            <Slider Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
-                    Value="{Binding MonitorVolume}" ToolTip="Monitor volume" />
-
-            <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="3" Content="Refresh" Padding="8,2" Margin="0,0,0,4"
-                    Click="Refresh_Click" />
-
-            <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding DeviceStatus}" TextWrapping="Wrap" Foreground="Gray" />
-        </Grid>
-
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <TextBlock DockPanel.Dock="Left" Text="Chord key:" VerticalAlignment="Center" />
-            <TextBlock DockPanel.Dock="Left" Text="{Binding ChordKeyDisplay}" Margin="4,0,12,0"
-                       VerticalAlignment="Center" FontWeight="Bold" />
-            <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Margin="0,0,16,0" Click="ChangeChordKey_Click" />
-            <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding HotkeysEnabled}"
-                      ToolTip="Turn off and on again to reinstall the keyboard hook if hotkeys stop responding." />
-        </DockPanel>
-
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
-            <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
-                      ItemsSource="{Binding SmallFolderLayoutChoices}" SelectedItem="{Binding SmallFolderLayout}" />
-        </DockPanel>
-
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
 
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
-            <Button DockPanel.Dock="Left" Content="Up" Padding="8,2" IsEnabled="{Binding CanGoUp}" Click="Up_Click" />
-            <Button DockPanel.Dock="Right" Content="Stop" Padding="12,2" Click="Stop_Click" />
-            <TextBlock Text="{Binding CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-        </DockPanel>
+        <TabControl>
+            <TabItem Header="Library">
+                <DockPanel Margin="8">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Left" Content="Choose library…" Padding="8,2" Click="ChooseLibrary_Click" />
+                        <TextBlock Text="{Binding LibraryRoot}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
 
-        <TextBlock DockPanel.Dock="Top" Text="{Binding LibraryWarning}" Margin="0,0,0,4" TextWrapping="Wrap"
-                   Foreground="OrangeRed" Visibility="{Binding HasLibraryWarning, Converter={StaticResource BoolToVisibility}}" />
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Left" Content="Up" Padding="8,2" IsEnabled="{Binding CanGoUp}" Click="Up_Click" />
+                        <Button DockPanel.Dock="Right" Content="Stop" Padding="12,2" Click="Stop_Click" />
+                        <TextBlock Text="{Binding CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
 
-        <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
-                 MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown" />
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding LibraryWarning}" Margin="0,0,0,4" TextWrapping="Wrap"
+                               Foreground="OrangeRed" Visibility="{Binding HasLibraryWarning, Converter={StaticResource BoolToVisibility}}" />
+
+                    <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
+                             MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown" />
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Settings">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8">
+
+                        <GroupBox Header="Audio devices" Margin="0,0,0,8">
+                            <Grid Margin="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="Cable:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding CableChoices}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCableId}" />
+                                <Slider Grid.Row="0" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
+                                        Value="{Binding CableVolume}" ToolTip="Cable volume" />
+
+                                <TextBlock Grid.Row="1" Text="Monitor:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding MonitorChoices}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMonitorId}" />
+                                <Slider Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
+                                        Value="{Binding MonitorVolume}" ToolTip="Monitor volume" />
+
+                                <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="3" Content="Refresh" Padding="8,2" Margin="0,0,0,4"
+                                        Click="Refresh_Click" />
+
+                                <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding DeviceStatus}" TextWrapping="Wrap" Foreground="Gray" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Hotkeys" Margin="0,0,0,8">
+                            <StackPanel Margin="8">
+                                <DockPanel Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Left" Text="Chord key:" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding ChordKeyDisplay}" Margin="4,0,12,0"
+                                               VerticalAlignment="Center" FontWeight="Bold" />
+                                    <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Margin="0,0,16,0" Click="ChangeChordKey_Click" />
+                                    <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding HotkeysEnabled}"
+                                              ToolTip="Turn off and on again to reinstall the keyboard hook if hotkeys stop responding." />
+                                </DockPanel>
+
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
+                                    <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
+                                              ItemsSource="{Binding SmallFolderLayoutChoices}" SelectedItem="{Binding SmallFolderLayout}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Push-to-talk" Margin="0,0,0,8">
+                            <StackPanel Margin="8">
+                                <CheckBox Content="Hold push-to-talk while clips play" Margin="0,0,0,8"
+                                          IsChecked="{Binding PushToTalkEnabled}" />
+
+                                <DockPanel Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Left" Text="Binding:" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding PushToTalkBindingDisplay}" Margin="4,0,12,0"
+                                               VerticalAlignment="Center" FontWeight="Bold" />
+                                    <Button DockPanel.Dock="Left" Content="Set key…" Padding="8,2" Margin="0,0,12,0"
+                                            Click="ChangePushToTalkKey_Click" />
+                                    <TextBlock DockPanel.Dock="Left" Text="or mouse:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <ComboBox DockPanel.Dock="Left" Width="120" ItemsSource="{Binding PushToTalkMouseButtonChoices}"
+                                              DisplayMemberPath="Label" SelectedValuePath="Button"
+                                              SelectedValue="{Binding SelectedPushToTalkMouseButton}" />
+                                </DockPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="60" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Text="Pre-roll (ms):" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                    <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="5000" Margin="0,0,8,4"
+                                            VerticalAlignment="Center" Value="{Binding PreRollMilliseconds}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding PreRollMilliseconds}" VerticalAlignment="Center" Margin="0,0,0,4" />
+
+                                    <TextBlock Grid.Row="1" Text="Post-roll (ms):" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="5000" Margin="0,0,8,0"
+                                            VerticalAlignment="Center" Value="{Binding PostRollMilliseconds}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding PostRollMilliseconds}" VerticalAlignment="Center" />
+                                </Grid>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Mic while clips play" Margin="0,0,0,8">
+                            <Grid Margin="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="60" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="Mode:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,0,8,4"
+                                          ItemsSource="{Binding MicDuckModeChoices}" DisplayMemberPath="Label" SelectedValuePath="Mode"
+                                          SelectedValue="{Binding MicDuckMode}" />
+
+                                <TextBlock Grid.Row="1" Text="Turn down to:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100" Margin="0,0,8,4" VerticalAlignment="Center"
+                                        IsEnabled="{Binding IsMicAttenuationEnabled}" Value="{Binding MicAttenuationPercent}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,0,4" VerticalAlignment="Center"
+                                           Text="{Binding MicAttenuationPercent, StringFormat={}{0}%}" />
+
+                                <TextBlock Grid.Row="2" Text="Microphone:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding MicDeviceChoices}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMicDeviceId}" />
+                            </Grid>
+                        </GroupBox>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
     </DockPanel>
 </Window>

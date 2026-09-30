@@ -1,4 +1,6 @@
+using System.Text.Json.Serialization;
 using QuickParrot.Core.Keyboard;
+using QuickParrot.Core.Mic;
 using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Settings;
@@ -34,10 +36,19 @@ public sealed record AppSettings
 
     public bool PushToTalkEnabled { get; init; }
 
-    /// <summary>Placeholder until push-to-talk key simulation exists, e.g. "V".</summary>
-    public string? PushToTalkKey { get; init; }
+    public PushToTalkBinding PushToTalkBinding { get; init; } = PushToTalkBinding.Default;
 
-    public bool MicMuteEnabled { get; init; }
+    public MicDuckMode MicDuckMode { get; init; }
+
+    /// <summary>In attenuate mode, the percentage of its original volume the mic drops to.</summary>
+    public int MicAttenuationPercent { get; init; } = MicDuckSettings.DefaultAttenuationPercent;
+
+    /// <summary>Null auto-detects the real mic.</summary>
+    public string? MicDeviceId { get; init; }
+
+    // Read from older settings files only; Sanitized folds it into MicDuckMode.
+    [JsonInclude, JsonPropertyName("micMuteEnabled"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    private bool? LegacyMicMuteEnabled { get; init; }
 
     public int PreRollMilliseconds { get; init; } = 500;
 
@@ -49,9 +60,11 @@ public sealed record AppSettings
         TimeSpan.FromMilliseconds(PreRollMilliseconds),
         TimeSpan.FromMilliseconds(PostRollMilliseconds),
         PushToTalkEnabled,
-        MicMuteEnabled);
+        MicDuckMode != MicDuckMode.Off);
 
     public OutputSettings ToOutputSettings() => new(CableDeviceId, MonitorDeviceId, CableVolume, MonitorVolume);
+
+    public MicDuckSettings ToMicDuckSettings() => new(MicDuckMode, MicAttenuationPercent, MicDeviceId);
 
     /// <summary>Clamps out-of-range values, e.g. from a hand-edited settings file.</summary>
     public AppSettings Sanitized() => this with
@@ -63,7 +76,25 @@ public sealed record AppSettings
         PreRollMilliseconds = Math.Clamp(PreRollMilliseconds, 0, MaxMarginMilliseconds),
         PostRollMilliseconds = Math.Clamp(PostRollMilliseconds, 0, MaxMarginMilliseconds),
         SmallFolderLayout = Enum.IsDefined(SmallFolderLayout) ? SmallFolderLayout : SmallFolderLayout.List,
+        PushToTalkEnabled = PushToTalkEnabled && IsPushToTalkBindingValid(),
+        PushToTalkBinding = IsPushToTalkBindingValid() ? PushToTalkBinding : PushToTalkBinding.Default,
+        MicDuckMode = SanitizeMicDuckMode(),
+        MicAttenuationPercent = Math.Clamp(MicAttenuationPercent, 0, 100),
+        MicDeviceId = string.IsNullOrEmpty(MicDeviceId) ? null : MicDeviceId,
+        LegacyMicMuteEnabled = null,
     };
+
+    private MicDuckMode SanitizeMicDuckMode()
+    {
+        if (!Enum.IsDefined(MicDuckMode))
+            return MicDuckMode.Off;
+
+        return MicDuckMode == MicDuckMode.Off && LegacyMicMuteEnabled == true ? MicDuckMode.Mute : MicDuckMode;
+    }
+
+    // An unusable binding is swapped for the default, but disabled so QuickParrot never presses a surprise key.
+    private bool IsPushToTalkBindingValid() =>
+        PushToTalkBinding.Validate(ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey) is null;
 
     private static float ClampVolume(float volume) => float.IsFinite(volume) ? Math.Clamp(volume, 0f, 1f) : 1f;
 }

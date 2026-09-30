@@ -17,6 +17,7 @@ public sealed class QuickParrotEngine : IDisposable
     private readonly BlockingCollection<Action> _queue = new();
     private readonly Thread _thread;
     private readonly IClipPlayer _player;
+    private readonly IMicMuter _micMuter;
     private readonly ISettingsStore _settingsStore;
     private readonly TimeProvider _time;
     private readonly Func<string, IFolderSource> _createLibrary;
@@ -39,6 +40,7 @@ public sealed class QuickParrotEngine : IDisposable
         Func<string, IFolderSource> createLibrary)
     {
         _player = player;
+        _micMuter = micMuter;
         _settingsStore = settingsStore;
         _time = time;
         _createLibrary = createLibrary;
@@ -192,6 +194,7 @@ public sealed class QuickParrotEngine : IDisposable
     {
         _controller.Options = updated.ToPlaybackOptions();
         _player.Configure(updated.ToOutputSettings());
+        _micMuter.Configure(updated.ToMicDuckSettings());
 
         if (old is null || old.LibraryRoot != updated.LibraryRoot)
             OpenLibrary(updated);

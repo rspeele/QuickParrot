@@ -40,9 +40,11 @@ public partial class MainWindow : Window
 
     private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangeChordKeyAsync();
 
+    private async void ChangePushToTalkKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangePushToTalkKeyAsync();
+
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) =>
-        _viewModel.CancelChordKeyCapture();
+        _viewModel.CancelKeyCapture();
 
     // Otherwise a capture left armed would eat the next key pressed in the game and rebind the chord to it.
-    private void MainWindow_Deactivated(object? sender, EventArgs e) => _viewModel.CancelChordKeyCapture();
+    private void MainWindow_Deactivated(object? sender, EventArgs e) => _viewModel.CancelKeyCapture();
 }

@@ -2,7 +2,7 @@ using System.ComponentModel;
 using QuickParrot.Audio;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Library;
-using QuickParrot.Core.Playback;
+using QuickParrot.Core.Mic;
 using QuickParrot.Core.Settings;
 using QuickParrot.Input;
 using QuickParrot.Overlay;
@@ -27,19 +27,40 @@ public partial class App : System.Windows.Application
         _player = new NAudioClipPlayer(_devices);
         _player.Configure(loaded.Settings.ToOutputSettings()); // so warm-up opens the configured devices
         _ = _player.WarmUpAsync();
+
+        var warnings = new List<string>();
+        if (loaded.Warning is { } loadWarning)
+            warnings.Add(loadWarning);
+
+        // Created before the engine so hotkeys are live as early as possible; the lambda reaches the engine
+        // once it exists below.
+        _hook = new LowLevelKeyboardHook(loaded.Settings.ChordKey, chordEvent => _engine?.Post(chordEvent))
+        {
+            Enabled = loaded.Settings.HotkeysEnabled,
+        };
+        _hook.PushToTalk.Binding = loaded.Settings.PushToTalkBinding;
+        try
+        {
+            _hook.Start();
+        }
+        catch (Win32Exception ex)
+        {
+            warnings.Add($"Couldn't enable hotkeys: {ex.Message}");
+        }
+
+        var micDucker = new MicDucker(new WindowsMicVolumeControl(), _devices, new JsonMicRestoreStore(JsonMicRestoreStore.DefaultPath));
+        if (micDucker.RestoreAfterCrash() is { } restoreWarning)
+            warnings.Add(restoreWarning);
+
         _engine = new QuickParrotEngine(
             _player,
-            new LoggingPushToTalk(),
-            new LoggingMicMuter(),
+            _hook.PushToTalk,
+            micDucker,
             store,
             loaded.Settings,
             TimeProvider.System,
             root => new FileSystemFolderSource(root));
         _engine.Start();
-
-        var warnings = new List<string>();
-        if (loaded.Warning is { } loadWarning)
-            warnings.Add(loadWarning);
 
         _overlay = new OverlayHost { SmallFolderLayout = loaded.Settings.SmallFolderLayout };
         try
@@ -53,23 +74,15 @@ public partial class App : System.Windows.Application
 
         _engine.ViewStateChanged += _overlay.Show;
 
-        _hook = new LowLevelKeyboardHook(loaded.Settings.ChordKey, _engine.Post) { Enabled = loaded.Settings.HotkeysEnabled };
-        try
-        {
-            _hook.Start();
-        }
-        catch (Win32Exception ex)
-        {
-            warnings.Add($"Couldn't enable hotkeys: {ex.Message}");
-        }
-
         var viewModel = new MainViewModel(
-            _engine, _devices, _hook, _overlay, warnings.Count == 0 ? null : string.Join(" ", warnings));
+            _engine, _devices, _devices, _hook, _overlay, warnings.Count == 0 ? null : string.Join(" ", warnings));
 
-        // Both raise these on their own thread, so they must be marshalled onto the UI thread.
+        // All raise these on their own thread, so they must be marshalled onto the UI thread.
         _overlay.ErrorOccurred += message =>
             Dispatcher.BeginInvoke(() => viewModel.Status = message);
         _hook.ErrorOccurred += message =>
+            Dispatcher.BeginInvoke(() => viewModel.Status = message);
+        micDucker.Warning += message =>
             Dispatcher.BeginInvoke(() => viewModel.Status = message);
 
         MainWindow = new MainWindow(viewModel);
@@ -78,9 +91,12 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
-        // Order matters: no more chord events before the engine stops, then the overlay, then audio.
-        _hook?.Dispose();
+        // Order matters: no more chord events once the hook is disabled, then the engine releases push-to-talk
+        // and restores the mic, then the hook itself, then the overlay, then audio.
+        if (_hook is not null)
+            _hook.Enabled = false;
         _engine?.Dispose();
+        _hook?.Dispose();
         if (_engine is not null && _overlay is not null)
             _engine.ViewStateChanged -= _overlay.Show;
         _overlay?.Dispose();

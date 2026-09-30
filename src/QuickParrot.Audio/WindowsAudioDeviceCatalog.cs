@@ -4,15 +4,19 @@ using QuickParrot.Core.Devices;
 namespace QuickParrot.Audio;
 
 /// <summary>
-/// Lists render endpoints, caching the list until Windows reports a device change. Thread-safe.
+/// Lists render and capture endpoints, caching the lists until Windows reports a device change. Thread-safe.
 /// </summary>
-public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, IDisposable
+public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDeviceCatalog, IDisposable
 {
     private const DeviceState ListedStates = DeviceState.Active | DeviceState.Disabled | DeviceState.Unplugged;
+
+    // "Listen to this device" enabled flag (VT_BOOL); pid 0 of the same set is the playback target's ID.
+    private static readonly PropertyKey ListenEnabledKey = new(new Guid("24dbb0fc-9311-4b3d-9cf0-18ff155639d4"), 1);
 
     private readonly MMDeviceEnumerator _notificationEnumerator;
     private readonly MMDeviceNotificationClient _notifications;
     private Snapshot? _snapshot;
+    private CaptureSnapshot? _captureSnapshot;
     private int _version;
 
     public WindowsAudioDeviceCatalog()
@@ -25,7 +29,7 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, IDisposable
         _notifications.DefaultDeviceChanged += (_, _) => Invalidate();
         _notifications.PropertyValueChanged += (_, e) =>
         {
-            if (e.PropertyKey.Equals(PropertyKeys.PKEY_Device_FriendlyName))
+            if (e.PropertyKey.Equals(PropertyKeys.PKEY_Device_FriendlyName) || e.PropertyKey.Equals(ListenEnabledKey))
                 Invalidate();
         };
     }
@@ -33,6 +37,12 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, IDisposable
     public IReadOnlyList<AudioDeviceInfo> GetRenderDevices() => GetSnapshot().Devices;
 
     public string? GetDefaultRenderDeviceId() => GetSnapshot().DefaultId;
+
+    public IReadOnlyList<CaptureDeviceInfo> GetCaptureDevices() => GetCaptureSnapshot().Devices;
+
+    public string? GetDefaultCaptureDeviceId() => GetCaptureSnapshot().DefaultId;
+
+    public string? GetDefaultCommunicationsCaptureDeviceId() => GetCaptureSnapshot().CommunicationsId;
 
     public void Dispose()
     {
@@ -50,8 +60,23 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, IDisposable
         if (Volatile.Read(ref _snapshot) is { } cached && cached.Version == version)
             return cached;
 
-        var fresh = new Snapshot(version, EnumerateRenderDevices(), ReadDefaultRenderDeviceId());
+        var fresh = new Snapshot(version, EnumerateRenderDevices(), ReadDefaultDeviceId(DataFlow.Render, Role.Multimedia));
         Volatile.Write(ref _snapshot, fresh);
+        return fresh;
+    }
+
+    private CaptureSnapshot GetCaptureSnapshot()
+    {
+        var version = Volatile.Read(ref _version);
+        if (Volatile.Read(ref _captureSnapshot) is { } cached && cached.Version == version)
+            return cached;
+
+        var fresh = new CaptureSnapshot(
+            version,
+            EnumerateCaptureDevices(),
+            ReadDefaultDeviceId(DataFlow.Capture, Role.Multimedia),
+            ReadDefaultDeviceId(DataFlow.Capture, Role.Communications));
+        Volatile.Write(ref _captureSnapshot, fresh);
         return fresh;
     }
 
@@ -71,10 +96,41 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, IDisposable
         return devices;
     }
 
-    private static string? ReadDefaultRenderDeviceId()
+    private static List<CaptureDeviceInfo> EnumerateCaptureDevices()
     {
         using var enumerator = new MMDeviceEnumerator();
-        if (!enumerator.TryGetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia, out var device))
+        var devices = new List<CaptureDeviceInfo>();
+        // Not-present included: a pulled USB mic is not-present, and its restore record must survive until it's back.
+        foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.All))
+        {
+            using (device)
+            {
+                if (TryDescribe(device) is { } info)
+                    devices.Add(new CaptureDeviceInfo(info.Id, info.Name, info.State, ReadListenEnabled(device)));
+            }
+        }
+
+        return devices;
+    }
+
+    // The property store is opened read-only.
+    private static bool ReadListenEnabled(MMDevice device)
+    {
+        try
+        {
+            var properties = device.Properties;
+            return properties.Contains(ListenEnabledKey) && properties[ListenEnabledKey].Value is true;
+        }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ReadDefaultDeviceId(DataFlow flow, Role role)
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        if (!enumerator.TryGetDefaultAudioEndpoint(flow, role, out var device))
             return null;
 
         using (device)
@@ -103,4 +159,7 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, IDisposable
     };
 
     private sealed record Snapshot(int Version, IReadOnlyList<AudioDeviceInfo> Devices, string? DefaultId);
+
+    private sealed record CaptureSnapshot(
+        int Version, IReadOnlyList<CaptureDeviceInfo> Devices, string? DefaultId, string? CommunicationsId);
 }

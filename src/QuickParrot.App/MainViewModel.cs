@@ -2,6 +2,8 @@ using QuickParrot.Core.Devices;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
+using QuickParrot.Core.Mic;
+using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;
 using QuickParrot.Overlay;
 
@@ -15,10 +17,15 @@ public sealed record LibraryItem(FolderEntry Entry)
 /// <summary>An empty <see cref="Id"/> means "auto-detect" / "Windows default".</summary>
 public sealed record DeviceChoice(string Id, string Name);
 
+public sealed record MicDuckModeChoice(MicDuckMode Mode, string Label);
+
+public sealed record MouseButtonChoice(PushToTalkMouseButton Button, string Label);
+
 public sealed class MainViewModel : ObservableObject
 {
     private readonly QuickParrotEngine _engine;
     private readonly IAudioDeviceCatalog _devices;
+    private readonly ICaptureDeviceCatalog _captureDevices;
     private readonly IChordKeyHook _hook;
     private readonly OverlayHost _overlay;
     private readonly SynchronizationContext _ui;
@@ -26,12 +33,19 @@ public sealed class MainViewModel : ObservableObject
     private IReadOnlyList<LibraryItem> _entries = [];
     private IReadOnlyList<DeviceChoice> _cableChoices = [];
     private IReadOnlyList<DeviceChoice> _monitorChoices = [];
+    private IReadOnlyList<MicDeviceChoice> _micDeviceChoices = [];
     private string _libraryRoot = "";
     private string _selectedCableId;
     private string _selectedMonitorId;
+    private string _selectedMicDeviceId;
     private double _cableVolume;
     private double _monitorVolume;
     private SmallFolderLayout _smallFolderLayout;
+    private bool _pushToTalkEnabled;
+    private int _preRollMilliseconds;
+    private int _postRollMilliseconds;
+    private MicDuckMode _micDuckMode;
+    private int _micAttenuationPercent;
     private string _deviceStatus = "";
     private string _status = "";
     private string _libraryWarning = "";
@@ -39,10 +53,16 @@ public sealed class MainViewModel : ObservableObject
     private string _statusBeforeCapture = "";
 
     public MainViewModel(
-        QuickParrotEngine engine, IAudioDeviceCatalog devices, IChordKeyHook hook, OverlayHost overlay, string? startupWarning = null)
+        QuickParrotEngine engine,
+        IAudioDeviceCatalog devices,
+        ICaptureDeviceCatalog captureDevices,
+        IChordKeyHook hook,
+        OverlayHost overlay,
+        string? startupWarning = null)
     {
         _engine = engine;
         _devices = devices;
+        _captureDevices = captureDevices;
         _hook = hook;
         _overlay = overlay;
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
@@ -51,9 +71,15 @@ public sealed class MainViewModel : ObservableObject
         var settings = engine.Settings;
         _selectedCableId = settings.CableDeviceId ?? "";
         _selectedMonitorId = settings.MonitorDeviceId ?? "";
+        _selectedMicDeviceId = settings.MicDeviceId ?? "";
         _cableVolume = settings.CableVolume;
         _monitorVolume = settings.MonitorVolume;
         _smallFolderLayout = settings.SmallFolderLayout;
+        _pushToTalkEnabled = settings.PushToTalkEnabled;
+        _preRollMilliseconds = settings.PreRollMilliseconds;
+        _postRollMilliseconds = settings.PostRollMilliseconds;
+        _micDuckMode = settings.MicDuckMode;
+        _micAttenuationPercent = settings.MicAttenuationPercent;
         OpenLibrary(settings.LibraryRoot);
         RefreshDevices();
         Status = startupWarning ?? "";
@@ -188,8 +214,140 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    public bool PushToTalkEnabled
+    {
+        get => _pushToTalkEnabled;
+        set
+        {
+            if (!SetField(ref _pushToTalkEnabled, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { PushToTalkEnabled = value });
+        }
+    }
+
+    public string PushToTalkBindingDisplay => _hook.PushToTalkBinding.ToString();
+
+    public IReadOnlyList<MouseButtonChoice> PushToTalkMouseButtonChoices { get; } =
+        Enum.GetValues<PushToTalkMouseButton>()
+            .Select(button => new MouseButtonChoice(button, PushToTalkBinding.FromMouse(button).ToString()))
+            .ToList();
+
+    /// <summary>Null when the current binding is a keyboard key rather than a mouse button.</summary>
+    public PushToTalkMouseButton? SelectedPushToTalkMouseButton
+    {
+        get => _hook.PushToTalkBinding.MouseButton;
+        set
+        {
+            if (value is null)
+                return;
+
+            TryApplyPushToTalkBinding(PushToTalkBinding.FromMouse(value.Value));
+        }
+    }
+
+    public int PreRollMilliseconds
+    {
+        get => _preRollMilliseconds;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, AppSettings.MaxMarginMilliseconds);
+            if (!SetField(ref _preRollMilliseconds, clamped))
+                return;
+
+            _engine.UpdateSettings(s => s with { PreRollMilliseconds = clamped });
+        }
+    }
+
+    public int PostRollMilliseconds
+    {
+        get => _postRollMilliseconds;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, AppSettings.MaxMarginMilliseconds);
+            if (!SetField(ref _postRollMilliseconds, clamped))
+                return;
+
+            _engine.UpdateSettings(s => s with { PostRollMilliseconds = clamped });
+        }
+    }
+
+    public IReadOnlyList<MicDuckModeChoice> MicDuckModeChoices { get; } =
+    [
+        new(MicDuckMode.Off, "Off"),
+        new(MicDuckMode.Mute, "Mute"),
+        new(MicDuckMode.Attenuate, "Turn down"),
+    ];
+
+    public MicDuckMode MicDuckMode
+    {
+        get => _micDuckMode;
+        set
+        {
+            if (!SetField(ref _micDuckMode, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { MicDuckMode = value });
+            OnPropertyChanged(nameof(IsMicAttenuationEnabled));
+        }
+    }
+
+    public bool IsMicAttenuationEnabled => MicDuckMode == MicDuckMode.Attenuate;
+
+    public int MicAttenuationPercent
+    {
+        get => _micAttenuationPercent;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 100);
+            if (!SetField(ref _micAttenuationPercent, clamped))
+                return;
+
+            _engine.UpdateSettings(s => s with { MicAttenuationPercent = clamped });
+        }
+    }
+
+    public IReadOnlyList<MicDeviceChoice> MicDeviceChoices
+    {
+        get => _micDeviceChoices;
+        private set => SetField(ref _micDeviceChoices, value);
+    }
+
+    public string SelectedMicDeviceId
+    {
+        get => _selectedMicDeviceId;
+        set
+        {
+            if (value is null || !SetField(ref _selectedMicDeviceId, value))
+                return; // WPF writes null while the choices list is being replaced
+
+            _engine.UpdateSettings(s => s with { MicDeviceId = NullIfEmpty(value) });
+        }
+    }
+
     /// <summary>Waits for the next key press and, if valid, makes it the chord key.</summary>
-    public async Task ChangeChordKeyAsync()
+    public Task ChangeChordKeyAsync() => CaptureKeyAsync("the chord key", key =>
+    {
+        if (_hook.PushToTalkBinding.ValidateChordKey(key) is { } error)
+        {
+            Status = error;
+            return;
+        }
+
+        _hook.ChordKey = key;
+        _engine.UpdateSettings(s => s with { ChordKey = key });
+        OnPropertyChanged(nameof(ChordKeyDisplay));
+        Status = $"Chord key changed to {key}.";
+    });
+
+    /// <summary>Waits for the next key press and, if valid, makes it the push-to-talk binding.</summary>
+    public Task ChangePushToTalkKeyAsync() => CaptureKeyAsync("push-to-talk", key =>
+        TryApplyPushToTalkBinding(PushToTalkBinding.FromKey(key)));
+
+    /// <summary>Cancels an in-progress key capture, e.g. because the window lost focus.</summary>
+    public void CancelKeyCapture() => _captureCts?.Cancel();
+
+    private async Task CaptureKeyAsync(string subject, Action<ScanKey> onCaptured)
     {
         if (_captureCts is null)
             _statusBeforeCapture = Status;
@@ -206,7 +364,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (InvalidOperationException)
         {
-            Status = "Hotkeys aren't running, so the chord key can't be changed.";
+            Status = $"Hotkeys aren't running, so {subject} can't be changed.";
             return;
         }
         catch (OperationCanceledException)
@@ -227,20 +385,23 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        if (!captured.Value.IsValidChordKey)
+        onCaptured(captured.Value);
+    }
+
+    private void TryApplyPushToTalkBinding(PushToTalkBinding binding)
+    {
+        if (binding.Validate(_hook.ChordKey) is { } error)
         {
-            Status = $"{captured.Value} can't be the chord key. Pick another key.";
+            Status = error;
             return;
         }
 
-        _hook.ChordKey = captured.Value;
-        _engine.UpdateSettings(s => s with { ChordKey = captured.Value });
-        OnPropertyChanged(nameof(ChordKeyDisplay));
-        Status = $"Chord key changed to {captured.Value}.";
+        _hook.PushToTalkBinding = binding;
+        _engine.UpdateSettings(s => s with { PushToTalkBinding = binding });
+        OnPropertyChanged(nameof(PushToTalkBindingDisplay));
+        OnPropertyChanged(nameof(SelectedPushToTalkMouseButton));
+        Status = $"Push-to-talk changed to {binding}.";
     }
-
-    /// <summary>Cancels an in-progress <see cref="ChangeChordKeyAsync"/> capture, e.g. because the window lost focus.</summary>
-    public void CancelChordKeyCapture() => _captureCts?.Cancel();
 
     public void ChooseLibrary(string root)
     {
@@ -286,6 +447,13 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedCableId));
         OnPropertyChanged(nameof(SelectedMonitorId));
         UpdateDeviceStatus(devices);
+
+        MicDeviceChoices = MicDeviceMenu.Build(
+            _captureDevices.GetCaptureDevices(),
+            _captureDevices.GetDefaultCaptureDeviceId(),
+            _captureDevices.GetDefaultCommunicationsCaptureDeviceId());
+        OnPropertyChanged(nameof(SelectedMicDeviceId));
+
         _browser?.Refresh();
         ShowEntries();
     }

@@ -1,4 +1,6 @@
 using QuickParrot.Core.Keyboard;
+using QuickParrot.Core.Mic;
+using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;
 
 namespace QuickParrot.Core.Tests;
@@ -19,8 +21,10 @@ public class AppSettingsTests
             CableVolume = 0.8f,
             MonitorVolume = 0.25f,
             PushToTalkEnabled = true,
-            PushToTalkKey = "V",
-            MicMuteEnabled = true,
+            PushToTalkBinding = PushToTalkBinding.FromMouse(PushToTalkMouseButton.X2),
+            MicDuckMode = MicDuckMode.Attenuate,
+            MicAttenuationPercent = 35,
+            MicDeviceId = "{0.0.1.00000000}.{mic}",
             PreRollMilliseconds = 300,
             PostRollMilliseconds = 750,
             SmallFolderLayout = SmallFolderLayout.Ring,

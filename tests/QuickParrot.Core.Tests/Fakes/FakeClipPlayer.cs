@@ -1,3 +1,4 @@
+using QuickParrot.Core.Mic;
 using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Tests.Fakes;
@@ -135,6 +136,10 @@ public sealed class FakePushToTalk(List<string> log) : IPushToTalk
 
 public sealed class FakeMicMuter(List<string> log) : IMicMuter
 {
+    public MicDuckSettings? Settings { get; private set; }
+
+    public void Configure(MicDuckSettings settings) => Settings = settings;
+
     public void Mute() => log.Add("mic:mute");
 
     public void Unmute() => log.Add("mic:unmute");

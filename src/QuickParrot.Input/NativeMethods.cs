@@ -5,12 +5,37 @@ namespace QuickParrot.Input;
 internal static unsafe partial class NativeMethods
 {
     public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
     public const int HC_ACTION = 0;
 
     public const uint LLKHF_EXTENDED = 0x01;
     public const uint LLKHF_LOWER_IL_INJECTED = 0x02;
     public const uint LLKHF_INJECTED = 0x10;
     public const uint LLKHF_UP = 0x80;
+
+    public const uint LLMHF_INJECTED = 0x01;
+    public const uint LLMHF_LOWER_IL_INJECTED = 0x02;
+
+    public const uint WM_MBUTTONDOWN = 0x0207;
+    public const uint WM_MBUTTONUP = 0x0208;
+    public const uint WM_XBUTTONDOWN = 0x020B;
+    public const uint WM_XBUTTONUP = 0x020C;
+    public const uint XBUTTON1 = 0x0001;
+    public const uint XBUTTON2 = 0x0002;
+
+    public const int VK_MBUTTON = 0x04;
+    public const int VK_XBUTTON1 = 0x05;
+    public const int VK_XBUTTON2 = 0x06;
+
+    public const uint INPUT_MOUSE = 0;
+    public const uint INPUT_KEYBOARD = 1;
+    public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
+    public const uint KEYEVENTF_KEYUP = 0x0002;
+    public const uint KEYEVENTF_SCANCODE = 0x0008;
+    public const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+    public const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
+    public const uint MOUSEEVENTF_XDOWN = 0x0080;
+    public const uint MOUSEEVENTF_XUP = 0x0100;
 
     public const uint WM_QUIT = 0x0012;
     public const uint WM_WTSSESSION_CHANGE = 0x02B1;
@@ -42,6 +67,55 @@ internal static unsafe partial class NativeMethods
         public uint flags;
         public uint time;
         public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public int ptX;
+        public int ptY;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct INPUTUNION
+    {
+        [FieldOffset(0)]
+        public MOUSEINPUT mi;
+
+        [FieldOffset(0)]
+        public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public uint type;
+        public INPUTUNION u;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -94,6 +168,9 @@ internal static unsafe partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int vKey);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial uint SendInput(uint cInputs, INPUT* pInputs, int cbSize);
 
     [LibraryImport("user32.dll")]
     public static partial uint MapVirtualKeyExW(uint uCode, uint uMapType, nint dwhkl);

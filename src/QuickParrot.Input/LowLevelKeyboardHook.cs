@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
+using QuickParrot.Core.Playback;
 using static QuickParrot.Input.NativeMethods;
 
 namespace QuickParrot.Input;
@@ -10,6 +11,7 @@ namespace QuickParrot.Input;
 /// <summary>
 /// A global low-level keyboard hook running <see cref="ChordKeyFilter"/> on its own thread; the chord event
 /// handler runs on that thread and must never block. It can't see keys aimed at more-elevated windows.
+/// It also hosts <see cref="PushToTalk"/>, which works whether or not hotkeys are enabled.
 /// </summary>
 public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 {
@@ -47,6 +49,17 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         _filter = new ChordKeyFilter(chordKey);
         _chordKey = chordKey;
         _onChordEvent = onChordEvent;
+        PushToTalk = new SendInputPushToTalk(this, PushToTalkBinding.Default);
+    }
+
+    /// <summary>Hand this to the engine. Stopping the hook releases anything it holds.</summary>
+    public SendInputPushToTalk PushToTalk { get; }
+
+    /// <summary>Settable from any thread; moves an in-progress hold across to the new binding.</summary>
+    public PushToTalkBinding PushToTalkBinding
+    {
+        get => PushToTalk.Binding;
+        set => PushToTalk.Binding = value;
     }
 
     /// <summary>Total key events the hook has received, injected ones included; handy to check it's alive.</summary>
@@ -80,8 +93,8 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     }
 
     /// <summary>
-    /// When false every key passes through, except the ups of keys already hidden. Re-enabling reinstalls the
-    /// keyboard hook, as manual recovery if Windows silently dropped it.
+    /// When false every key passes through, except the ups of keys already hidden and push-to-talk merging.
+    /// Re-enabling reinstalls the keyboard hook, as manual recovery if Windows silently dropped it.
     /// </summary>
     public bool Enabled
     {
@@ -136,7 +149,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         }
     }
 
-    /// <summary>Removes the hook and ends any active chord. Safe to call repeatedly.</summary>
+    /// <summary>Removes the hook, ends any active chord and releases push-to-talk. Safe to call repeatedly.</summary>
     public void Stop()
     {
         lock (_lock)
@@ -205,6 +218,16 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         capture.TrySetCanceled(cancellationToken);
     }
 
+    /// <summary>Queues a command for the hook thread; if it isn't running, runs it here unless told to drop it.</summary>
+    internal void Post(Action command, bool dropIfStopped)
+    {
+        lock (_lock)
+        {
+            if (_thread is not null || !dropIfStopped)
+                Execute(command);
+        }
+    }
+
     // Caller holds _lock. Runs on the hook thread if it's running, else right here.
     private void Execute(Action command)
     {
@@ -221,6 +244,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     private void Run(TaskCompletionSource started)
     {
         t_current = this;
+        PushToTalk.Attach();
         try
         {
             _threadId = GetCurrentThreadId();
@@ -280,6 +304,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         _foregroundEvents = 0;
         _desktopEvents = 0;
         RunCommands();
+        PushToTalk.Detach();
         Emit(_filter.Reset());
         _filter.CancelCapture();
         _capture?.TrySetResult(null);
@@ -328,12 +353,15 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     {
         _keyEventsSeen++;
         var flags = key->flags;
+        var scanCode = (int)key->scanCode;
+        var isExtended = (flags & LLKHF_EXTENDED) != 0;
+        var isKeyDown = (flags & LLKHF_UP) == 0;
+        var isInjected = (flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0;
+        if (PushToTalk.HandleKey(scanCode, isExtended, isKeyDown, isInjected))
+            return true;
+
         var result = _filter.Process(
-            (int)key->scanCode,
-            isExtended: (flags & LLKHF_EXTENDED) != 0,
-            isKeyDown: (flags & LLKHF_UP) == 0,
-            isInjected: (flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0,
-            captureAllowed: !_filter.Capturing || OwnsForeground());
+            scanCode, isExtended, isKeyDown, isInjected, captureAllowed: !_filter.Capturing || OwnsForeground());
 
         Emit(result.Event);
         if (result.CaptureEnded)
@@ -402,17 +430,14 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         ResetFilter();
     }
 
-    private void ResetFilter() => Emit(_filter.Reset(IsChordKeyDown()));
+    private void ResetFilter()
+    {
+        PushToTalk.Resync();
+        Emit(_filter.Reset(IsChordKeyDown()));
+    }
 
     // The async key state never sees presses the hook hid, so this tells whether other apps saw it go down.
-    private bool IsChordKeyDown()
-    {
-        var key = _filter.ChordKey;
-        var layout = GetKeyboardLayout(GetWindowThreadProcessId(GetForegroundWindow(), out _));
-        var scanCode = (uint)(key.IsExtended ? 0xE000 | key.ScanCode : key.ScanCode);
-        var vk = MapVirtualKeyExW(scanCode, MAPVK_VSC_TO_VK_EX, layout);
-        return vk != 0 && GetAsyncKeyState((int)vk) < 0;
-    }
+    private bool IsChordKeyDown() => KeyState.IsDown(_filter.ChordKey);
 
     // An exception escaping into the native hook chain would take down the process.
     private void Emit(ChordEvent? chordEvent)
@@ -430,10 +455,13 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         }
     }
 
-    /// <summary>Raised on the hook thread when a recovery action, e.g. reinstalling the hook, fails.</summary>
+    /// <summary>
+    /// Raised on the hook thread when a recovery action, e.g. reinstalling the hook, fails, or push-to-talk
+    /// can't be simulated.
+    /// </summary>
     public event Action<string>? ErrorOccurred;
 
-    private void RaiseError(string message)
+    internal void RaiseError(string message)
     {
         try
         {
