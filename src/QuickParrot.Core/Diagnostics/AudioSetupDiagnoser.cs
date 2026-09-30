@@ -27,6 +27,8 @@ public static class AudioSetupDiagnoser
         public const string MicMuted = "mic-muted";
         public const string CommunicationsDucking = "communications-ducking";
         public const string DefaultRecordingNotCable = "default-recording-not-cable";
+        public const string CommunicationsRecordingMismatch = "communications-recording-mismatch";
+        public const string CommunicationsPlaybackMismatch = "communications-playback-mismatch";
     }
 
     /// <summary>Findings ordered by severity, then in the fixed order the checks run.</summary>
@@ -63,8 +65,11 @@ public static class AudioSetupDiagnoser
             CheckMicMuted(findings, snapshot, mic);
 
         CheckDucking(findings, snapshot);
+        CheckCommunicationsRecordingMismatch(findings, snapshot, cableCapture);
         if (cableCapture is not null)
             CheckDefaultRecording(findings, snapshot, cableCapture);
+
+        CheckCommunicationsPlaybackMismatch(findings, snapshot, cable);
 
         return findings.OrderBy(f => f.Severity).ToList();
     }
@@ -234,6 +239,67 @@ public static class AudioSetupDiagnoser
             $"{cableCapture.Name} as the microphone in each game or voice app.",
             new DiagnosticFix(FixKind.SetDefaultRecording, $"Make {cableCapture.Name} the default", cableCapture.Id, Roles: roles)));
     }
+
+    // Skipped when communications is the cable: plausibly intentional, and this fix must never move it off the cable
+    // (so it can't fight CheckDefaultRecording, whose fix points every role at the cable).
+    private static void CheckCommunicationsRecordingMismatch(
+        List<DiagnosticFinding> findings, AudioSetupSnapshot snapshot, CaptureDeviceInfo? cableCapture)
+    {
+        if (snapshot.Defaults is not { } defaults)
+            return;
+
+        var console = FindActiveCapture(snapshot, defaults.CaptureConsole);
+        var comms = FindActiveCapture(snapshot, defaults.CaptureCommunications);
+        if (console is null || comms is null || SameId(console.Id, comms.Id))
+            return;
+
+        var commsIsCable = cableCapture is not null && SameId(comms.Id, cableCapture.Id);
+        if (commsIsCable)
+            return;
+
+        var consoleIsCable = cableCapture is not null && SameId(console.Id, cableCapture.Id);
+        var explanation = consoleIsCable
+            ? $"Most apps use {console.Name} (the one chosen in Windows Settings), which is how QuickParrot reaches your game with " +
+              $"soundboard clips, but voice chat and some games use {comms.Name} instead, so they currently won't hear those clips."
+            : $"Most apps use {console.Name} (the one chosen in Windows Settings), but voice chat and some games use {comms.Name} " +
+              "instead.";
+        explanation += " Steam also has its own mic choice (Steam → Settings → Voice) that QuickParrot can't change.";
+
+        findings.Add(new DiagnosticFinding(Ids.CommunicationsRecordingMismatch, DiagnosticSeverity.Warning,
+            "Your two default microphones don't match", explanation,
+            new DiagnosticFix(FixKind.SetDefaultRecording, $"Also use {console.Name} for voice chat", console.Id,
+                Roles: DeviceRoles.Communications)));
+    }
+
+    // Skipped when the cable is either default: CheckDefaultPlayback already offers a fix for that role.
+    private static void CheckCommunicationsPlaybackMismatch(List<DiagnosticFinding> findings, AudioSetupSnapshot snapshot, AudioDeviceInfo? cable)
+    {
+        if (snapshot.Defaults is not { } defaults)
+            return;
+
+        if (cable is not null && (IsId(defaults.RenderConsole, cable.Id) || IsId(defaults.RenderCommunications, cable.Id)))
+            return;
+
+        var console = FindActiveRender(snapshot, defaults.RenderConsole);
+        var comms = FindActiveRender(snapshot, defaults.RenderCommunications);
+        if (console is null || comms is null || SameId(console.Id, comms.Id))
+            return;
+
+        findings.Add(new DiagnosticFinding(Ids.CommunicationsPlaybackMismatch, DiagnosticSeverity.Advisory,
+            "Voice chat plays through a different output",
+            $"Most apps play through {console.Name} (the one chosen in Windows Settings), but voice chat and some " +
+            $"games play through {comms.Name} instead, so you might not hear teammates the way you expect.",
+            new DiagnosticFix(FixKind.SetDefaultPlayback, $"Also use {console.Name} for voice chat", console.Id,
+                Roles: DeviceRoles.Communications)));
+    }
+
+    private static AudioDeviceInfo? FindActiveRender(AudioSetupSnapshot snapshot, string? id) =>
+        id is null ? null : snapshot.RenderDevices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));
+
+    private static CaptureDeviceInfo? FindActiveCapture(AudioSetupSnapshot snapshot, string? id) =>
+        id is null ? null : snapshot.CaptureDevices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));
+
+    private static bool IsId(string? candidate, string id) => candidate is not null && SameId(candidate, id);
 
     private static DeviceRoles RolesWhere(Func<DeviceRoles, bool> predicate) =>
         EachRole.Where(predicate).Aggregate(DeviceRoles.None, (all, role) => all | role);

@@ -340,9 +340,12 @@ public class AudioSetupDiagnoserTests
     [Fact]
     public void OnlyCommunicationsRecordingDiffers_FixesJustThatRole()
     {
+        // Console/multimedia already being the cable also trips communications-recording-mismatch (console == cable,
+        // communications == the real mic instead) -- see CommunicationsRecordingMismatch_WhenConsoleIsTheCable_*.
         var snapshot = Healthy with { Defaults = new DefaultEndpoints("hp", "hp", "hp", "cable-out", "cable-out", "mic") };
 
-        Assert.Equal(DeviceRoles.Communications, Single(snapshot, Ids.DefaultRecordingNotCable).Fix?.Roles);
+        var finding = Diagnose(snapshot).Single(f => f.Id == Ids.DefaultRecordingNotCable);
+        Assert.Equal(DeviceRoles.Communications, finding.Fix?.Roles);
     }
 
     [Fact]
@@ -369,6 +372,133 @@ public class AudioSetupDiagnoserTests
             [Ids.ListenDisabled, Ids.DefaultPlaybackIsCable, Ids.CableInputLevel, Ids.MicMuted, Ids.CommunicationsDucking, Ids.DefaultRecordingNotCable],
             findings.Ids());
         Assert.Equal(findings, Diagnose(snapshot));
+    }
+
+    [Fact]
+    public void CommunicationsRecordingMismatch_IsAWarning_WhenNoCableIsPresent()
+    {
+        var webcam = new CaptureDeviceInfo("cam", "Microphone (Webcam)", AudioDeviceState.Active, false);
+        var snapshot = new AudioSetupSnapshot
+        {
+            RenderDevices = [Headphones],
+            CaptureDevices = [RealMic, webcam],
+            Defaults = new DefaultEndpoints("hp", "hp", "hp", "mic", "mic", "cam"),
+        };
+
+        var findings = Diagnose(snapshot);
+
+        // No cable at all, so this is on top of the (unrelated) cable-missing error.
+        Assert.Equal([Ids.CableMissing, Ids.CommunicationsRecordingMismatch], findings.Ids());
+        var finding = findings[1];
+        Assert.Equal(DiagnosticSeverity.Warning, finding.Severity);
+        Assert.Equal(new DiagnosticFix(FixKind.SetDefaultRecording, finding.Fix!.Label, "mic", Roles: DeviceRoles.Communications), finding.Fix);
+        Assert.Contains(RealMic.Name, finding.Explanation);
+        Assert.Contains(webcam.Name, finding.Explanation);
+    }
+
+    [Fact]
+    public void CommunicationsRecordingMismatch_FiresEvenWithACablePresent()
+    {
+        var webcam = new CaptureDeviceInfo("cam", "Microphone (Webcam)", AudioDeviceState.Active, false);
+        var snapshot = Healthy with
+        {
+            CaptureDevices = [RealMic, webcam, CableOutput],
+            Defaults = new DefaultEndpoints("hp", "hp", "hp", "mic", "mic", "cam"),
+        };
+
+        var findings = Diagnose(snapshot);
+
+        // Coexists with default-recording-not-cable: that advisory's own fix points every role (including
+        // communications) at the cable, so it doesn't compete with this fix's target.
+        Assert.Contains(Ids.DefaultRecordingNotCable, findings.Ids());
+        var finding = findings.Single(f => f.Id == Ids.CommunicationsRecordingMismatch);
+        Assert.Equal(DiagnosticSeverity.Warning, finding.Severity);
+        Assert.Equal(new DiagnosticFix(FixKind.SetDefaultRecording, finding.Fix!.Label, "mic", Roles: DeviceRoles.Communications), finding.Fix);
+    }
+
+    /// <summary>
+    /// The interaction rule: communications already pointing at the cable is a plausible intentional setup (voice
+    /// apps hear soundboard clips while other apps use the plain mic), so this is the one case that stays quiet
+    /// even though the two roles differ.
+    /// </summary>
+    [Fact]
+    public void CommunicationsRecordingMismatch_IsNotReported_WhenCommunicationsIsTheCable()
+    {
+        var snapshot = Healthy with { Defaults = new DefaultEndpoints("hp", "hp", "hp", "mic", "mic", "cable-out") };
+
+        Assert.DoesNotContain(Ids.CommunicationsRecordingMismatch, Diagnose(snapshot).Ids());
+    }
+
+    /// <summary>
+    /// When the console default is the cable but communications isn't, aligning the two makes voice chat start
+    /// hearing soundboard clips too -- so the fix still targets the console default (the cable), and the wording
+    /// explains what's currently missing rather than talking about "your two default microphones".
+    /// </summary>
+    [Fact]
+    public void CommunicationsRecordingMismatch_WhenConsoleIsTheCable_ExplainsVoiceChatWontHearClips()
+    {
+        var snapshot = Healthy with { Defaults = new DefaultEndpoints("hp", "hp", "hp", "cable-out", "cable-out", "mic") };
+
+        var finding = Diagnose(snapshot).Single(f => f.Id == Ids.CommunicationsRecordingMismatch);
+
+        Assert.Equal(DiagnosticSeverity.Warning, finding.Severity);
+        Assert.Equal(new DiagnosticFix(FixKind.SetDefaultRecording, finding.Fix!.Label, "cable-out", Roles: DeviceRoles.Communications), finding.Fix);
+        Assert.Contains("won't hear", finding.Explanation);
+        Assert.Contains(CableOutput.Name, finding.Explanation);
+        Assert.Contains(RealMic.Name, finding.Explanation);
+    }
+
+    [Fact]
+    public void CommunicationsRecordingMismatch_UnknownOrInactiveDefault_IsNotReported()
+    {
+        var snapshot = new AudioSetupSnapshot
+        {
+            RenderDevices = [Headphones],
+            CaptureDevices = [RealMic],
+            Defaults = new DefaultEndpoints("hp", "hp", "hp", "mic", "mic", "unplugged-device"),
+        };
+
+        Assert.DoesNotContain(Ids.CommunicationsRecordingMismatch, Diagnose(snapshot).Ids());
+    }
+
+    [Fact]
+    public void CommunicationsPlaybackMismatch_IsAnAdvisory_WhenTheCableIsNotInvolved()
+    {
+        var snapshot = Healthy with { Defaults = Healthy.Defaults! with { RenderCommunications = "spk" } };
+
+        var finding = Single(snapshot, Ids.CommunicationsPlaybackMismatch);
+
+        Assert.Equal(DiagnosticSeverity.Advisory, finding.Severity);
+        Assert.Equal(new DiagnosticFix(FixKind.SetDefaultPlayback, finding.Fix!.Label, "hp", Roles: DeviceRoles.Communications), finding.Fix);
+        Assert.Contains(Headphones.Name, finding.Explanation);
+        Assert.Contains(Speakers.Name, finding.Explanation);
+    }
+
+    /// <summary>
+    /// The interaction rule: default-playback-is-cable already reports (as an Error or its own Warning) whenever the
+    /// cable is the console or communications default, with a fix that targets a real output. The mismatch check
+    /// would offer a second, possibly different, target for the same default, so it's suppressed whenever the cable
+    /// is involved in either role, and only compares the two roles when neither is the cable.
+    /// </summary>
+    [Theory]
+    [InlineData("cable-in", "cable-in", "spk")] // console/multimedia are the cable: covered by the Error.
+    [InlineData("hp", "hp", "cable-in")] // only communications is the cable: covered by the Warning.
+    public void CommunicationsPlaybackMismatch_IsSuppressedWhenTheCableIsEitherDefault(string console, string multimedia, string communications)
+    {
+        var snapshot = Healthy with { Defaults = new DefaultEndpoints(console, multimedia, communications, "cable-out", "cable-out", "cable-out") };
+
+        var findings = Diagnose(snapshot);
+
+        Assert.DoesNotContain(Ids.CommunicationsPlaybackMismatch, findings.Ids());
+        Assert.Contains(Ids.DefaultPlaybackIsCable, findings.Ids());
+    }
+
+    [Fact]
+    public void CommunicationsPlaybackMismatch_UnknownOrInactiveDefault_IsNotReported()
+    {
+        var snapshot = Healthy with { Defaults = Healthy.Defaults! with { RenderCommunications = "disconnected-device" } };
+
+        Assert.DoesNotContain(Ids.CommunicationsPlaybackMismatch, Diagnose(snapshot).Ids());
     }
 
     [Fact]

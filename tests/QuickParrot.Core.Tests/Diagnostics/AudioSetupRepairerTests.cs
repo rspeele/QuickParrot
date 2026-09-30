@@ -75,6 +75,24 @@ public class AudioSetupRepairerTests
     }
 
     [Fact]
+    public async Task SetDefaultRecording_CommunicationsOnly_SetsJustThatRole()
+    {
+        var result = await Repair(new DiagnosticFix(FixKind.SetDefaultRecording, "Rec", "mic", Roles: DeviceRoles.Communications));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(["default:mic:Communications"], _writer.Calls);
+    }
+
+    [Fact]
+    public async Task SetDefaultPlayback_CommunicationsOnly_SetsJustThatRole()
+    {
+        var result = await Repair(new DiagnosticFix(FixKind.SetDefaultPlayback, "Play", "hp", Roles: DeviceRoles.Communications));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(["default:hp:Communications"], _writer.Calls);
+    }
+
+    [Fact]
     public async Task RestoreCableLevel_UnmutesAtFullVolume()
     {
         await Repair(new DiagnosticFix(FixKind.RestoreCableLevel, "Fix", "cable-in"));
