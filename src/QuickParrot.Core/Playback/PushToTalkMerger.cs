@@ -11,11 +11,13 @@ public enum PushToTalkSend
 }
 
 /// <summary>
-/// Makes the game see one push-to-talk input that's down while the user physically holds it or QuickParrot
-/// holds it. Decides what to inject and which physical events to hide. Not thread-safe, never allocates.
+/// Makes the game see one push-to-talk input that's down while the user physically holds it or QuickParrot holds
+/// it. Decides what to inject and which physical events to hide. Not thread-safe; handling events never allocates.
 /// </summary>
 public sealed class PushToTalkMerger
 {
+    private readonly List<PushToTalkBinding> _pendingUps = new(4);
+
     public PushToTalkMerger(PushToTalkBinding binding)
     {
         Binding = binding;
@@ -31,6 +33,9 @@ public sealed class PushToTalkMerger
 
     /// <summary>Whether the game should currently see the binding as down.</summary>
     public bool GameSeesDown => Holding || PhysicallyHeld;
+
+    /// <summary>Bindings whose injected up failed, so the game may still see them down.</summary>
+    public int PendingUpCount => _pendingUps.Count;
 
     public PushToTalkSend Press()
     {
@@ -52,12 +57,63 @@ public sealed class PushToTalkMerger
     }
 
     /// <summary>Returns true to hide the event from every other application.</summary>
-    public bool HandleKey(ScanKey key, bool isDown, bool isInjected) =>
-        Binding.Key == key && HandlePhysical(isDown, isInjected);
+    public bool HandleKey(ScanKey key, bool isDown, bool isInjected)
+    {
+        // The user's own press or release reaches the game, so a failed up for it no longer matters.
+        if (!isInjected && _pendingUps.Count != 0)
+            _pendingUps.Remove(PushToTalkBinding.FromKey(key));
+
+        return Binding.Key == key && HandlePhysical(isDown, isInjected);
+    }
 
     /// <summary>Returns true to hide the event from every other application.</summary>
-    public bool HandleMouse(PushToTalkMouseButton button, bool isDown, bool isInjected) =>
-        Binding.MouseButton == button && HandlePhysical(isDown, isInjected);
+    public bool HandleMouse(PushToTalkMouseButton button, bool isDown, bool isInjected)
+    {
+        if (!isInjected && _pendingUps.Count != 0)
+            _pendingUps.Remove(PushToTalkBinding.FromMouse(button));
+
+        return Binding.MouseButton == button && HandlePhysical(isDown, isInjected);
+    }
+
+    /// <summary>Call after injecting an up for <paramref name="binding"/>; a failed one is kept for retrying.</summary>
+    public void UpSent(PushToTalkBinding binding, bool succeeded)
+    {
+        if (succeeded)
+            _pendingUps.Remove(binding);
+        else if (!_pendingUps.Contains(binding))
+            _pendingUps.Add(binding);
+    }
+
+    /// <summary>
+    /// Takes the oldest failed up worth retrying; report the retry with <see cref="UpSent"/>. One for a binding
+    /// QuickParrot holds again is dropped, since releasing that hold sends a fresh up.
+    /// </summary>
+    public bool TryTakePendingUp(out PushToTalkBinding binding)
+    {
+        while (_pendingUps.Count != 0)
+        {
+            binding = _pendingUps[0];
+            _pendingUps.RemoveAt(0);
+            if (!Holding || binding != Binding)
+                return true;
+        }
+
+        binding = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Everything the game may see down because of QuickParrot, for an emergency release. Includes a hold the user
+    /// also has, since their release is hidden while holding: better cutting them off than leaving it stuck.
+    /// </summary>
+    public PushToTalkBinding[] HeldByUs()
+    {
+        var held = new List<PushToTalkBinding>(_pendingUps);
+        if (Holding && !held.Contains(Binding))
+            held.Add(Binding);
+
+        return [.. held];
+    }
 
     /// <summary>
     /// Adopts the system's view after events may have been missed. While holding, the system only shows our own

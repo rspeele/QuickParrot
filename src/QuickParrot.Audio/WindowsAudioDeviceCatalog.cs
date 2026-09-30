@@ -23,9 +23,9 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
     {
         _notificationEnumerator = new MMDeviceEnumerator();
         _notifications = _notificationEnumerator.CreateNotificationClient(useSynchronizationContext: false);
-        _notifications.DeviceAdded += (_, _) => Invalidate();
+        _notifications.DeviceAdded += (_, _) => InvalidateAndRaise();
         _notifications.DeviceRemoved += (_, _) => Invalidate();
-        _notifications.DeviceStateChanged += (_, _) => Invalidate();
+        _notifications.DeviceStateChanged += (_, _) => InvalidateAndRaise();
         _notifications.DefaultDeviceChanged += (_, _) => Invalidate();
         _notifications.PropertyValueChanged += (_, e) =>
         {
@@ -33,6 +33,12 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
                 Invalidate();
         };
     }
+
+    /// <summary>
+    /// Raised when a device is added or changes state, on a Windows audio thread that holds a lock: handlers must
+    /// return quickly and not touch the audio stack.
+    /// </summary>
+    public event Action? DevicesChanged;
 
     public IReadOnlyList<AudioDeviceInfo> GetRenderDevices() => GetSnapshot().Devices;
 
@@ -52,6 +58,19 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
 
     // Runs on a Windows audio thread that holds a lock, so it must not block or touch the audio stack.
     private void Invalidate() => Interlocked.Increment(ref _version);
+
+    private void InvalidateAndRaise()
+    {
+        Invalidate();
+        try
+        {
+            DevicesChanged?.Invoke();
+        }
+        catch (Exception)
+        {
+            // Must not escape into the COM callback.
+        }
+    }
 
     // A snapshot taken while a change notification arrived is tagged with the old version, so it's never reused.
     private Snapshot GetSnapshot()

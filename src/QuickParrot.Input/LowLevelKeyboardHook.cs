@@ -9,9 +9,8 @@ using static QuickParrot.Input.NativeMethods;
 namespace QuickParrot.Input;
 
 /// <summary>
-/// A global low-level keyboard hook running <see cref="ChordKeyFilter"/> on its own thread; the chord event
-/// handler runs on that thread and must never block. It can't see keys aimed at more-elevated windows.
-/// It also hosts <see cref="PushToTalk"/>, which works whether or not hotkeys are enabled.
+/// A global keyboard hook thread running <see cref="ChordKeyFilter"/> and <see cref="PushToTalk"/> (even with hotkeys
+/// off). The chord event handler runs there and must never block. Keys aimed at more-elevated windows go unseen.
 /// </summary>
 public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 {
@@ -397,9 +396,14 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
             return;
 
         if (eventType == EVENT_SYSTEM_DESKTOPSWITCH)
+        {
             current.ResetFilter();
+        }
         else
+        {
             current.Emit(current._filter.ResetIfChordActive(current.IsChordKeyDown()));
+            current.PushToTalk.OnForegroundChanged();
+        }
     }
 
     // The secure desktop swallows key-ups, so anything held across a lock or user switch is stale.

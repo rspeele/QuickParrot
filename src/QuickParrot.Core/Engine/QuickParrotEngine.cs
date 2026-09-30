@@ -77,6 +77,9 @@ public sealed class QuickParrotEngine : IDisposable
 
     public void Stop() => Post(_controller.Stop);
 
+    /// <summary>Call when capture devices change, e.g. a mic that couldn't be restored is plugged back in.</summary>
+    public void RetryMicRestore() => Post(_micMuter.RetryRestore);
+
     public void UpdateSettings(Func<AppSettings, AppSettings> change) => Post(() =>
     {
         var old = _settings;

@@ -58,6 +58,15 @@ public sealed class QuickParrotEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task RetryMicRestore_ReachesTheMicMuter()
+    {
+        _engine.RetryMicRestore();
+        await _engine.FlushAsync();
+
+        Assert.Equal(["mic:retry"], _log);
+    }
+
+    [Fact]
     public async Task PlayingPathOutsideLibrary_ReportsError()
     {
         _engine.Play("../secret.wav");

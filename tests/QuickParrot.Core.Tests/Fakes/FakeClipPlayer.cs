@@ -143,4 +143,6 @@ public sealed class FakeMicMuter(List<string> log) : IMicMuter
     public void Mute() => log.Add("mic:mute");
 
     public void Unmute() => log.Add("mic:unmute");
+
+    public void RetryRestore() => log.Add("mic:retry");
 }

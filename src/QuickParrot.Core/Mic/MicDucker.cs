@@ -4,17 +4,23 @@ using QuickParrot.Core.Playback;
 namespace QuickParrot.Core.Mic;
 
 /// <summary>
-/// Mutes or attenuates the real mic while a clip plays, saving its original state first so it can be restored
-/// even after a crash. Not thread-safe: call <see cref="RestoreAfterCrash"/> before handing this to the engine,
-/// which then makes every other call from its worker thread.
+/// Mutes or attenuates the real mic while a clip plays, saving its original state first so a crash can be undone.
+/// Call it from one thread at a time, except <see cref="EmergencyRestore"/>, which is callable from any thread.
 /// </summary>
 public sealed class MicDucker : IMicMuter
 {
+    private const string RetryLater = "QuickParrot will try again when it's reconnected.";
+
     private readonly IMicVolumeControl _control;
     private readonly ICaptureDeviceCatalog _devices;
     private readonly IMicRestoreStore _store;
+
+    // Only ever contended by an emergency restore.
+    private readonly Lock _lock = new();
     private MicDuckSettings _settings = MicDuckSettings.Off;
-    private MicRestoreRecord? _applied;
+    private volatile MicRestoreRecord? _applied;
+    private bool _clipDucked;
+    private volatile bool _emergencyRestored;
     private string? _lastWarning;
 
     public MicDucker(IMicVolumeControl control, ICaptureDeviceCatalog devices, IMicRestoreStore store)
@@ -29,7 +35,16 @@ public sealed class MicDucker : IMicMuter
 
     public static float AttenuatedVolume(float original, int percent) => Math.Clamp(original * percent / 100f, 0f, 1f);
 
-    public void Configure(MicDuckSettings settings) => _settings = settings;
+    /// <summary>Turning ducking off also retries a pending restore, since no clip will.</summary>
+    public void Configure(MicDuckSettings settings)
+    {
+        lock (_lock)
+        {
+            _settings = settings;
+            if (settings.Mode == MicDuckMode.Off)
+                RetryRestore();
+        }
+    }
 
     /// <summary>
     /// Undoes a mic change left behind by a previous run that crashed mid-clip. Returns a user-facing message if
@@ -37,61 +52,118 @@ public sealed class MicDucker : IMicMuter
     /// </summary>
     public string? RestoreAfterCrash()
     {
-        try
+        lock (_lock)
         {
-            _applied = _store.Load();
-        }
-        catch (Exception e)
-        {
-            return $"Couldn't check whether your microphone needs restoring: {e.Message}";
-        }
+            try
+            {
+                _applied = _store.Load();
+            }
+            catch (Exception e)
+            {
+                return $"Couldn't check whether your microphone needs restoring: {e.Message}";
+            }
 
-        if (_applied is not { } record)
-            return null;
+            if (_applied is not { } record)
+                return null;
 
-        return TryRestore() switch
-        {
-            RestoreOutcome.Restored =>
-                $"QuickParrot didn't close cleanly during a clip, so {NameOf(record)} was restored to how it was.",
-            RestoreOutcome.DeviceGone =>
-                $"QuickParrot didn't close cleanly during a clip, and {NameOf(record)} is gone, so it couldn't be restored.",
-            _ => $"QuickParrot didn't close cleanly during a clip and couldn't restore {NameOf(record)} yet. "
-                + "It'll try again before the next clip.",
-        };
+            const string uncleanExit = "QuickParrot didn't close cleanly during a clip";
+            return TryRestore() switch
+            {
+                RestoreOutcome.Restored => $"{uncleanExit}, so {NameOf(record)} was restored to how it was.",
+                RestoreOutcome.DeviceGone => $"{uncleanExit}, and {NameOf(record)} is gone, so it couldn't be restored.",
+                _ => $"{uncleanExit} and couldn't restore {NameOf(record)} yet. {RetryLater}",
+            };
+        }
     }
 
     public void Mute()
     {
-        try
+        lock (_lock)
         {
-            Duck();
-        }
-        catch (Exception e)
-        {
-            Warn($"Couldn't change your microphone: {e.Message}");
+            try
+            {
+                Duck();
+            }
+            catch (Exception e)
+            {
+                Warn($"Couldn't change your microphone: {e.Message}");
+            }
         }
     }
 
     public void Unmute()
     {
-        if (_applied is not { } record)
-            return;
+        lock (_lock)
+        {
+            _clipDucked = false;
+            if (_applied is not { } record)
+                return;
 
+            try
+            {
+                if (TryRestore() == RestoreOutcome.Failed)
+                    Warn($"Couldn't restore {NameOf(record)}. {RetryLater}");
+            }
+            catch (Exception e)
+            {
+                Warn($"Couldn't restore your microphone: {e.Message}");
+            }
+        }
+    }
+
+    /// <summary>Retries a restore that failed earlier, e.g. once its device is back. Leaves a clip's change alone.</summary>
+    public void RetryRestore()
+    {
+        lock (_lock)
+        {
+            if (_clipDucked || _applied is not { } record)
+                return;
+
+            var outcome = TryRestore();
+            if (outcome == RestoreOutcome.Restored)
+                Warn($"{Capitalized(NameOf(record))} was restored to how it was.");
+            else if (outcome == RestoreOutcome.DeviceGone)
+                Warn($"{Capitalized(NameOf(record))} is gone, so it couldn't be restored.");
+        }
+    }
+
+    /// <summary>
+    /// For a crash: restores the mic from any thread, waiting at most <paramref name="lockTimeout"/> for a call in
+    /// progress. If that call is stuck, the record is also kept for the next startup. Never throws.
+    /// </summary>
+    public void EmergencyRestore(TimeSpan lockTimeout)
+    {
+        var entered = false;
         try
         {
-            if (TryRestore() == RestoreOutcome.Failed)
-                Warn($"Couldn't restore {NameOf(record)}. QuickParrot will try again before the next clip.");
+            entered = _lock.TryEnter(lockTimeout);
+            _emergencyRestored = true;
+            var record = _applied ?? (entered ? null : _store.Load());
+            if (record is null)
+                return;
+
+            Apply(record);
+            if (entered)
+            {
+                _applied = null;
+                _store.Delete();
+            }
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Warn($"Couldn't restore your microphone: {e.Message}");
+            // Best effort: the record stays for the next startup.
+        }
+        finally
+        {
+            if (entered)
+                _lock.Exit();
         }
     }
 
     private void Duck()
     {
         var settings = _settings;
-        if (settings.Mode == MicDuckMode.Off)
+        if (settings.Mode == MicDuckMode.Off || _emergencyRestored)
             return;
 
         // A change that couldn't be undone earlier must be undone first, or its ducked level would be saved as original.
@@ -129,6 +201,8 @@ public sealed class MicDucker : IMicMuter
             throw;
         }
 
+        _clipDucked = true;
+
         if (selection.ConfiguredUnavailable)
             Warn($"Your chosen microphone isn't available, so {device.Name} was used instead.");
         else
@@ -152,10 +226,7 @@ public sealed class MicDucker : IMicMuter
             if (!device.IsActive)
                 return RestoreOutcome.Failed;
 
-            if (record.Mode == MicDuckMode.Mute)
-                _control.SetMute(record.DeviceId, record.OriginalMuted);
-            else
-                _control.SetVolume(record.DeviceId, record.OriginalVolume);
+            Apply(record);
         }
         catch (Exception)
         {
@@ -164,6 +235,14 @@ public sealed class MicDucker : IMicMuter
 
         Forget();
         return RestoreOutcome.Restored;
+    }
+
+    private void Apply(MicRestoreRecord record)
+    {
+        if (record.Mode == MicDuckMode.Mute)
+            _control.SetMute(record.DeviceId, record.OriginalMuted);
+        else
+            _control.SetVolume(record.DeviceId, record.OriginalVolume);
     }
 
     private void Forget()
@@ -194,6 +273,8 @@ public sealed class MicDucker : IMicMuter
             // A broken handler must not stop the mic being restored.
         }
     }
+
+    private static string Capitalized(string text) => char.ToUpperInvariant(text[0]) + text[1..];
 
     private static string NameOf(MicRestoreRecord record) =>
         string.IsNullOrEmpty(record.DeviceName) ? "your microphone" : $"your microphone ({record.DeviceName})";

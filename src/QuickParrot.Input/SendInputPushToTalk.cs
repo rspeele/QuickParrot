@@ -16,6 +16,7 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
 
     // Just after our own release, the system's view may still show it down.
     private const long SettleMilliseconds = 50;
+    private const int EmergencyWaitMilliseconds = 250;
 
     [ThreadStatic]
     private static SendInputPushToTalk? t_current;
@@ -23,6 +24,11 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
     private readonly LowLevelKeyboardHook _hook;
     private readonly Lock _lock = new();
     private PushToTalkBinding _binding; // guarded by _lock
+
+    // Held around each command, so an emergency release sees what it left held and stops any later press.
+    private readonly Lock _commandLock = new();
+    private volatile PushToTalkBinding[] _heldByUs = [];
+    private volatile bool _emergencyReleased;
 
     // Hook thread only, or the caller's thread while the hook isn't running.
     private readonly PushToTalkMerger _merger;
@@ -53,28 +59,62 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
             lock (_lock)
             {
                 _binding = value;
-                _hook.Post(() => ApplyBinding(value), dropIfStopped: false);
+                _hook.Post(() => RunCommand(() => ApplyBinding(value)), dropIfStopped: false);
             }
         }
     }
 
     /// <summary>Queues the press and returns; ignored while the keyboard hook isn't running.</summary>
-    public void Press() => _hook.Post(OnPress, dropIfStopped: true);
+    public void Press() => _hook.Post(() => RunCommand(OnPress), dropIfStopped: true);
 
     /// <summary>Queues the release and returns; stopping the keyboard hook releases anyway.</summary>
-    public void Release() => _hook.Post(OnRelease, dropIfStopped: true);
+    public void Release() => _hook.Post(() => RunCommand(OnRelease), dropIfStopped: true);
+
+    /// <summary>
+    /// For a crash: from any thread, without waiting long on the hook thread, sends an up for everything held and
+    /// ignores any later press. May duplicate an up. Never throws.
+    /// </summary>
+    public void EmergencyRelease()
+    {
+        var entered = _commandLock.TryEnter(EmergencyWaitMilliseconds);
+        try
+        {
+            _emergencyReleased = true;
+            foreach (var binding in _heldByUs)
+            {
+                var input = ToInput(binding, down: false);
+                SendInput(1, &input, sizeof(INPUT));
+            }
+        }
+        catch (Exception)
+        {
+            // Best effort: the process is going down anyway.
+        }
+        finally
+        {
+            if (entered)
+                _commandLock.Exit();
+        }
+    }
 
     internal void Attach() => t_current = this;
 
-    /// <summary>Returns true to hide the physical key event.</summary>
+    /// <summary>Returns true to hide the physical key event. After an emergency release everything passes.</summary>
     internal bool HandleKey(int scanCode, bool isExtended, bool isKeyDown, bool isInjected) =>
-        _merger.HandleKey(new ScanKey(scanCode, isExtended), isKeyDown, isInjected);
+        !_emergencyReleased && _merger.HandleKey(new ScanKey(scanCode, isExtended), isKeyDown, isInjected);
 
     internal void Resync() => _merger.SyncPhysical(SystemSeesDown(_merger.Binding));
 
+    /// <summary>A failed up may get through to the newly focused window.</summary>
+    internal void OnForegroundChanged()
+    {
+        if (_merger.PendingUpCount != 0)
+            RunCommand(RetryPendingUps);
+    }
+
     internal void Detach()
     {
-        OnRelease();
+        RunCommand(OnRelease);
         t_current = null;
     }
 
@@ -84,28 +124,49 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
             throw new ArgumentException($"{binding} can't be push-to-talk.", nameof(binding));
     }
 
+    private void RunCommand(Action command)
+    {
+        lock (_commandLock)
+        {
+            if (_emergencyReleased)
+                return;
+
+            command();
+            UpdateMouseHook();
+            _heldByUs = _merger.HeldByUs();
+        }
+    }
+
     private void OnPress()
     {
+        RetryPendingUps();
         if (!_merger.Holding)
             _merger.SyncBeforePress(SystemSeesDown(_merger.Binding));
 
         Send(_merger.Press(), _merger.Binding);
-        UpdateMouseHook();
     }
 
     private void OnRelease()
     {
+        RetryPendingUps();
         Send(_merger.Release(), _merger.Binding);
-        UpdateMouseHook();
     }
 
     private void ApplyBinding(PushToTalkBinding binding)
     {
+        RetryPendingUps();
         var old = _merger.Binding;
         var (releaseOld, pressNew) = _merger.SetBinding(binding, SystemSeesDown(binding));
         Send(releaseOld, old);
         Send(pressNew, binding);
-        UpdateMouseHook();
+    }
+
+    // Bounded by the starting count, since each failure goes back on the end.
+    private void RetryPendingUps()
+    {
+        var remaining = _merger.PendingUpCount;
+        while (remaining-- > 0 && _merger.TryTakePendingUp(out var binding))
+            Send(PushToTalkSend.Up, binding);
     }
 
     private bool SystemSeesDown(PushToTalkBinding binding) =>
@@ -124,6 +185,7 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
         {
             _lastUpBinding = binding;
             _lastUpTicks = Environment.TickCount64;
+            _merger.UpSent(binding, sent);
         }
 
         if (sent)
@@ -189,6 +251,9 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
 
     private bool HandleMouse(uint message, MSLLHOOKSTRUCT* info)
     {
+        if (_emergencyReleased)
+            return false;
+
         PushToTalkMouseButton button;
         if (message is WM_MBUTTONDOWN or WM_MBUTTONUP)
         {

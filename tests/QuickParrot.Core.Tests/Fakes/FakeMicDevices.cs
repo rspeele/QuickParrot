@@ -33,11 +33,15 @@ public sealed class FakeMicVolumeControl(List<string> log) : IMicVolumeControl
 
     public bool ThrowOnChange { get; set; }
 
+    /// <summary>Runs before a mute change is logged, e.g. to block it.</summary>
+    public Action<bool>? BeforeSetMute { get; set; }
+
     public MicLevel Read(string deviceId) =>
         ThrowOnRead ? throw new InvalidOperationException("read failed") : Levels[deviceId];
 
     public void SetMute(string deviceId, bool muted)
     {
+        BeforeSetMute?.Invoke(muted);
         log.Add($"mute:{deviceId}={muted}");
         if (ThrowOnChange)
             throw new InvalidOperationException("change failed");

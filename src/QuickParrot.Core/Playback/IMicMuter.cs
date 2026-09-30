@@ -11,4 +11,7 @@ public interface IMicMuter
     void Mute();
 
     void Unmute();
+
+    /// <summary>Retries undoing a change that couldn't be undone earlier, if any, without touching a clip's own.</summary>
+    void RetryRestore();
 }

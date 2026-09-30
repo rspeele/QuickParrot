@@ -282,6 +282,160 @@ public class MicDuckerTests
         Assert.Null(_store.Record);
     }
 
+    private void LeaveRestorePending()
+    {
+        _ducker.Mute();
+        _devices.SetState(Mic, AudioDeviceState.Unplugged);
+        _ducker.Unmute();
+        _warnings.Clear();
+        _log.Clear();
+    }
+
+    [Fact]
+    public void RetryRestore_RestoresOnceTheDeviceIsBack()
+    {
+        LeaveRestorePending();
+
+        _ducker.RetryRestore();
+        Assert.NotNull(_store.Record);
+        Assert.Empty(_warnings);
+
+        _devices.SetState(Mic, AudioDeviceState.Active);
+        _ducker.RetryRestore();
+
+        Assert.Equal(["mute:mic=False", "delete"], _log);
+        Assert.Contains("restored", Assert.Single(_warnings));
+    }
+
+    [Fact]
+    public void RetryRestore_NothingPending_DoesNothing()
+    {
+        _ducker.RetryRestore();
+
+        Assert.Empty(_log);
+        Assert.Empty(_warnings);
+    }
+
+    [Fact]
+    public void RetryRestore_MidClip_LeavesTheClipsChangeAlone()
+    {
+        _ducker.Mute();
+
+        _ducker.RetryRestore();
+
+        Assert.True(_control.Levels[Mic].Muted);
+        Assert.NotNull(_store.Record);
+    }
+
+    [Fact]
+    public void RetryRestore_DuringAClipThatCouldntDuck_RestoresTheLeftover()
+    {
+        LeaveRestorePending();
+        _ducker.Mute(); // skipped: the leftover can't be restored yet
+
+        _devices.SetState(Mic, AudioDeviceState.Active);
+        _ducker.RetryRestore();
+
+        Assert.False(_control.Levels[Mic].Muted);
+        Assert.Null(_store.Record);
+    }
+
+    [Fact]
+    public void RetryRestore_DeviceGone_ForgetsAndWarns()
+    {
+        LeaveRestorePending();
+        _devices.Devices.RemoveAt(0);
+
+        _ducker.RetryRestore();
+
+        Assert.Null(_store.Record);
+        Assert.Contains("is gone", Assert.Single(_warnings));
+    }
+
+    [Fact]
+    public void ConfiguringOff_RetriesAPendingRestore()
+    {
+        LeaveRestorePending();
+        _devices.SetState(Mic, AudioDeviceState.Active);
+
+        _ducker.Configure(MicDuckSettings.Off);
+
+        Assert.False(_control.Levels[Mic].Muted);
+        Assert.Null(_store.Record);
+    }
+
+    [Fact]
+    public void ConfiguringOffMidClip_RestoresAtTheEndOfTheClip()
+    {
+        _ducker.Mute();
+
+        _ducker.Configure(MicDuckSettings.Off);
+        Assert.True(_control.Levels[Mic].Muted);
+
+        _ducker.Unmute();
+        Assert.False(_control.Levels[Mic].Muted);
+    }
+
+    [Fact]
+    public void EmergencyRestore_MidClip_RestoresDeletesAndStopsFurtherDucking()
+    {
+        _ducker.Mute();
+
+        _ducker.EmergencyRestore(TimeSpan.Zero);
+
+        Assert.False(_control.Levels[Mic].Muted);
+        Assert.Null(_store.Record);
+
+        _log.Clear();
+        _ducker.Mute();
+        _ducker.Unmute();
+        Assert.Empty(_log);
+    }
+
+    [Fact]
+    public void EmergencyRestore_NothingApplied_DoesNothing()
+    {
+        _ducker.EmergencyRestore(TimeSpan.Zero);
+
+        Assert.Empty(_log);
+    }
+
+    [Fact]
+    public void EmergencyRestore_Failing_KeepsTheRecordWithoutThrowing()
+    {
+        _ducker.Mute();
+        _control.ThrowOnChange = true;
+
+        _ducker.EmergencyRestore(TimeSpan.Zero);
+
+        Assert.NotNull(_store.Record);
+    }
+
+    [Fact]
+    public void EmergencyRestore_WhileACallIsStuck_RestoresButKeepsTheRecordForStartup()
+    {
+        using var stuck = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _control.BeforeSetMute = muted =>
+        {
+            if (muted)
+            {
+                stuck.Set();
+                release.Wait();
+            }
+        };
+        var worker = new Thread(_ducker.Mute);
+        worker.Start();
+        stuck.Wait();
+
+        _ducker.EmergencyRestore(TimeSpan.FromMilliseconds(20));
+
+        Assert.Contains("mute:mic=False", _log);
+        Assert.NotNull(_store.Record);
+        release.Set();
+        worker.Join();
+    }
+
     [Fact]
     public void ThrowingWarningHandler_DoesNotEscape()
     {
