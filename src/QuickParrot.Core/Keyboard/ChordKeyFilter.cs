@@ -3,8 +3,8 @@ using QuickParrot.Core.Navigation;
 namespace QuickParrot.Core.Keyboard;
 
 /// <summary>
-/// Turns raw physical key events into <see cref="ChordEvent"/>s and decides which to hide from other apps.
-/// Runs inside the low-level keyboard hook, so it never allocates per event. Not thread-safe.
+/// Turns raw key events into <see cref="ChordEvent"/>s and hides keys pressed while the chord is held (the chord key
+/// itself passes through). Runs inside the low-level hook, so it never allocates per event. Not thread-safe.
 /// </summary>
 public sealed class ChordKeyFilter
 {
@@ -89,9 +89,8 @@ public sealed class ChordKeyFilter
             return KeyFilterResult.PassThrough;
 
         var slot = SlotOf(scanCode, isExtended);
-        return isKeyDown
-            ? KeyDown(slot, new ScanKey(scanCode, isExtended), captureAllowed)
-            : KeyUp(slot, scanCode, isExtended);
+        var key = new ScanKey(scanCode, isExtended);
+        return isKeyDown ? KeyDown(slot, key, captureAllowed) : KeyUp(slot, key);
     }
 
     /// <summary>The next fresh, non-injected key down (other than shift) is reported and hidden, with its up.</summary>
@@ -121,8 +120,8 @@ public sealed class ChordKeyFilter
     }
 
     /// <summary>
-    /// Forgets key state after events may have been missed; if <paramref name="chordKeyDown"/>, other apps saw
-    /// it go down, so its repeats and up pass through. Returns <see cref="ChordCancelled"/> if a chord was active.
+    /// Forgets key state after events may have been missed; if <paramref name="chordKeyDown"/>, it's still
+    /// physically held, so its repeats don't start a chord. Returns <see cref="ChordCancelled"/> if a chord was active.
     /// </summary>
     public ChordEvent? Reset(bool chordKeyDown = false)
     {
@@ -172,9 +171,8 @@ public sealed class ChordKeyFilter
 
         if (key == ChordKey)
         {
-            _swallowed[slot] = true;
             _chordActive = true;
-            return new KeyFilterResult(true, Pressed);
+            return new KeyFilterResult(false, Pressed);
         }
 
         var digit = key.Digit;
@@ -218,20 +216,18 @@ public sealed class ChordKeyFilter
         return new KeyFilterResult(true, ChordlessFavorites[favorite - 1]);
     }
 
-    private KeyFilterResult KeyUp(int slot, int scanCode, bool isExtended)
+    private KeyFilterResult KeyUp(int slot, ScanKey key)
     {
         _held[slot] = false;
-        if (!_swallowed[slot])
-            return KeyFilterResult.PassThrough;
-
+        var swallow = _swallowed[slot];
         _swallowed[slot] = false;
-        if (_chordActive && scanCode == ChordKey.ScanCode && isExtended == ChordKey.IsExtended)
+        if (_chordActive && key == ChordKey)
         {
             _chordActive = false;
-            return new KeyFilterResult(true, Released);
+            return new KeyFilterResult(swallow, Released);
         }
 
-        return KeyFilterResult.SwallowSilently;
+        return swallow ? KeyFilterResult.SwallowSilently : KeyFilterResult.PassThrough;
     }
 
     private ChordEvent? EndChord()

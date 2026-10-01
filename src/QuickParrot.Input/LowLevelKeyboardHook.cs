@@ -278,7 +278,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
                 EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
             _desktopEvents = SetWinEventHook(
                 EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
-            ResetFilter(); // picks up a chord key held down since before the hook existed
+            ResetFilter(); // a chord key held since before the hook existed mustn't chord on its repeats
         }
         catch (Exception e)
         {
@@ -458,7 +458,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         Emit(_filter.Reset(IsChordKeyDown()));
     }
 
-    // The async key state never sees presses the hook hid, so this tells whether other apps saw it go down.
+    // The hook never hides the chord key, so the async key state tracks it even when the hook missed its events.
     private bool IsChordKeyDown() => KeyState.IsDown(_filter.ChordKey);
 
     // An exception escaping into the native hook chain would take down the process.

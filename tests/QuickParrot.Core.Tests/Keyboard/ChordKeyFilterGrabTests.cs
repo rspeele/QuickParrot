@@ -44,7 +44,7 @@ public class ChordKeyFilterGrabTests
     {
         Down(B);
         Down(ScanKey.Enter);
-        Assert.Equal(new KeyFilterResult(true, new ChordReleased()), Up(B));
+        Assert.Equal(new KeyFilterResult(false, new ChordReleased()), Up(B));
 
         Assert.Equal(KeyFilterResult.SwallowSilently, Up(ScanKey.Enter));
     }

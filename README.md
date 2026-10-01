@@ -71,10 +71,11 @@ Like number keys, F-keys, Delete and Backspace are swallowed while the chord key
 
 ## Choosing a chord key
 
-The chord key is configurable, and QuickParrot fully owns it: the game never sees it. B is the default because the
-number row is easy to reach with one hand, but it conflicts with some games (e.g. the Counter-Strike buy menu). A more
-conservative choice is "-", which pairs well with the numpad for right-handed use. Keys are matched by physical position,
-so the numpad works regardless of NumLock.
+The chord key is configurable. The game still sees the chord key itself, so typing it in chat works, but that means it
+should be a key your game doesn't bind; keys pressed while it's held are taken by QuickParrot. B is the default because
+the number row is easy to reach with one hand, but it conflicts with some games (e.g. the Counter-Strike buy menu). A
+more conservative choice is "-", which pairs well with the numpad for right-handed use. Keys are matched by physical
+position, so the numpad works regardless of NumLock.
 
 Number keys pressed while the chord key is held are also swallowed, so they don't switch weapons in-game.
 

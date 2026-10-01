@@ -29,24 +29,37 @@ public class ChordKeyFilterTests
         Assert.Equal(expected, result.Event);
     }
 
-    private static void AssertPassed(KeyFilterResult result) => Assert.Equal(KeyFilterResult.PassThrough, result);
+    private static void AssertPassed(KeyFilterResult result, ChordEvent? expected = null) =>
+        Assert.Equal(new KeyFilterResult(false, expected), result);
 
     [Fact]
-    public void ChordPressAndRelease_AreSwallowed_AndEmitted()
+    public void BareChordTap_PassesThrough_AndEmitsPressThenRelease()
     {
-        AssertSwallowed(Down(B), new ChordPressed());
+        AssertPassed(Down(B), new ChordPressed());
         Assert.True(_filter.ChordActive);
-        AssertSwallowed(Up(B), new ChordReleased());
+        AssertPassed(Up(B), new ChordReleased());
         Assert.False(_filter.ChordActive);
     }
 
     [Fact]
-    public void ChordAutoRepeat_IsSwallowed_WithoutEvents()
+    public void ChordAutoRepeat_PassesThrough_WithoutEvents()
     {
         Down(B);
-        AssertSwallowed(Down(B));
-        AssertSwallowed(Down(B));
-        AssertSwallowed(Up(B), new ChordReleased());
+        AssertPassed(Down(B));
+        AssertPassed(Down(B));
+        Assert.True(_filter.ChordActive);
+        AssertPassed(Up(B), new ChordReleased());
+    }
+
+    [Fact]
+    public void DigitDuringChord_IsSwallowed_WhileChordKeyPassesThrough()
+    {
+        AssertPassed(Down(B), new ChordPressed());
+        AssertSwallowed(Down(One), new DigitPressed(1, false));
+        AssertPassed(Down(B)); // chord auto-repeat
+        AssertSwallowed(Down(One)); // digit auto-repeat
+        AssertSwallowed(Up(One));
+        AssertPassed(Up(B), new ChordReleased());
     }
 
     [Fact]
@@ -135,7 +148,7 @@ public class ChordKeyFilterTests
         Down(B);
         Down(One);
 
-        AssertSwallowed(Up(B), new ChordReleased());
+        AssertPassed(Up(B), new ChordReleased());
         AssertSwallowed(Down(One)); // auto-repeat after the chord ended
         AssertSwallowed(Up(One));
         AssertPassed(Down(One));
@@ -164,7 +177,7 @@ public class ChordKeyFilterTests
         AssertPassed(Down(B));
         AssertPassed(Up(B));
         Assert.False(_filter.ChordActive);
-        AssertSwallowed(Down(B), new ChordPressed());
+        AssertPassed(Down(B), new ChordPressed());
     }
 
     [Fact]
@@ -252,7 +265,7 @@ public class ChordKeyFilterTests
         AssertSwallowed(Down(One), new DigitPressed(1, false));
         AssertPassed(Up(One, injected: true));
         AssertSwallowed(Up(One));
-        AssertSwallowed(Up(B), new ChordReleased());
+        AssertPassed(Up(B), new ChordReleased());
     }
 
     [Fact]
@@ -267,8 +280,8 @@ public class ChordKeyFilterTests
     {
         var filter = new ChordKeyFilter(Minus);
 
-        Assert.False(filter.Process(B.ScanCode, false, true, false).Swallow);
-        Assert.Equal(new ChordPressed(), filter.Process(Minus.ScanCode, false, true, false).Event);
+        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(B.ScanCode, false, true, false));
+        Assert.Equal(new KeyFilterResult(false, new ChordPressed()), filter.Process(Minus.ScanCode, false, true, false));
         Assert.Equal(new DigitPressed(7, false), filter.Process(0x47, false, true, false).Event);
     }
 
@@ -312,19 +325,19 @@ public class ChordKeyFilterTests
         Up(B, injected: true); // stands in for an up lost to the secure desktop
         _filter.Reset();
 
-        AssertSwallowed(Down(B), new ChordPressed());
+        AssertPassed(Down(B), new ChordPressed());
     }
 
     [Fact]
-    public void Reset_WithChordKeyAlreadyDown_LetsItsRepeatsAndUpThrough()
+    public void Reset_WithChordKeyAlreadyDown_DoesNotChordOnItsRepeats()
     {
         Assert.Null(_filter.Reset(chordKeyDown: true));
 
-        AssertPassed(Down(B)); // auto-repeat of a press other apps already saw
+        AssertPassed(Down(B)); // auto-repeat of a press from before the reset
         AssertPassed(Down(B));
         AssertPassed(Up(B));
         Assert.False(_filter.ChordActive);
-        AssertSwallowed(Down(B), new ChordPressed());
+        AssertPassed(Down(B), new ChordPressed());
     }
 
     [Fact]
@@ -339,13 +352,14 @@ public class ChordKeyFilterTests
     }
 
     [Fact]
-    public void Reset_MidChord_WithChordKeyDown_CancelsAndReleasesOwnership()
+    public void Reset_MidChord_WithChordKeyDown_CancelsAndWaitsForAFreshPress()
     {
         Down(B);
 
         Assert.Equal(new ChordCancelled(), _filter.Reset(chordKeyDown: true));
         AssertPassed(Down(B));
         AssertPassed(Up(B));
+        AssertPassed(Down(B), new ChordPressed());
     }
 
     [Fact]
@@ -357,7 +371,7 @@ public class ChordKeyFilterTests
         Assert.Equal(new ChordCancelled(), _filter.ResetIfChordActive(chordKeyDown: false));
         Assert.False(_filter.ChordActive);
         AssertPassed(Up(One));
-        AssertSwallowed(Down(B), new ChordPressed()); // repeat of an owned press that other apps never saw
+        AssertPassed(Down(B), new ChordPressed()); // not physically held, so a fresh press
     }
 
     [Fact]
@@ -370,7 +384,7 @@ public class ChordKeyFilterTests
         Assert.Null(_filter.ResetIfChordActive(chordKeyDown: true));
         AssertSwallowed(Down(One));
         AssertSwallowed(Up(One));
-        AssertSwallowed(Down(B), new ChordPressed());
+        AssertPassed(Down(B), new ChordPressed());
     }
 
     [Fact]
@@ -392,20 +406,48 @@ public class ChordKeyFilterTests
 
         Assert.Equal(new ChordCancelled(), _filter.SetEnabled(false));
         AssertSwallowed(Down(One)); // auto-repeat
+        AssertPassed(Down(B)); // auto-repeat
         AssertSwallowed(Up(One));
-        AssertSwallowed(Up(B));
+        AssertPassed(Up(B));
         AssertPassed(Down(B));
     }
 
     [Fact]
-    public void ChangingChordKeyMidChord_Cancels_AndOldKeyUpStaysHidden()
+    public void ReenablingWhileChordKeyHeld_WaitsForAFreshPress()
     {
         Down(B);
+        _filter.SetEnabled(false);
+
+        Assert.Null(_filter.SetEnabled(true));
+        AssertPassed(Down(B)); // auto-repeat
+        AssertPassed(Up(B));
+        AssertPassed(Down(B), new ChordPressed());
+    }
+
+    [Fact]
+    public void ChangingChordKeyMidChord_Cancels_AndOldKeyStaysVisible()
+    {
+        Down(B);
+        Down(One);
 
         Assert.Equal(new ChordCancelled(), _filter.SetChordKey(Minus));
-        AssertSwallowed(Up(B));
+        AssertPassed(Down(B)); // auto-repeat
+        AssertPassed(Up(B));
+        AssertSwallowed(Up(One));
         AssertPassed(Down(B));
-        AssertSwallowed(Down(Minus), new ChordPressed());
+        AssertPassed(Down(Minus), new ChordPressed());
+    }
+
+    [Fact]
+    public void ChangingChordKeyToAHeldKey_WaitsForAFreshPress()
+    {
+        AssertPassed(Down(Minus));
+
+        _filter.SetChordKey(Minus);
+        AssertPassed(Down(Minus)); // auto-repeat
+        AssertPassed(Up(Minus));
+        Assert.False(_filter.ChordActive);
+        AssertPassed(Down(Minus), new ChordPressed());
     }
 
     [Fact]
@@ -470,7 +512,20 @@ public class ChordKeyFilterTests
         Assert.False(_filter.Capturing);
         AssertSwallowed(Down(B)); // auto-repeat
         AssertSwallowed(Up(B));
-        AssertSwallowed(Down(B), new ChordPressed()); // back to normal
+        AssertPassed(Down(B), new ChordPressed()); // back to normal
+    }
+
+    [Fact]
+    public void CapturedKey_BecomingTheChordKey_KeepsItsUpHidden()
+    {
+        var filter = new ChordKeyFilter(Minus);
+        filter.BeginCapture();
+        Assert.Equal(KeyFilterResult.Captured(B), filter.Process(B.ScanCode, false, true, false));
+
+        filter.SetChordKey(B);
+        Assert.Equal(KeyFilterResult.SwallowSilently, filter.Process(B.ScanCode, false, true, false));
+        Assert.Equal(KeyFilterResult.SwallowSilently, filter.Process(B.ScanCode, false, false, false));
+        Assert.Equal(new KeyFilterResult(false, new ChordPressed()), filter.Process(B.ScanCode, false, true, false));
     }
 
     [Fact]
@@ -530,8 +585,8 @@ public class ChordKeyFilterTests
     {
         _filter.BeginCapture();
 
-        Assert.Equal(new KeyFilterResult(true, new ChordPressed(), CaptureEnded: true), Down(B, captureAllowed: false));
-        AssertSwallowed(Up(B), new ChordReleased());
+        Assert.Equal(new KeyFilterResult(false, new ChordPressed(), CaptureEnded: true), Down(B, captureAllowed: false));
+        AssertPassed(Up(B), new ChordReleased());
     }
 
     [Fact]
@@ -555,7 +610,7 @@ public class ChordKeyFilterTests
         Assert.Equal(KeyFilterResult.Captured(One), Down(One));
         AssertSwallowed(Up(One));
         AssertSwallowed(Down(Two), new DigitPressed(2, false));
-        AssertSwallowed(Up(B), new ChordReleased());
+        AssertPassed(Up(B), new ChordReleased());
     }
 
     [Fact]

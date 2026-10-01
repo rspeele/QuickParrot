@@ -80,7 +80,7 @@ public class ChordKeyFilterFavoritesTests
     {
         Down(B);
         Down(F3);
-        AssertSwallowed(Up(B), new ChordReleased());
+        Assert.Equal(new KeyFilterResult(false, new ChordReleased()), Up(B));
 
         AssertSwallowed(Up(F3));
         AssertPassed(Down(F3)); // a fresh press without the chord is the game's again
@@ -99,7 +99,7 @@ public class ChordKeyFilterFavoritesTests
     {
         var filter = new ChordKeyFilter(F3, () => true) { ChordlessFavoriteSlots = 0b100 };
 
-        AssertSwallowed(filter.Process(F3.ScanCode, false, true, false), new ChordPressed());
+        Assert.Equal(new KeyFilterResult(false, new ChordPressed()), filter.Process(F3.ScanCode, false, true, false));
         AssertSwallowed(filter.Process(F5.ScanCode, false, true, false), new FavoritePressed(5, false));
     }
 
