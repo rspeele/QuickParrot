@@ -77,6 +77,20 @@ public sealed class HookThreadTests
         Assert.Equal(["install", "uninstall", "release"], _log);
     }
 
+    [Fact]
+    public async Task ManyStartStopCycles_NeverLoseAPostOrTheQuit()
+    {
+        await Task.Run(() =>
+        {
+            for (var i = 0; i < 500; i++)
+            {
+                _thread.Start(() => { }, () => { }, () => { });
+                _thread.Post(() => { });
+                _thread.Stop();
+            }
+        }).WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
     private void Start() => _thread.Start(() => Log("install"), () => Log("uninstall"), () => Log("release"));
 
     private void Log(string entry)

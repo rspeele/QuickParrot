@@ -40,6 +40,7 @@ internal static unsafe partial class NativeMethods
     public const uint WM_QUIT = 0x0012;
     public const uint WM_WTSSESSION_CHANGE = 0x02B1;
     public const uint WM_APP = 0x8000;
+    public const uint PM_NOREMOVE = 0x0000;
 
     public const int WTS_CONSOLE_CONNECT = 0x1;
     public const int WTS_CONSOLE_DISCONNECT = 0x2;
@@ -232,6 +233,10 @@ internal static unsafe partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     public static partial nint DispatchMessageW(in MSG lpMsg);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool PeekMessageW(out MSG lpMsg, nint hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

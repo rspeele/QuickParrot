@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using static QuickParrot.Input.NativeMethods;
 
 namespace QuickParrot.Input;
@@ -67,7 +69,8 @@ internal sealed class HookThread(string name)
             if (_thread is null)
                 return;
 
-            PostThreadMessageW(_threadId, WM_QUIT, 0, 0);
+            if (!PostThreadMessageW(_threadId, WM_QUIT, 0, 0))
+                throw new Win32Exception(Marshal.GetLastPInvokeError()); // Join would otherwise wait forever
             _thread.Join();
             _thread = null;
         }
@@ -94,6 +97,7 @@ internal sealed class HookThread(string name)
     private void Run(Action install, Action uninstall, Action release, TaskCompletionSource started)
     {
         _threadId = GetCurrentThreadId();
+        PeekMessageW(out _, 0, 0, 0, PM_NOREMOVE); // creates the message queue, so posts after Start can't be lost
         try
         {
             install();
