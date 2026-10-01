@@ -4,7 +4,7 @@ it adds is:
 
 * Mumble-style visual overlay with chord controls instead of a zillion keybinds
 * Automatic push-to-talk control
-* Recording tool to easily add sounds
+* Instant-replay recording to grab sounds after you hear them
 * Self-diagnosis and repair tool for virtual audio cable setup on Windows
 
 # The visual overlay
@@ -70,21 +70,27 @@ it's restored even if QuickParrot crashes mid-clip.
 # Recording tool
 
 To build a library of fun sounds, you could spend an hour in Audacity, but building this in app makes it much easier.
-Within QuickParrot, out-of-game, you can browse through your sound clip folders and in any of them, hit "record desktop
-audio". This opens a window with stop/start capture buttons. Navigate to a YouTube or other video, pause it before your
-intended capture, start capture, and play. Then stop capture once the clip you wanted to grab has finished playing.
+QuickParrot works like "instant replay" in game capture tools: while it's running, it keeps the last 30 seconds of
+whatever you hear (configurable up to 2 minutes) in memory. Hear something good — in a game, a YouTube video, a call — and
+grab it after the fact. Nothing is written to disk until you grab, and the replay buffer can be switched off.
 
-QuickParrot will then display the wave of the captured audio. You can scrub through it, replay, and you can click and
-drag to trim the start/end of the clip in case you didn't bracket it perfectly with your start/stop. Captured clips are
-loudness-normalized so they're neither whisper-quiet nor ear-splitting in voice chat.
+There are two ways to grab:
+
+* In-game, press chord+Enter (B+Enter by default). The last 30 seconds are saved to a *pending grabs* list, and the
+  overlay briefly confirms it. You can keep playing and deal with it later.
+* Out of game, hit "Grab" in the app.
+
+Opening a grab shows the waveform of the captured audio. You can scrub through it, replay, and click and drag to trim
+the start/end down to the part you want. Clips are loudness-normalized so they're neither whisper-quiet nor ear-splitting
+in voice chat, then saved into the library folder of your choice. Several sound bites can be snipped from one grab.
 
 Noise removal (e.g. laugh tracks, wind) is out of scope for now.
 
-If you configure QuickParrot with a LiteLLM endpoint, it will attempt to automatically name the capture based on
+If you configure QuickParrot with a LiteLLM endpoint, it will attempt to automatically name the clip based on
 speech-to-text + AI summary. Otherwise you are prompted to enter the name.
 
-Captured sound drops into the current folder and the workflow is ready to capture another so if you have multiple sound
-bites you're going to grab from playing one Youtube video, you can get through them quite quickly.
+The replay buffer records what plays through your output device, so it also catches other people's voices on calls and
+QuickParrot's own clips. It stays in memory unless you grab it, but recording-consent rules vary by place.
 
 # Self-diagnosis
 
