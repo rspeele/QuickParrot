@@ -1,4 +1,3 @@
-using System.Drawing;
 using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Overlay;
@@ -35,7 +34,7 @@ public sealed record OverlayItem(
     bool Highlighted,
     bool Dimmed);
 
-public sealed record OverlayColumnHeader(int Number, RectangleF Bounds, float FontPx, bool Highlighted, bool Dimmed);
+public sealed record OverlayColumnHeader(int Number, RectangleF Bounds, float FontPx, bool Dimmed);
 
 public enum FavoriteSlotState
 {
@@ -47,7 +46,6 @@ public enum FavoriteSlotState
 
 /// <summary>One cell of the favorites strip: the F-key label, an optional tag beside it, and the clip name below.</summary>
 public sealed record FavoriteSlotItem(
-    int Slot,
     string KeyLabel,
     string Name,
     string? Tag,

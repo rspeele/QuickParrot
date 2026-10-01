@@ -21,9 +21,9 @@ public sealed class SelectionHistory
 
     public ClipSelection Current => _current;
 
-    public bool CanUndo => _past.Count > 0;
+    internal bool CanUndo => _past.Count > 0;
 
-    public bool CanRedo => _future.Count > 0;
+    internal bool CanRedo => _future.Count > 0;
 
     /// <summary>Records a step away from <see cref="Current"/>; a no-op if <paramref name="selection"/> matches it. Clears redo.</summary>
     public void Push(ClipSelection selection)

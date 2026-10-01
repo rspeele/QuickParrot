@@ -113,23 +113,23 @@ public class ClipEditorSessionTests
     }
 }
 
-public class NameSuggestionDebouncerTests
+public class NameSuggesterTests
 {
     private static readonly EditableAudio Clip = Audio(Silence(0.1));
 
     [Fact]
     public async Task SuggestNow_Sanitizes()
     {
-        using var debouncer = new NameSuggestionDebouncer((_, _) => Task.FromResult<string?>("\"Hasta la vista?\""));
+        using var suggester = new NameSuggester((_, _) => Task.FromResult<string?>("\"Hasta la vista?\""));
 
-        Assert.Equal(new NameSuggestion("Hasta la vista"), await debouncer.SuggestNowAsync(Clip));
+        Assert.Equal(new NameSuggestion("Hasta la vista"), await suggester.SuggestNowAsync(Clip));
     }
 
     [Fact]
     public async Task Failures_AreReported_AndBlankNamesAreNull()
     {
-        using var failing = new NameSuggestionDebouncer((_, _) => throw new HttpRequestException("offline"));
-        using var blank = new NameSuggestionDebouncer((_, _) => Task.FromResult<string?>("  "));
+        using var failing = new NameSuggester((_, _) => throw new HttpRequestException("offline"));
+        using var blank = new NameSuggester((_, _) => Task.FromResult<string?>("  "));
 
         Assert.Equal(new NameSuggestion(null, "offline"), await failing.SuggestNowAsync(Clip));
         Assert.Equal(new NameSuggestion(null), await blank.SuggestNowAsync(Clip));
@@ -141,7 +141,7 @@ public class NameSuggestionDebouncerTests
         var firstRelease = new TaskCompletionSource<string?>();
         CancellationToken firstToken = default;
         var callCount = 0;
-        using var debouncer = new NameSuggestionDebouncer((_, token) =>
+        using var suggester = new NameSuggester((_, token) =>
         {
             if (++callCount == 1)
             {
@@ -152,9 +152,9 @@ public class NameSuggestionDebouncerTests
             return Task.FromResult<string?>("Second");
         });
 
-        var first = debouncer.SuggestNowAsync(Clip);
-        Assert.True(debouncer.IsBusy);
-        var second = await debouncer.SuggestNowAsync(Clip); // immediately cancels the first
+        var first = suggester.SuggestNowAsync(Clip);
+        Assert.True(suggester.IsBusy);
+        var second = await suggester.SuggestNowAsync(Clip); // immediately cancels the first
         firstRelease.SetResult("Too late");
 
         Assert.Null(await first);
@@ -167,42 +167,42 @@ public class NameSuggestionDebouncerTests
     {
         var release = new TaskCompletionSource<string?>();
         CancellationToken seen = default;
-        using var debouncer = new NameSuggestionDebouncer((_, token) =>
+        using var suggester = new NameSuggester((_, token) =>
         {
             seen = token;
             return release.Task;
         });
 
-        var pending = debouncer.SuggestNowAsync(Clip);
-        Assert.True(debouncer.IsBusy);
-        debouncer.Cancel();
+        var pending = suggester.SuggestNowAsync(Clip);
+        Assert.True(suggester.IsBusy);
+        suggester.Cancel();
         release.SetResult("Too late");
 
         Assert.Null(await pending);
         Assert.True(seen.IsCancellationRequested);
-        Assert.False(debouncer.IsBusy);
+        Assert.False(suggester.IsBusy);
     }
 
     [Fact]
     public async Task ACancelledRequestFinishingLate_LeavesANewerOneBusy()
     {
         var releases = new List<TaskCompletionSource<string?>>();
-        using var debouncer = new NameSuggestionDebouncer((_, _) =>
+        using var suggester = new NameSuggester((_, _) =>
         {
             var release = new TaskCompletionSource<string?>();
             releases.Add(release);
             return release.Task;
         });
 
-        var first = debouncer.SuggestNowAsync(Clip);
-        debouncer.Cancel(); // e.g. a save
-        var second = debouncer.SuggestNowAsync(Clip);
+        var first = suggester.SuggestNowAsync(Clip);
+        suggester.Cancel(); // e.g. a save
+        var second = suggester.SuggestNowAsync(Clip);
         releases[0].SetResult("Too late");
 
         Assert.Null(await first);
-        Assert.True(debouncer.IsBusy);
+        Assert.True(suggester.IsBusy);
         releases[1].SetResult("Fresh");
         Assert.Equal(new NameSuggestion("Fresh"), await second);
-        Assert.False(debouncer.IsBusy);
+        Assert.False(suggester.IsBusy);
     }
 }

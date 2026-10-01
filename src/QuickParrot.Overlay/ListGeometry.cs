@@ -1,4 +1,3 @@
-using System.Drawing;
 using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Overlay;

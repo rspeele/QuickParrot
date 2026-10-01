@@ -9,7 +9,7 @@ namespace QuickParrot.Audio;
 /// </summary>
 public sealed class LoopbackTester : ILoopbackTester
 {
-    public const string SpeakPrompt = "Say something for a few seconds…";
+    private const string SpeakPrompt = "Say something for a few seconds…";
 
     private const int ChimeSampleRate = 48000;
     private static readonly TimeSpan RecordingLength = TimeSpan.FromSeconds(5);

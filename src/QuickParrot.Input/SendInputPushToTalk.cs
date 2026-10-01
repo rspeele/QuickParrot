@@ -11,7 +11,7 @@ namespace QuickParrot.Input;
 /// </summary>
 public sealed unsafe class SendInputPushToTalk : IPushToTalk
 {
-    public const string UnreachableMessage =
+    private const string UnreachableMessage =
         "Push-to-talk couldn't reach the focused app. If the game runs as administrator, QuickParrot must too.";
 
     // Just after our own release, the system's view may still show it down.

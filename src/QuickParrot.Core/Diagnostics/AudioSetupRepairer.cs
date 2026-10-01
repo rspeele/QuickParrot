@@ -2,14 +2,8 @@ namespace QuickParrot.Core.Diagnostics;
 
 public sealed record RepairResult(bool Succeeded, string Message);
 
-public interface IAudioSetupRepairer
-{
-    /// <summary>Never throws.</summary>
-    Task<RepairResult> RepairAsync(DiagnosticFix fix);
-}
-
 /// <summary>Carries out a <see cref="DiagnosticFix"/> and words the outcome for the user.</summary>
-public sealed class AudioSetupRepairer(IAudioSystemWriter writer) : IAudioSetupRepairer
+public sealed class AudioSetupRepairer(IAudioSystemWriter writer)
 {
     public static readonly TimeSpan ElevationTimeout = TimeSpan.FromMinutes(2);
 

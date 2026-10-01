@@ -21,7 +21,7 @@ public static class CableCaptureSelector
             ?? active.FirstOrDefault(d => d.Name.Contains("Virtual Audio Cable", StringComparison.OrdinalIgnoreCase));
     }
 
-    public static string PartnerName(string renderName)
+    internal static string PartnerName(string renderName)
     {
         var index = renderName.IndexOf("Input", StringComparison.OrdinalIgnoreCase);
         return index < 0 ? renderName : renderName[..index] + "Output" + renderName[(index + "Input".Length)..];

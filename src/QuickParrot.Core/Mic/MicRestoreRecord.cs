@@ -12,7 +12,7 @@ public sealed record MicRestoreRecord(
 
 public interface IMicRestoreStore
 {
-    /// <summary>Null if there's no record, or it's unreadable.</summary>
+    /// <summary>Null if there's no record, or it's corrupt. Throws on an IO error reading it.</summary>
     MicRestoreRecord? Load();
 
     void Save(MicRestoreRecord record);

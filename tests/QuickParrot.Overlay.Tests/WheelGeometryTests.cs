@@ -92,7 +92,7 @@ public sealed class WheelGeometryTests
         var state = new OverlayViewState(
             "",
             OverlayLayoutKind.Wheel,
-            [new(1, "Mr. T", true, "Mr. T"), new(2, "I pity the fool.mp3", false, "x"), new(3, ".wav", false, "y")],
+            [new(1, "Mr. T", true), new(2, "I pity the fool.mp3", false), new(3, ".wav", false)],
             [],
             null,
             false);

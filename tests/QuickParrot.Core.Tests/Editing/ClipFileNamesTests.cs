@@ -79,7 +79,6 @@ public class LibraryFolderListTests
         var folders = LibraryFolderList.Build(source);
 
         Assert.Equal(["", "Games", "Movies", "Movies/Arnold"], folders.Select(f => f.RelativePath));
-        Assert.Equal([0, 1, 1, 2], folders.Select(f => f.Depth));
         Assert.Equal("Movies › Arnold", folders[3].Display);
         Assert.Equal(LibraryFolderList.RootName, folders[0].Display);
     }

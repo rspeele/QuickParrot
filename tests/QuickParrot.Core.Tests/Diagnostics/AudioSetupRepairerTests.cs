@@ -69,7 +69,7 @@ public class AudioSetupRepairerTests
     [Fact]
     public async Task SetDefaultRecording_SetsAllThreeRoles()
     {
-        await Repair(new DiagnosticFix(FixKind.SetDefaultRecording, "Rec", "cable-out", Roles: DeviceRoles.All));
+        await Repair(new DiagnosticFix(FixKind.SetDefaultRecording, "Rec", "cable-out", Roles: (DeviceRoles.Console | DeviceRoles.Multimedia | DeviceRoles.Communications)));
 
         Assert.Equal(["default:cable-out:Console", "default:cable-out:Multimedia", "default:cable-out:Communications"], _writer.Calls);
     }

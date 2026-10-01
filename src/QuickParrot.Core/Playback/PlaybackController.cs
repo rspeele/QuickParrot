@@ -44,7 +44,7 @@ public sealed class PlaybackController : IDisposable
     /// <summary>Takes effect from the next play request; a key already pressed is still released.</summary>
     public PlaybackOptions Options { get; set; }
 
-    public PlaybackPhase Phase { get; private set; }
+    internal PlaybackPhase Phase { get; private set; }
 
     /// <summary>Raised when a clip can't be loaded, can't start, or fails mid-play.</summary>
     public event Action<PlaybackError>? PlaybackFailed;

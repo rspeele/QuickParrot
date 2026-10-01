@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
@@ -20,11 +19,11 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     /// Its RelativePath doubles as the display text (see <see cref="LibraryFolder.Display"/>), not a real path —
     /// intercepted by reference before it's ever used as one.
     /// </summary>
-    private static readonly LibraryFolder BrowseEntry = new("Browse…", "Browse…", 0);
+    private static readonly LibraryFolder BrowseEntry = new("Browse…");
 
     private readonly IEditorPreview _preview;
     private readonly ClipEditorOptions _options;
-    private readonly NameSuggestionDebouncer? _namer;
+    private readonly NameSuggester? _namer;
     private readonly DispatcherTimer _playheadTimer;
     private readonly Dispatcher _dispatcher;
     private readonly SelectionHistory _history;
@@ -63,7 +62,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _selectedFolder = LibraryFolderList.Find(_libraryFolders, options.InitialFolder);
 
         if (options.SuggestName is { } suggest)
-            _namer = new NameSuggestionDebouncer(suggest);
+            _namer = new NameSuggester(suggest);
 
         _playheadTimer = new DispatcherTimer(DispatcherPriority.Render, _dispatcher) { Interval = PlayheadInterval };
         _playheadTimer.Tick += (_, _) => UpdatePlayhead();
@@ -78,7 +77,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     /// <summary>Raised when "Browse…" is picked, with the folder a picker dialog should start in; the view owns the dialog.</summary>
     public event Action<string>? FolderBrowseRequested;
 
-    public ClipEditorSession Session { get; }
+    private ClipEditorSession Session { get; }
 
     public WaveformPeaks Peaks => Session.Peaks;
 
@@ -232,8 +231,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         private set => SetField(ref _status, value);
     }
 
-    public ObservableCollection<SavedClip> SavedClips { get; } = [];
-
     public ClipEditorOutcome Outcome { get; set; } = ClipEditorOutcome.Done;
 
     /// <summary>
@@ -335,7 +332,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             SetSaving(false);
         }
 
-        SavedClips.Add(saved);
         Status = saved.Warning is { } warning
             ? $"Saved “{saved.FileName}” to {folderDisplay}. {warning}"
             : $"Saved “{saved.FileName}” to {folderDisplay}. Select another bite, or click Done.";

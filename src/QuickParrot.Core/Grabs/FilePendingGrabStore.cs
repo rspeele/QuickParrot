@@ -25,9 +25,9 @@ public sealed class FilePendingGrabStore : IPendingGrabStore
     public static string DefaultDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "QuickParrot", "Grabs");
 
-    public string Directory { get; }
+    private string Directory { get; }
 
-    public int MaxGrabs { get; }
+    private int MaxGrabs { get; }
 
     public IReadOnlyList<PendingGrab> List()
     {

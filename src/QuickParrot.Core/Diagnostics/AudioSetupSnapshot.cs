@@ -30,7 +30,6 @@ public enum DeviceRoles
     Console = 1,
     Multimedia = 2,
     Communications = 4,
-    All = Console | Multimedia | Communications,
 }
 
 /// <summary>An endpoint's master mute and volume (0 to 1).</summary>

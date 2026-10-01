@@ -84,7 +84,7 @@ public sealed class QuickParrotEngine : IDisposable
     public AppSettings Settings => _settings;
 
     /// <summary>What the overlay should draw right now; safe to read from any thread.</summary>
-    public OverlayViewState? ViewState => _navigator?.ViewState;
+    internal OverlayViewState? ViewState => _navigator?.ViewState;
 
     public void Start()
     {
@@ -405,7 +405,8 @@ public sealed class QuickParrotEngine : IDisposable
     private void OnPersistentPathChanged(string path) =>
         CommitSettings(_settings with { NavigatorPersistentPath = path });
 
-    // Saves are debounced so dragging a volume slider doesn't write the file on every tick.
+    // Saves are throttled (one write per SaveDelay window, not reset by later changes) so dragging a volume
+    // slider doesn't write the file on every tick.
     private void CommitSettings(AppSettings updated)
     {
         _settings = updated;

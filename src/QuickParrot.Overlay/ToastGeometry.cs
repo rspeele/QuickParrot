@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace QuickParrot.Overlay;
 
 /// <summary>A one-line confirmation pill: status icon then text.</summary>

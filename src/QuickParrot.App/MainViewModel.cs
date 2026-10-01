@@ -110,7 +110,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _protector = protector;
         _time = time ?? TimeProvider.System;
         Diagnostics = diagnostics;
-        PendingGrabs = new PendingGrabsViewModel(grabStore, engine, OpenGrabAsync);
+        PendingGrabs = new PendingGrabsViewModel(grabStore, engine);
         Favorites = new FavoritesViewModel(engine, message => Status = message);
         diagnostics.ReportChanged += report =>
         {
@@ -461,8 +461,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool HasSavedLiteLlmApiKey => _hasSavedLiteLlmApiKey;
-
     public string LiteLlmApiKeyPlaceholder => _hasSavedLiteLlmApiKey ? "(saved — type to replace)" : "(not set)";
 
     public bool CanTestLiteLlmConnection => !_isTestingLiteLlmConnection;
@@ -481,7 +479,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var encrypted = string.IsNullOrEmpty(plaintext) ? null : _protector.Protect(plaintext);
         _engine.UpdateSettings(s => s with { LiteLlmApiKeyEncrypted = encrypted });
         _hasSavedLiteLlmApiKey = encrypted is not null;
-        OnPropertyChanged(nameof(HasSavedLiteLlmApiKey));
         OnPropertyChanged(nameof(LiteLlmApiKeyPlaceholder));
     }
 
@@ -725,7 +722,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>The full path of the folder currently shown on the Library tab, or null with no library chosen.</summary>
-    public string? LibraryFolderFullPath =>
+    private string? LibraryFolderFullPath =>
         _library is null ? null : LibraryPathResolver.FullPath(_library.Root, _library.Browser.CurrentPath);
 
     public bool CanOpenInExplorer => LibraryFolderFullPath is not null;
@@ -773,8 +770,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowEntries();
     }
 
-    // Raised off the UI thread by the watcher (already marshalled by the caller); refreshes the Library tab's
-    // listing (falling back to the nearest existing ancestor) and every open editor's folder list.
+    // Runs on the UI thread: the watcher raises its event off-thread, but the handler above posts here first.
+    // Refreshes the Library tab's listing (falling back to the nearest existing ancestor) and every open editor's folder list.
     private void OnLibraryChanged()
     {
         RefreshLibraryView();

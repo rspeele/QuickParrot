@@ -1,4 +1,3 @@
-using System.Drawing;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Settings;
 
@@ -13,7 +12,7 @@ public static class OverlayLayoutGeometry
     public const string EmptyLabel = "(empty)";
 
     /// <summary>Design sizes are for a 1080p monitor at 100% DPI; scale 2 is 4K.</summary>
-    public const float ReferenceMonitorHeight = 1080;
+    private const float ReferenceMonitorHeight = 1080;
 
     private const float MaxMonitorFraction = 0.92f;
     private const float DpiScaleWeight = 0.85f;

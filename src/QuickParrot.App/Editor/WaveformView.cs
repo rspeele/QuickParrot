@@ -15,7 +15,7 @@ namespace QuickParrot.App.Editor;
 /// </summary>
 public sealed class WaveformView : FrameworkElement
 {
-    public const double RulerHeight = 20;
+    private const double RulerHeight = 20;
     private const double MinTickSpacing = 80;
     private const double ZoomPerNotch = 1.25;
 
@@ -78,8 +78,6 @@ public sealed class WaveformView : FrameworkElement
     public double VisibleFrames { get => (double)GetValue(VisibleFramesProperty); private set => SetValue(VisibleFramesProperty, value); }
 
     public void ShowAll() => ApplyViewportChange(_viewport.ShowAll);
-
-    public void ZoomBy(double factor) => ApplyViewportChange(() => _viewport.ZoomAround(_viewport.Width / 2, factor));
 
     /// <summary>Zooms so the selection fills most of the view.</summary>
     public void ZoomToSelection()

@@ -4,12 +4,12 @@ namespace QuickParrot.Core.Editing;
 public sealed record NameSuggestion(string? Name, string? Error = null);
 
 /// <summary>Runs a (slow, possibly remote) clip namer on request, cancelling any suggestion still in flight.</summary>
-public sealed class NameSuggestionDebouncer : IDisposable
+public sealed class NameSuggester : IDisposable
 {
     private readonly Func<EditableAudio, CancellationToken, Task<string?>> _suggest;
     private CancellationTokenSource? _pending;
 
-    public NameSuggestionDebouncer(Func<EditableAudio, CancellationToken, Task<string?>> suggest)
+    public NameSuggester(Func<EditableAudio, CancellationToken, Task<string?>> suggest)
     {
         _suggest = suggest;
     }

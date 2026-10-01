@@ -26,9 +26,9 @@ public sealed class ChannelMixer
     public int OutputChannels { get; }
 
     /// <summary>True when summed channels could exceed full scale, so output is soft-limited.</summary>
-    public bool Limits { get; }
+    internal bool Limits { get; }
 
-    public float Gain(int output, int input) => _gains[output * InputChannels + input];
+    internal float Gain(int output, int input) => _gains[output * InputChannels + input];
 
     public void MixFrame(ReadOnlySpan<float> input, Span<float> output)
     {

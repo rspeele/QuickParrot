@@ -12,7 +12,7 @@ public readonly record struct PixelRect(int Left, int Top, int Right, int Bottom
 /// </summary>
 public static class FullscreenRule
 {
-    public static bool CoversMonitor(PixelRect window, PixelRect monitor) =>
+    internal static bool CoversMonitor(PixelRect window, PixelRect monitor) =>
         !monitor.IsEmpty && window.Left <= monitor.Left && window.Top <= monitor.Top
         && window.Right >= monitor.Right && window.Bottom >= monitor.Bottom;
 
@@ -23,7 +23,7 @@ public static class FullscreenRule
         !ownWindow && !hasTitleBar && !IsShellWindow(className) && CoversMonitor(window, monitor);
 
     /// <summary>The desktop and taskbar, which cover the screen without being a game.</summary>
-    public static bool IsShellWindow(ReadOnlySpan<char> className) =>
+    private static bool IsShellWindow(ReadOnlySpan<char> className) =>
         className.SequenceEqual("Progman") || className.SequenceEqual("WorkerW")
         || className.SequenceEqual("Shell_TrayWnd") || className.SequenceEqual("Shell_SecondaryTrayWnd");
 }

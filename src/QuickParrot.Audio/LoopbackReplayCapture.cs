@@ -49,9 +49,6 @@ public sealed class LoopbackReplayCapture : IDisposable
     /// <summary>A user-facing error message, raised on a background thread. Repeats are suppressed.</summary>
     public event Action<string>? ErrorOccurred;
 
-    /// <summary>The render endpoint being recorded, or null.</summary>
-    public string? CaptureDeviceId => Volatile.Read(ref _session)?.DeviceId;
-
     /// <summary>
     /// Starts, stops or retargets capture to match; returns at once. <paramref name="monitorDeviceId"/> null follows
     /// the Windows default output. Disabling also frees the buffer's memory.

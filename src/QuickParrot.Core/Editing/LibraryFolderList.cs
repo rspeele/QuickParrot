@@ -3,7 +3,7 @@ using QuickParrot.Core.Library;
 namespace QuickParrot.Core.Editing;
 
 /// <param name="RelativePath">"/"-separated, "" for the library root.</param>
-public sealed record LibraryFolder(string RelativePath, string Name, int Depth)
+public sealed record LibraryFolder(string RelativePath)
 {
     public string Display => RelativePath.Length == 0 ? LibraryFolderList.RootName : RelativePath.Replace("/", " › ");
 }
@@ -15,7 +15,7 @@ public static class LibraryFolderList
 
     public static IReadOnlyList<LibraryFolder> Build(IFolderSource source, int maxFolders = 2000, int maxDepth = 10)
     {
-        var folders = new List<LibraryFolder> { new("", RootName, 0) };
+        var folders = new List<LibraryFolder> { new("") };
         Add(source, "", 1, folders, maxFolders, maxDepth);
         return folders;
     }
@@ -50,7 +50,7 @@ public static class LibraryFolderList
             if (folders.Count >= maxFolders)
                 return;
 
-            folders.Add(new LibraryFolder(entry.RelativePath, entry.Name, depth));
+            folders.Add(new LibraryFolder(entry.RelativePath));
             Add(source, entry.RelativePath, depth + 1, folders, maxFolders, maxDepth);
         }
     }

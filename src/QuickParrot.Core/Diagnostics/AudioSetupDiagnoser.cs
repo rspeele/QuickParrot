@@ -75,7 +75,7 @@ public static class AudioSetupDiagnoser
     }
 
     /// <summary>The real mic the diagnoser checks: as QuickParrot would pick it, but never the cable itself.</summary>
-    public static CaptureDeviceInfo? SelectRealMic(AudioSetupSnapshot snapshot, AudioDeviceInfo? cable)
+    private static CaptureDeviceInfo? SelectRealMic(AudioSetupSnapshot snapshot, AudioDeviceInfo? cable)
     {
         var defaults = snapshot.Defaults ?? DefaultEndpoints.None;
         var device = MicDeviceSelector.Select(

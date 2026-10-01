@@ -12,8 +12,6 @@ public interface IEditorPreview
     /// </summary>
     event Action<EditableAudio, Exception?>? Stopped;
 
-    bool IsPlaying { get; }
-
     /// <summary>The audio being previewed now, so each editor window can tell its own preview from another's.</summary>
     EditableAudio? PlayingAudio { get; }
 

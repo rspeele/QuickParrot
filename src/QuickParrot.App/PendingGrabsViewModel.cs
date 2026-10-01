@@ -12,22 +12,20 @@ public sealed record PendingGrabItem(PendingGrab Grab)
 
 /// <summary>
 /// The Library tab's pending-grabs list: newest first, kept in sync with the store's <see cref="IPendingGrabStore.Changed"/>
-/// event. Opening a grab is delegated to <paramref name="open"/>, since that needs editor services this view model doesn't own.
+/// event. Opening a grab is the window's job, since that needs editor services this view model doesn't own.
 /// </summary>
 public sealed class PendingGrabsViewModel : ObservableObject
 {
     private readonly IPendingGrabStore _store;
     private readonly QuickParrotEngine _engine;
-    private readonly Func<PendingGrab, Task> _open;
     private readonly SynchronizationContext _ui;
     private IReadOnlyList<PendingGrabItem> _grabs = [];
     private string _bufferStatus = "";
 
-    public PendingGrabsViewModel(IPendingGrabStore store, QuickParrotEngine engine, Func<PendingGrab, Task> open)
+    public PendingGrabsViewModel(IPendingGrabStore store, QuickParrotEngine engine)
     {
         _store = store;
         _engine = engine;
-        _open = open;
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
         _store.Changed += () => _ui.Post(_ => Refresh(), null);
         _engine.SettingsChanged += settings => _ui.Post(_ => UpdateBufferStatus(settings), null);
@@ -55,8 +53,6 @@ public sealed class PendingGrabsViewModel : ObservableObject
 
     public void GrabNow() => _engine.Grab();
 
-    public Task OpenAsync(PendingGrabItem? item) => item is null ? Task.CompletedTask : _open(item.Grab);
-
     /// <summary>Returns a user-facing error, e.g. when another program has the file open.</summary>
     public string? Delete(PendingGrabItem? item)
     {
@@ -75,7 +71,7 @@ public sealed class PendingGrabsViewModel : ObservableObject
     }
 
     /// <summary>Oldest-first from the store, newest-first for display.</summary>
-    public void Refresh() => Grabs = _store.List().Reverse().Select(g => new PendingGrabItem(g)).ToList();
+    private void Refresh() => Grabs = _store.List().Reverse().Select(g => new PendingGrabItem(g)).ToList();
 
     private void UpdateBufferStatus(AppSettings settings) => BufferStatus = settings.ReplayBufferEnabled
         ? $"Replay buffer: on ({settings.ReplayBufferSeconds} s)"

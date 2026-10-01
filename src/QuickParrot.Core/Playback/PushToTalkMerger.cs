@@ -29,10 +29,10 @@ public sealed class PushToTalkMerger
     public bool Holding { get; private set; }
 
     /// <summary>The user is physically holding the binding, as far as is known.</summary>
-    public bool PhysicallyHeld { get; private set; }
+    internal bool PhysicallyHeld { get; private set; }
 
     /// <summary>Whether the game should currently see the binding as down.</summary>
-    public bool GameSeesDown => Holding || PhysicallyHeld;
+    internal bool GameSeesDown => Holding || PhysicallyHeld;
 
     /// <summary>Bindings whose injected up failed, so the game may still see them down.</summary>
     public int PendingUpCount => _pendingUps.Count;

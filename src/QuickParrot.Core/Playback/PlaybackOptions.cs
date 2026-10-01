@@ -4,7 +4,7 @@ public sealed record PlaybackOptions(TimeSpan PreRoll, TimeSpan PostRoll, bool P
 {
     public static readonly TimeSpan DefaultMargin = TimeSpan.FromMilliseconds(500);
 
-    public static PlaybackOptions Default { get; } = new(DefaultMargin, DefaultMargin, true, true);
+    internal static PlaybackOptions Default { get; } = new(DefaultMargin, DefaultMargin, true, true);
 }
 
 public enum PlaybackPhase

@@ -20,7 +20,6 @@ internal struct NativePropertyKey(Guid formatId, int propertyId)
 [StructLayout(LayoutKind.Explicit)]
 internal struct NativePropVariant
 {
-    public const ushort VtEmpty = 0;
     public const ushort VtBool = 11;
     public const ushort VtLpwstr = 31;
 
@@ -83,18 +82,12 @@ internal static class PolicyConfig
     public static void SetPropertyValue(string deviceId, NativePropertyKey key, NativePropVariant value) =>
         Use(policy => Marshal.ThrowExceptionForHR(policy.SetPropertyValue(deviceId, 0, ref key, ref value)));
 
-    private static void Use(Action<IPolicyConfig> action) => Use<object?>(policy =>
-    {
-        action(policy);
-        return null;
-    });
-
-    private static T Use<T>(Func<IPolicyConfig, T> action)
+    private static void Use(Action<IPolicyConfig> action)
     {
         var policy = (IPolicyConfig)new PolicyConfigClient();
         try
         {
-            return action(policy);
+            action(policy);
         }
         finally
         {

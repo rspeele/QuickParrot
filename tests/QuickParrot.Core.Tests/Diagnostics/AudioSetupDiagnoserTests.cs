@@ -225,7 +225,7 @@ public class AudioSetupDiagnoserTests
         var fix = Single(snapshot, Ids.DefaultPlaybackIsCable).Fix;
 
         Assert.Equal("spk", fix?.DeviceId);
-        Assert.Equal(DeviceRoles.All, fix?.Roles);
+        Assert.Equal((DeviceRoles.Console | DeviceRoles.Multimedia | DeviceRoles.Communications), fix?.Roles);
     }
 
     [Fact]
@@ -333,7 +333,7 @@ public class AudioSetupDiagnoserTests
         var finding = Single(snapshot, Ids.DefaultRecordingNotCable);
 
         Assert.Equal(DiagnosticSeverity.Advisory, finding.Severity);
-        Assert.Equal(new DiagnosticFix(FixKind.SetDefaultRecording, finding.Fix!.Label, "cable-out", Roles: DeviceRoles.All), finding.Fix);
+        Assert.Equal(new DiagnosticFix(FixKind.SetDefaultRecording, finding.Fix!.Label, "cable-out", Roles: (DeviceRoles.Console | DeviceRoles.Multimedia | DeviceRoles.Communications)), finding.Fix);
         Assert.Null(new DiagnosticsReport([finding]).StatusLine);
     }
 

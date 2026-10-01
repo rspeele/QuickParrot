@@ -26,7 +26,7 @@ public sealed class WaveformPeaks
 
     public int FrameCount => _audio.FrameCount;
 
-    public int LevelCount => _levels.Count;
+    internal int LevelCount => _levels.Count;
 
     public static int BucketFrames(int level) => BaseBucketFrames * (int)Math.Pow(LevelFactor, level);
 

@@ -48,8 +48,6 @@ public sealed class EditableAudio
     public EditableAudio Slice(int startFrame, int endFrame) =>
         new(Frames(startFrame, endFrame).ToArray(), SampleRate, Channels, SuggestedTitle, SourceLabel);
 
-    public EditableAudio WithSamples(float[] samples) => new(samples, SampleRate, Channels, SuggestedTitle, SourceLabel);
-
     private void CheckRange(int startFrame, int endFrame)
     {
         if (startFrame < 0 || endFrame > FrameCount || startFrame > endFrame)

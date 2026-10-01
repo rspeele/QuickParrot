@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Windows.Forms;
 using static QuickParrot.Overlay.NativeMethods;
 
@@ -10,7 +9,7 @@ internal sealed class OverlayWindow : NativeWindow
     public const int WM_APPLY = WM_APP + 1;
     public const int WM_QUIT_LOOP = WM_APP + 2;
 
-    public const int ExtendedStyles =
+    private const int ExtendedStyles =
         WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
 
     private readonly Action<int> _onAppMessage;

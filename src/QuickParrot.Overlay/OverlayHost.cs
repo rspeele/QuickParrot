@@ -1,6 +1,4 @@
-using System.Drawing;
 using System.Drawing.Imaging;
-using System.Windows.Forms;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Settings;
 using static QuickParrot.Overlay.NativeMethods;
@@ -30,9 +28,6 @@ public sealed class OverlayHost : IDisposable
 
     /// <summary>A user-facing error message. Raised on the overlay thread.</summary>
     public event Action<string>? ErrorOccurred;
-
-    /// <summary>The overlay window's handle, or 0 before <see cref="Start"/>.</summary>
-    public nint WindowHandle => _hwnd;
 
     /// <summary>How folders with 9 or fewer entries are drawn. Safe to set from any thread; takes effect on the next render.</summary>
     public SmallFolderLayout SmallFolderLayout
@@ -254,7 +249,7 @@ public sealed class OverlayHost : IDisposable
     // GDI+ startup and JIT cost ~40 ms, which would otherwise land on the first chord press.
     private static void WarmUp(OverlayRenderer renderer)
     {
-        var entry = new NumberedEntry(1, OverlayLayoutGeometry.RootTitle, true, "");
+        var entry = new NumberedEntry(1, OverlayLayoutGeometry.RootTitle, true);
         var layout = OverlayLayoutGeometry.Compute(new OverlayViewState("", OverlayLayoutKind.Wheel, [entry], [], null, false), 0.25f);
         using var bitmap = new Bitmap(layout.CanvasSize.Width, layout.CanvasSize.Height, PixelFormat.Format32bppPArgb);
         using var graphics = Graphics.FromImage(bitmap);

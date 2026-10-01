@@ -63,7 +63,7 @@ public static class ClipFileNames
         }
     }
 
-    public static string Candidate(string stem, string extension, int n) =>
+    private static string Candidate(string stem, string extension, int n) =>
         n <= 1 ? stem + extension : $"{stem} ({n}){extension}";
 
     // string.Normalize throws on unpaired surrogates (e.g. from a mangled AI reply), so they're dropped first.

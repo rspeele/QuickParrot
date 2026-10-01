@@ -287,7 +287,7 @@ public sealed class ChordNavigator
     }
 
     private static IReadOnlyList<NumberedEntry> Number(IReadOnlyList<FolderEntry> entries) =>
-        entries.Select((e, i) => new NumberedEntry(i + 1, e.Name, e.IsFolder, e.RelativePath)).ToList();
+        entries.Select((e, i) => new NumberedEntry(i + 1, e.Name, e.IsFolder)).ToList();
 
     private sealed class Session
     {

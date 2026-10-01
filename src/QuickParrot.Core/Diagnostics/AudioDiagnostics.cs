@@ -29,14 +29,14 @@ public sealed class AudioDiagnostics : IDisposable
     public static readonly TimeSpan Debounce = TimeSpan.FromSeconds(1);
 
     private readonly IAudioSetupReader _reader;
-    private readonly IAudioSetupRepairer _repairer;
+    private readonly AudioSetupRepairer _repairer;
     private readonly TimeProvider _time;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _timerLock = new();
     private ITimer? _timer;
     private bool _disposed;
 
-    public AudioDiagnostics(IAudioSetupReader reader, IAudioSetupRepairer repairer, TimeProvider time)
+    public AudioDiagnostics(IAudioSetupReader reader, AudioSetupRepairer repairer, TimeProvider time)
     {
         _reader = reader;
         _repairer = repairer;

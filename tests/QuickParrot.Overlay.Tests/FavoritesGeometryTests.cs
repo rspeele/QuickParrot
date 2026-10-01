@@ -81,7 +81,7 @@ public sealed class FavoritesGeometryTests
     {
         var strip = Compute(ViewStates.Wheel(2) with { Favorites = Panel() }, 2).Favorites!;
 
-        Assert.Equal(Enumerable.Range(1, 12), strip.Slots.Select(s => s.Slot));
+        Assert.Equal(Enumerable.Range(1, 12).Select(n => $"F{n}"), strip.Slots.Select(s => s.KeyLabel));
         Assert.All(strip.Slots, s => Assert.True(strip.Panel.Bounds.Contains(s.Bounds)));
         Assert.All(strip.Slots, s => Assert.Equal(strip.Slots[0].Bounds.Y, s.Bounds.Y));
         for (var i = 1; i < strip.Slots.Count; i++)
@@ -99,7 +99,7 @@ public sealed class FavoritesGeometryTests
         Assert.Equal((FavoriteSlotState.Missing, "missing"), (slots[1].State, slots[1].Tag));
         Assert.Equal((FavoriteSlotState.Empty, "empty"), (slots[2].State, slots[2].Name));
         Assert.Equal((FavoriteSlotState.Unavailable, "(chord key)"), (slots[3].State, slots[3].Name));
-        Assert.Equal([3], slots.Where(s => s.Target).Select(s => s.Slot));
+        Assert.Equal(["F3"], slots.Where(s => s.Target).Select(s => s.KeyLabel));
         Assert.True(slots[1].TagBounds.Left >= slots[1].KeyBounds.Right);
         Assert.True(slots[0].TagBounds.IsEmpty);
         Assert.All(slots, s => Assert.True(s.Bounds.Contains(s.NameBounds) && s.Bounds.Contains(s.KeyBounds)));

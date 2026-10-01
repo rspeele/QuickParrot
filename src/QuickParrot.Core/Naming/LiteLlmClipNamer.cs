@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -11,7 +10,7 @@ namespace QuickParrot.Core.Naming;
 /// Suggests a clip name by transcribing audio (Whisper-compatible <c>/v1/audio/transcriptions</c>) and asking a
 /// chat model (<c>/v1/chat/completions</c>) to turn the transcript into a short soundboard-style name.
 /// </summary>
-public sealed class LiteLlmClipNamer : IClipNamer
+public sealed class LiteLlmClipNamer
 {
     private const int MaxTranscriptionSeconds = 60;
     private const int TargetSampleRate = 16_000;

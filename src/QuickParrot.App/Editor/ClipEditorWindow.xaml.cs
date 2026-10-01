@@ -2,9 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
-using ComboBox = System.Windows.Controls.ComboBox;
-using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using TextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 
 namespace QuickParrot.App.Editor;
 

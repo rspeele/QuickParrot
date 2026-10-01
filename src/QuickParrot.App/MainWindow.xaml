@@ -317,7 +317,7 @@
                     <TextBlock DockPanel.Dock="Top" Text="{Binding RepairMessage}" Margin="0,0,0,8" TextWrapping="Wrap"
                                FontStyle="Italic" Visibility="{Binding HasRepairMessage, Converter={StaticResource BoolToVisibility}}" />
 
-                    <GroupBox x:Name="TestSection" DockPanel.Dock="Bottom" Header="Test" Margin="0,8,0,0"
+                    <GroupBox DockPanel.Dock="Bottom" Header="Test" Margin="0,8,0,0"
                               DataContext="{Binding Test}">
                         <StackPanel Margin="8">
                             <TextBlock Text="{x:Static local:LoopbackTestViewModel.Note}" Foreground="Gray"

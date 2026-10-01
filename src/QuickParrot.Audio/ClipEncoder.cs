@@ -12,7 +12,7 @@ namespace QuickParrot.Audio;
 /// </summary>
 public sealed class ClipEncoder : IClipEncoder
 {
-    public const int Mp3BitRate = 192_000;
+    private const int Mp3BitRate = 192_000;
 
     // The MP3 encoder takes 16-bit PCM at MPEG-1 rates, mono or stereo.
     private static readonly int[] Mp3SampleRates = [32000, 44100, 48000];

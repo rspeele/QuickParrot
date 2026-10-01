@@ -49,9 +49,9 @@ public class ChordNavigatorGridTests
         Assert.Equal(9, view.GridColumns[0].Entries.Count);
         Assert.Equal(9, view.GridColumns[1].Entries.Count);
         Assert.Single(view.GridColumns[2].Entries);
-        Assert.Equal(paths[0], view.GridColumns[0].Entries[0].RelativePath);
-        Assert.Equal(paths[9], view.GridColumns[1].Entries[0].RelativePath);
-        Assert.Equal(paths[18], view.GridColumns[2].Entries[0].RelativePath);
+        Assert.Equal(paths[0], view.GridColumns[0].Entries[0].Name);
+        Assert.Equal(paths[9], view.GridColumns[1].Entries[0].Name);
+        Assert.Equal(paths[18], view.GridColumns[2].Entries[0].Name);
         Assert.False(view.Truncated);
     }
 

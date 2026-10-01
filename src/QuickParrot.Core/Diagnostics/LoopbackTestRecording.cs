@@ -46,7 +46,7 @@ public sealed class LoopbackTestRecording
         }
     }
 
-    public bool IsFull => Count == _samples.Length;
+    internal bool IsFull => Count == _samples.Length;
 
     /// <summary>Appends interleaved frames; a packet flagged silent contributes zeros. Frames past the cap are dropped.</summary>
     public void Append(ReadOnlySpan<byte> interleaved, bool silent)

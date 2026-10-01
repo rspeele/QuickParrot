@@ -7,10 +7,10 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
 {
     public static readonly ScanKey DefaultChordKey = new(0x30, false); // B
     public static readonly ScanKey Escape = new(0x01, false);
-    public static readonly ScanKey LeftShift = new(0x2A, false);
-    public static readonly ScanKey RightShift = new(0x36, false);
-    public static readonly ScanKey Enter = new(0x1C, false);
-    public static readonly ScanKey NumpadEnter = new(0x1C, true);
+    internal static readonly ScanKey LeftShift = new(0x2A, false);
+    internal static readonly ScanKey RightShift = new(0x36, false);
+    internal static readonly ScanKey Enter = new(0x1C, false);
+    internal static readonly ScanKey NumpadEnter = new(0x1C, true);
 
     /// <summary>0-9 for number-row and numpad digit keys (the latter by position, so NumLock doesn't matter); else -1.</summary>
     [JsonIgnore]
@@ -32,7 +32,7 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
     [JsonIgnore]
     public bool IsClearKey => IsClearKeyCode(ScanCode, IsExtended);
 
-    public static int FunctionKeyOf(int scanCode, bool isExtended) => isExtended ? 0 : scanCode switch
+    private static int FunctionKeyOf(int scanCode, bool isExtended) => isExtended ? 0 : scanCode switch
     {
         >= 0x3B and <= 0x44 => scanCode - 0x3A,
         0x57 => 11,
@@ -40,7 +40,7 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
         _ => 0,
     };
 
-    public static bool IsClearKeyCode(int scanCode, bool isExtended) =>
+    private static bool IsClearKeyCode(int scanCode, bool isExtended) =>
         isExtended ? scanCode == 0x53 : scanCode == 0x0E;
 
     /// <summary>The physical key for F1-F12.</summary>

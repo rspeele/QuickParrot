@@ -1,7 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using MessageBox = System.Windows.MessageBox;
-using UserControl = System.Windows.Controls.UserControl;
 
 namespace QuickParrot.App.Editor;
 

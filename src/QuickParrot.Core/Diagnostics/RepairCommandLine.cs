@@ -46,9 +46,9 @@ public static partial class RepairCommandLine
     /// <summary>Like <c>{0.0.1.00000000}.{8feef6e5-eeee-41fc-808c-4093a95c17e3}</c>.</summary>
     public static bool IsValidEndpointId(string id) => EndpointIdPattern().IsMatch(id);
 
+    /// <summary>Describes a non-success exit code; callers already handle <see cref="RepairExitCode.Success"/> themselves.</summary>
     public static string Describe(int exitCode) => exitCode switch
     {
-        (int)RepairExitCode.Success => "it succeeded",
         (int)RepairExitCode.InvalidArguments => "the helper didn't understand the request",
         _ => "Windows refused the change",
     };

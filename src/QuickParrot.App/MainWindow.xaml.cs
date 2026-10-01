@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -88,8 +87,7 @@ public partial class MainWindow : Window
 
     private void GrabNow_Click(object sender, RoutedEventArgs e) => _viewModel.PendingGrabs.GrabNow();
 
-    private async void OpenGrab_Click(object sender, RoutedEventArgs e) =>
-        await _viewModel.PendingGrabs.OpenAsync(PendingGrabsList.SelectedItem as PendingGrabItem);
+    private async void OpenGrab_Click(object sender, RoutedEventArgs e) => await OpenSelectedGrabAsync();
 
     private void DeleteGrab_Click(object sender, RoutedEventArgs e)
     {
@@ -97,8 +95,10 @@ public partial class MainWindow : Window
             _viewModel.Status = error;
     }
 
-    private async void PendingGrabs_MouseDoubleClick(object sender, MouseButtonEventArgs e) =>
-        await _viewModel.PendingGrabs.OpenAsync(PendingGrabsList.SelectedItem as PendingGrabItem);
+    private async void PendingGrabs_MouseDoubleClick(object sender, MouseButtonEventArgs e) => await OpenSelectedGrabAsync();
+
+    private Task OpenSelectedGrabAsync() =>
+        PendingGrabsList.SelectedItem is PendingGrabItem item ? _viewModel.OpenGrabAsync(item.Grab) : Task.CompletedTask;
 
     // Committing on every keystroke would DPAPI-encrypt and save a partial key after each one; commit once instead,
     // on LostFocus or Enter.

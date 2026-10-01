@@ -3,10 +3,7 @@ using QuickParrot.Core.Playback;
 namespace QuickParrot.Core.Editing;
 
 /// <param name="Normalize">Loudness-normalize (and peak-limit) the clip; off leaves levels untouched.</param>
-public sealed record ClipRenderOptions(bool Normalize, LoudnessOptions Loudness)
-{
-    public TimeSpan FadeLength { get; init; } = ClipFades.DefaultLength;
-}
+public sealed record ClipRenderOptions(bool Normalize, LoudnessOptions Loudness);
 
 /// <param name="Normalization">Null when normalization was off.</param>
 public sealed record RenderedClip(EditableAudio Audio, NormalizationResult? Normalization);
@@ -23,7 +20,7 @@ public static class ClipRenderer
         if (clip.Channels > 2)
             clip = DownmixToStereo(clip);
 
-        ClipFades.Apply(clip.Samples, clip.Channels, clip.FramesFor(options.FadeLength));
+        ClipFades.Apply(clip.Samples, clip.Channels, clip.FramesFor(ClipFades.DefaultLength));
         var normalization = options.Normalize
             ? LoudnessNormalizer.Normalize(clip.Samples, clip.Channels, clip.SampleRate, options.Loudness)
             : null;

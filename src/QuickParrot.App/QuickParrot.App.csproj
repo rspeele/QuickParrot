@@ -4,11 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- WFO0003 wants WinForms' SetHighDpiMode instead of manifest DPI awareness, but this is a WPF app;
-         UseWindowsForms is only here for the overlay. -->
-    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

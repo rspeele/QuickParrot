@@ -72,7 +72,7 @@ public sealed class ClipEditorSession
     public ClipSelection PostSaveSelection(ClipSelection saved) =>
         PlaybackPlanner.PostSaveSelection(saved, Audio.FrameCount, MinSelectionFrames);
 
-    /// <summary>Renders the current selection and saves it as <paramref name="name"/> in <paramref name="folder"/>. Blocking.</summary>
+    /// <summary>Renders <paramref name="selection"/> and saves it as <paramref name="name"/> in <paramref name="folder"/>. Blocking.</summary>
     public SavedClip Save(ClipSelection selection, string? name, string folder, bool normalize, CancellationToken cancellationToken)
     {
         if (selection.Length < Math.Max(1, MinSelectionFrames))

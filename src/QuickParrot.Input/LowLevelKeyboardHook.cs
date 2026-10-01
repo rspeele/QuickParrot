@@ -41,8 +41,6 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     private nint _desktopEvents;
     private TaskCompletionSource<ScanKey?>? _capture;
 
-    private long _keyEventsSeen;
-
     public LowLevelKeyboardHook(ScanKey chordKey, Action<ChordEvent> onChordEvent)
     {
         _filter = new ChordKeyFilter(chordKey, ForegroundWindow.IsFullscreenGame)
@@ -77,18 +75,6 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     {
         lock (_lock)
             Execute(() => _filter.ChordlessFavoriteSlots = mask);
-    }
-
-    /// <summary>Total key events the hook has received, injected ones included; handy to check it's alive.</summary>
-    public long KeyEventsSeen => Volatile.Read(ref _keyEventsSeen);
-
-    public bool IsRunning
-    {
-        get
-        {
-            lock (_lock)
-                return _thread is not null;
-        }
     }
 
     public ScanKey ChordKey
@@ -181,13 +167,6 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     }
 
     public void Dispose() => Stop();
-
-    /// <summary>Forgets held keys, e.g. after events may have gone missing.</summary>
-    public void Reset()
-    {
-        lock (_lock)
-            Execute(ResetFilter);
-    }
 
     /// <summary>
     /// Hides and reports the next physical key pressed, instead of processing it. Completes with null if
@@ -368,7 +347,6 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 
     private bool HandleKey(KBDLLHOOKSTRUCT* key)
     {
-        _keyEventsSeen++;
         var flags = key->flags;
         var scanCode = (int)key->scanCode;
         var isExtended = (flags & LLKHF_EXTENDED) != 0;

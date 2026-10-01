@@ -1,4 +1,3 @@
-using System.Drawing;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Navigation;
 
@@ -105,7 +104,7 @@ internal static class FavoritesGeometry
         var nameBounds = new RectangleF(x + inset, keyBounds.Bottom, bounds.Width - 2 * inset, NameRowHeight * scale);
 
         return new FavoriteSlotItem(
-            view.Slot, view.KeyName, name, tag, state, target, bounds, SlotCorner * scale, keyBounds,
+            view.KeyName, name, tag, state, target, bounds, SlotCorner * scale, keyBounds,
             tagBounds, nameBounds, KeyFont * scale, TagFont * scale, NameFont * scale);
     }
 

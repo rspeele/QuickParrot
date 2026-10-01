@@ -58,7 +58,7 @@ public sealed class GridGeometryTests
     {
         var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(40, "Big"), 1);
 
-        Assert.All(layout.Headers, h => Assert.False(h.Dimmed || h.Highlighted));
+        Assert.All(layout.Headers, h => Assert.False(h.Dimmed));
         Assert.All(layout.Items, i => Assert.False(i.Dimmed || i.Highlighted));
         Assert.All(layout.Items, i => Assert.True(i.NumberBounds.IsEmpty));
         Assert.DoesNotContain(layout.Panels, p => p.Style == OverlayPanelStyle.HighlightedColumn);
@@ -75,7 +75,6 @@ public sealed class GridGeometryTests
         Assert.Equal(9, zoomed.Count);
         Assert.All(zoomed, i => Assert.True(i.Highlighted && !i.Dimmed && !i.NumberBounds.IsEmpty));
         Assert.All(others, i => Assert.True(i.Dimmed && !i.Highlighted && i.NumberBounds.IsEmpty));
-        Assert.True(layout.Headers[1].Highlighted);
         Assert.All(layout.Headers.Where(h => h.Number != 2), h => Assert.True(h.Dimmed));
 
         var highlight = Assert.Single(layout.Panels, p => p.Style == OverlayPanelStyle.HighlightedColumn).Bounds;

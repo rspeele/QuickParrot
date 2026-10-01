@@ -33,7 +33,7 @@ public static class OutputDeviceSelector
         ?? devices.FirstOrDefault(d => d.IsActive && d.Name.Contains(VbCableName, StringComparison.OrdinalIgnoreCase))
         ?? devices.FirstOrDefault(d => d.IsActive && d.Name.Contains(MuzychenkoName, StringComparison.OrdinalIgnoreCase));
 
-    public static AudioDeviceInfo? SelectMonitor(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId, string? defaultId) =>
+    internal static AudioDeviceInfo? SelectMonitor(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId, string? defaultId) =>
         FindActive(devices, configuredId) ?? FindActive(devices, defaultId);
 
     /// <summary>

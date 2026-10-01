@@ -64,7 +64,7 @@ public sealed class ReplayBuffer : IReplaySource
     }
 
     /// <summary>The current format, or (0, 0) before <see cref="Begin"/> or after <see cref="Clear"/>.</summary>
-    public (int SampleRate, int Channels) Format
+    internal (int SampleRate, int Channels) Format
     {
         get
         {

@@ -1,4 +1,3 @@
-using System.Drawing;
 using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Overlay;
@@ -70,7 +69,7 @@ internal static class GridGeometry
             }
 
             headers.Add(new OverlayColumnHeader(
-                column.Number, S(x, headerTop, ColumnWidth, HeaderHeight, scale), HeaderFont * scale, zoomed, dimmed));
+                column.Number, S(x, headerTop, ColumnWidth, HeaderHeight, scale), HeaderFont * scale, dimmed));
 
             foreach (var entry in column.Entries.Take(Rows))
             {

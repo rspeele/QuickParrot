@@ -59,7 +59,7 @@ public sealed class JsonSettingsStore : ISettingsStore
 
     public static string Serialize(AppSettings settings) => JsonSerializer.Serialize(settings, JsonOptions);
 
-    public static AppSettings Deserialize(string json) => TryDeserialize(json, out var settings) ? settings : new AppSettings();
+    internal static AppSettings Deserialize(string json) => TryDeserialize(json, out var settings) ? settings : new AppSettings();
 
     public static bool TryDeserialize(string json, out AppSettings settings)
     {

@@ -15,8 +15,6 @@ public sealed class EditorPreview(IAudioDeviceCatalog devices, Func<OutputSettin
 
     public event Action<EditableAudio, Exception?>? Stopped;
 
-    public bool IsPlaying => Volatile.Read(ref _current) is not null;
-
     public EditableAudio? PlayingAudio => Volatile.Read(ref _current)?.Audio;
 
     public int? PositionFrame => Volatile.Read(ref _current)?.PositionFrame;

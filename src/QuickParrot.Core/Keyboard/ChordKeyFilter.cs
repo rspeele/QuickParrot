@@ -52,7 +52,7 @@ public sealed class ChordKeyFilter
 
     public bool Enabled { get; private set; } = true;
 
-    public bool ChordActive => _chordActive;
+    internal bool ChordActive => _chordActive;
 
     public bool ShiftHeld => _leftShift || _rightShift;
 

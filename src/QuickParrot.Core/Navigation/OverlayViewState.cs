@@ -8,7 +8,7 @@ public enum OverlayLayoutKind
     Grid,
 }
 
-public sealed record NumberedEntry(int Number, string Name, bool IsFolder, string RelativePath);
+public sealed record NumberedEntry(int Number, string Name, bool IsFolder);
 
 public sealed record GridColumn(int Number, IReadOnlyList<NumberedEntry> Entries);
 
