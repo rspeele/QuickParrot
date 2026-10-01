@@ -47,6 +47,7 @@ public sealed class ChordNavigator
         ChordReleased => HandleChordReleased(),
         ChordCancelled => HandleChordCancelled(),
         DigitPressed d => HandleDigit(d.Digit, d.Shift),
+        GrabPressed => HandleGrab(),
         _ => NoActions,
     };
 
@@ -78,6 +79,17 @@ public sealed class ChordNavigator
         _session = null;
         _viewState = null;
         return NoActions;
+    }
+
+    // Like playing a clip, a grab spends the session: the overlay hides and the release won't stop playback.
+    private IReadOnlyList<NavigationAction> HandleGrab()
+    {
+        if (_session is not { Spent: false } session)
+            return NoActions;
+
+        session.Spent = true;
+        Refresh(session);
+        return [new GrabReplay()];
     }
 
     private IReadOnlyList<NavigationAction> HandleDigit(int digit, bool shift)

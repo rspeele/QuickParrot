@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Playback;
+using QuickParrot.Core.Replay;
 using QuickParrot.Core.Settings;
 
 namespace QuickParrot.Core.Engine;
@@ -22,6 +24,8 @@ public sealed class QuickParrotEngine : IDisposable
     private readonly TimeProvider _time;
     private readonly Func<string, IFolderSource> _createLibrary;
     private readonly PlaybackController _controller;
+    private readonly IReplaySource? _replay;
+    private readonly ReplayGrabber? _grabber;
 
     private volatile AppSettings _settings;
     private volatile ChordNavigator? _navigator;
@@ -38,7 +42,9 @@ public sealed class QuickParrotEngine : IDisposable
         ISettingsStore settingsStore,
         AppSettings settings,
         TimeProvider time,
-        Func<string, IFolderSource> createLibrary)
+        Func<string, IFolderSource> createLibrary,
+        IReplaySource? replay = null,
+        IPendingGrabStore? grabs = null)
     {
         _player = player;
         _micMuter = micMuter;
@@ -46,6 +52,8 @@ public sealed class QuickParrotEngine : IDisposable
         _time = time;
         _createLibrary = createLibrary;
         _settings = settings;
+        _replay = replay;
+        _grabber = replay is null || grabs is null ? null : new ReplayGrabber(replay, grabs);
         _controller = new PlaybackController(player, pushToTalk, micMuter, time, settings.ToPlaybackOptions(), Post);
         _controller.PlaybackFailed += e => ErrorOccurred?.Invoke($"Couldn't play {Path.GetFileName(e.ClipPath)}: {e.Message}");
         _thread = new Thread(RunQueued) { IsBackground = true, Name = "QuickParrot engine" };
@@ -59,6 +67,14 @@ public sealed class QuickParrotEngine : IDisposable
 
     /// <summary>Raised on the worker thread whenever <see cref="ViewState"/> changes (null = hide the overlay).</summary>
     public event Action<OverlayViewState?>? ViewStateChanged;
+
+    /// <summary>Raised on the worker thread once a grab is saved; see <see cref="ReplayGrabber.SavedMessage"/>.</summary>
+    public event Action<PendingGrab>? GrabSaved;
+
+    /// <summary>
+    /// Raised on the worker thread with a user-facing reason a grab failed; <see cref="ErrorOccurred"/> follows.
+    /// </summary>
+    public event Action<string>? GrabFailed;
 
     public AppSettings Settings => _settings;
 
@@ -77,6 +93,9 @@ public sealed class QuickParrotEngine : IDisposable
     public void Play(string relativePath) => Post(() => PlayRelative(relativePath));
 
     public void Stop() => Post(_controller.Stop);
+
+    /// <summary>Saves the replay buffer as a pending grab, like chord+Enter.</summary>
+    public void Grab() => Post(StartGrab);
 
     /// <summary>While suppressed, Play and chord PlayClip requests are ignored; chord navigation itself still works.
     /// Used by the loopback test so it doesn't record a clip playing over itself.</summary>
@@ -175,7 +194,11 @@ public sealed class QuickParrotEngine : IDisposable
     private void HandleChordEvent(ChordEvent chordEvent)
     {
         if (_navigator is not { } navigator)
+        {
+            if (chordEvent is GrabPressed)
+                StartGrab(); // grabbing doesn't need a library
             return;
+        }
 
         foreach (var action in navigator.Handle(chordEvent))
         {
@@ -183,6 +206,8 @@ public sealed class QuickParrotEngine : IDisposable
                 PlayRelative(play.RelativePath);
             else if (action is StopPlayback)
                 _controller.Stop();
+            else if (action is GrabReplay)
+                StartGrab();
         }
     }
 
@@ -201,8 +226,41 @@ public sealed class QuickParrotEngine : IDisposable
         _controller.Play(fullPath);
     }
 
+    // Snapshotting and saving run on the thread pool, so disk IO never delays chord handling.
+    private void StartGrab()
+    {
+        if (_grabber is not { } grabber || !_settings.ReplayBufferEnabled)
+        {
+            ReportGrabFailure(ReplayGrabber.DisabledMessage);
+            return;
+        }
+
+        var length = TimeSpan.FromSeconds(_settings.ReplayBufferSeconds);
+        var grabbedAt = _time.GetLocalNow();
+        _ = Task.Run(() =>
+        {
+            var result = grabber.Grab(length, grabbedAt);
+            Post(() =>
+            {
+                if (result.Grab is { } grab)
+                    GrabSaved?.Invoke(grab);
+                else
+                    ReportGrabFailure(result.Error ?? "The grab failed.");
+            });
+        });
+    }
+
+    private void ReportGrabFailure(string message)
+    {
+        GrabFailed?.Invoke(message);
+        ErrorOccurred?.Invoke(message);
+    }
+
     private void ApplySettings(AppSettings? old, AppSettings updated)
     {
+        if (_replay is not null)
+            _replay.Capacity = TimeSpan.FromSeconds(updated.ReplayBufferSeconds);
+
         _controller.Options = updated.ToPlaybackOptions();
         _player.Configure(updated.ToOutputSettings());
         _micMuter.Configure(updated.ToMicDuckSettings());

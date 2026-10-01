@@ -9,10 +9,16 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
     public static readonly ScanKey Escape = new(0x01, false);
     public static readonly ScanKey LeftShift = new(0x2A, false);
     public static readonly ScanKey RightShift = new(0x36, false);
+    public static readonly ScanKey Enter = new(0x1C, false);
+    public static readonly ScanKey NumpadEnter = new(0x1C, true);
 
     /// <summary>0-9 for number-row and numpad digit keys (the latter by position, so NumLock doesn't matter); else -1.</summary>
     [JsonIgnore]
     public int Digit => DigitOf(ScanCode, IsExtended);
+
+    /// <summary>Main or numpad Enter.</summary>
+    [JsonIgnore]
+    public bool IsEnter => ScanCode == 0x1C;
 
     /// <summary>Either shift scan code, including the extended "fake shift" variants.</summary>
     [JsonIgnore]

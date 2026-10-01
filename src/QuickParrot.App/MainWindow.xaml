@@ -27,6 +27,25 @@
                     <TextBlock DockPanel.Dock="Top" Text="{Binding LibraryWarning}" Margin="0,0,0,4" TextWrapping="Wrap"
                                Foreground="OrangeRed" Visibility="{Binding HasLibraryWarning, Converter={StaticResource BoolToVisibility}}" />
 
+                    <GroupBox DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <GroupBox.Header>
+                            <TextBlock Text="{Binding PendingGrabs.Count, StringFormat={}Pending grabs ({0})}" />
+                        </GroupBox.Header>
+                        <DockPanel Margin="8" Height="140">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                                <Button DockPanel.Dock="Left" Content="Grab now" Padding="8,2" Click="GrabNow_Click" />
+                                <TextBlock Text="{Binding PendingGrabs.BufferStatus}" Margin="8,0,0,0"
+                                           VerticalAlignment="Center" Foreground="Gray" />
+                            </DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Top">
+                                <Button Content="Open" Padding="8,2" Margin="0,0,0,4" Click="OpenGrab_Click" />
+                                <Button Content="Delete" Padding="8,2" Click="DeleteGrab_Click" />
+                            </StackPanel>
+                            <ListBox x:Name="PendingGrabsList" ItemsSource="{Binding PendingGrabs.Grabs}" DisplayMemberPath="Display"
+                                     MouseDoubleClick="PendingGrabs_MouseDoubleClick" />
+                        </DockPanel>
+                    </GroupBox>
+
                     <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
                              MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown" />
                 </DockPanel>
@@ -156,6 +175,77 @@
                                 <TextBlock Grid.Row="2" Text="Microphone:" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding MicDeviceChoices}"
                                           DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMicDeviceId}" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Instant replay" Margin="0,0,0,8">
+                            <StackPanel Margin="8">
+                                <CheckBox Content="Keep a replay buffer for instant-replay grabs" Margin="0,0,0,8"
+                                          IsChecked="{Binding ReplayBufferEnabled}" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="50" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Buffer length (s):" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Slider Grid.Column="1" Minimum="5" Maximum="120" VerticalAlignment="Center"
+                                            TickFrequency="5" IsSnapToTickEnabled="True"
+                                            IsEnabled="{Binding ReplayBufferEnabled}" Value="{Binding ReplayBufferSeconds, Delay=300}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ReplayBufferSeconds}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
+                                           Text="Records what you hear (including voice chat) into memory only; nothing is saved until you grab." />
+
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Left" Text="Grab hotkey:" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding GrabHotkeyDisplay}" Margin="4,0,0,0"
+                                               VerticalAlignment="Center" FontWeight="Bold" />
+                                </DockPanel>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="AI clip naming (LiteLLM)" Margin="0,0,0,8">
+                            <Grid Margin="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="Base URL:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4"
+                                         Text="{Binding LiteLlmBaseUrl, UpdateSourceTrigger=LostFocus}" />
+
+                                <TextBlock Grid.Row="1" Text="API key:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <DockPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,4">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding LiteLlmApiKeyPlaceholder}" Foreground="Gray"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                    <PasswordBox x:Name="ApiKeyBox" PasswordChanged="ApiKeyBox_PasswordChanged" />
+                                </DockPanel>
+
+                                <TextBlock Grid.Row="2" Text="Transcription model:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,4"
+                                         Text="{Binding LiteLlmTranscriptionModel, UpdateSourceTrigger=LostFocus}" />
+
+                                <TextBlock Grid.Row="3" Text="Chat model:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,4"
+                                         Text="{Binding LiteLlmChatModel, UpdateSourceTrigger=LostFocus}" />
+
+                                <DockPanel Grid.Row="4" Grid.Column="1">
+                                    <Button DockPanel.Dock="Left" Content="{Binding LiteLlmTestConnectionLabel}" Padding="8,2"
+                                            IsEnabled="{Binding CanTestLiteLlmConnection}" Click="TestLiteLlmConnection_Click" />
+                                    <TextBlock Text="{Binding LiteLlmConnectionTestResult}" Margin="8,0,0,0"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </DockPanel>
                             </Grid>
                         </GroupBox>
 

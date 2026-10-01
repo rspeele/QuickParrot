@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using QuickParrot.App.Editor;
 
 namespace QuickParrot.App;
 
@@ -13,6 +14,14 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
+        _viewModel.EditorRequested += OnEditorRequested;
+    }
+
+    private void OnEditorRequested(GrabEditorRequest request)
+    {
+        var window = new ClipEditorWindow(request.ViewModel) { Owner = this };
+        window.Closed += (_, _) => _viewModel.OnGrabEditorClosed(request.Grab, window.Outcome);
+        window.Show();
     }
 
     private void ChooseLibrary_Click(object sender, RoutedEventArgs e)
@@ -38,6 +47,25 @@ public partial class MainWindow : Window
         else if (e.Key == Key.Back)
             _viewModel.GoUp();
     }
+
+    private void GrabNow_Click(object sender, RoutedEventArgs e) => _viewModel.PendingGrabs.GrabNow();
+
+    private async void OpenGrab_Click(object sender, RoutedEventArgs e) =>
+        await _viewModel.PendingGrabs.OpenAsync(PendingGrabsList.SelectedItem as PendingGrabItem);
+
+    private void DeleteGrab_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.PendingGrabs.Delete(PendingGrabsList.SelectedItem as PendingGrabItem) is { } error)
+            _viewModel.Status = error;
+    }
+
+    private async void PendingGrabs_MouseDoubleClick(object sender, MouseButtonEventArgs e) =>
+        await _viewModel.PendingGrabs.OpenAsync(PendingGrabsList.SelectedItem as PendingGrabItem);
+
+    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) =>
+        _viewModel.SetLiteLlmApiKey(((System.Windows.Controls.PasswordBox)sender).Password);
+
+    private async void TestLiteLlmConnection_Click(object sender, RoutedEventArgs e) => await _viewModel.TestLiteLlmConnectionAsync();
 
     private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangeChordKeyAsync();
 

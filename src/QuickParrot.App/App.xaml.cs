@@ -1,10 +1,14 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net.Http;
 using QuickParrot.Audio;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
+using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Mic;
+using QuickParrot.Core.Naming;
+using QuickParrot.Core.Replay;
 using QuickParrot.Core.Settings;
 using QuickParrot.Input;
 using QuickParrot.Overlay;
@@ -22,6 +26,14 @@ public partial class App : System.Windows.Application
     private MicDucker? _micDucker;
     private OverlayHost? _overlay;
     private AudioDiagnostics? _diagnostics;
+    private ReplayBuffer? _replayBuffer;
+    private FilePendingGrabStore? _grabStore;
+    private LoopbackReplayCapture? _replayCapture;
+    private ClipEncoder? _clipEncoder;
+    private EditorPreview? _editorPreview;
+    private HttpClient? _httpClient;
+    private DpapiProtector? _dpapiProtector;
+    private (bool Enabled, string? MonitorDeviceId)? _lastReplayCaptureConfig;
     private int _crashCleanupStarted;
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
@@ -77,6 +89,9 @@ public partial class App : System.Windows.Application
             warnings.Add(restoreWarning);
         _micDucker = micDucker;
 
+        _replayBuffer = new ReplayBuffer(TimeSpan.FromSeconds(loaded.Settings.ReplayBufferSeconds));
+        _grabStore = new FilePendingGrabStore(FilePendingGrabStore.DefaultDirectory);
+
         _engine = new QuickParrotEngine(
             _player,
             _hook.PushToTalk,
@@ -84,9 +99,24 @@ public partial class App : System.Windows.Application
             store,
             loaded.Settings,
             TimeProvider.System,
-            root => new FileSystemFolderSource(root));
+            root => new FileSystemFolderSource(root),
+            _replayBuffer,
+            _grabStore);
         _engine.Start();
         _devices.DevicesChanged += _engine.RetryMicRestore;
+
+        _replayCapture = new LoopbackReplayCapture(_replayBuffer);
+        _lastReplayCaptureConfig = (loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
+        _replayCapture.Configure(loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
+        _engine.SettingsChanged += settings =>
+        {
+            (bool Enabled, string? MonitorDeviceId) config = (settings.ReplayBufferEnabled, settings.MonitorDeviceId);
+            if (config == _lastReplayCaptureConfig)
+                return;
+
+            _lastReplayCaptureConfig = config;
+            _replayCapture?.Configure(config.Enabled, config.MonitorDeviceId);
+        };
 
         _overlay = new OverlayHost { SmallFolderLayout = loaded.Settings.SmallFolderLayout };
         try
@@ -107,12 +137,22 @@ public partial class App : System.Windows.Application
             TimeProvider.System);
         _devices.SetupChanged += _diagnostics.RequestCheck;
 
+        _clipEncoder = new ClipEncoder();
+        _editorPreview = new EditorPreview(_devices, () => engine.Settings.ToOutputSettings());
+        _httpClient = new HttpClient();
+        _dpapiProtector = new DpapiProtector();
+
         var viewModel = new MainViewModel(
             _engine,
             _devices,
             _devices,
             _hook,
             _overlay,
+            _grabStore,
+            _editorPreview,
+            _clipEncoder,
+            _httpClient,
+            _dpapiProtector,
             new DiagnosticsViewModel(_diagnostics, new LoopbackTester(), _devices, _devices, _engine),
             warnings.Count == 0 ? null : string.Join(" ", warnings));
 
@@ -123,6 +163,12 @@ public partial class App : System.Windows.Application
             Dispatcher.BeginInvoke(() => viewModel.Status = message);
         micDucker.Warning += message =>
             Dispatcher.BeginInvoke(() => viewModel.Status = message);
+        _replayCapture.ErrorOccurred += message =>
+            Dispatcher.BeginInvoke(() => viewModel.Status = message);
+
+        // Both are safe to call from any thread; the status line update for a failed grab rides along on ErrorOccurred.
+        _engine.GrabSaved += grab => _overlay.ShowToast(ReplayGrabber.SavedMessage(grab), TimeSpan.FromSeconds(1.5));
+        _engine.GrabFailed += message => _overlay.ShowToast(message, TimeSpan.FromSeconds(1.5), isError: true);
 
         MainWindow = new MainWindow(viewModel);
         MainWindow.Show();
@@ -160,8 +206,8 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
-        // Order matters: no more chord events once the hook is disabled, then the engine releases push-to-talk
-        // and restores the mic, then the hook itself, then the overlay, then audio.
+        // Order matters: hook disabled, engine (releases push-to-talk, restores the mic), hook, overlay, then the
+        // audio users (replay capture, editor preview, player) before the devices themselves.
         if (_hook is not null)
             _hook.Enabled = false;
         if (_devices is not null && _engine is not null)
@@ -174,8 +220,11 @@ public partial class App : System.Windows.Application
         if (_engine is not null && _overlay is not null)
             _engine.ViewStateChanged -= _overlay.Show;
         _overlay?.Dispose();
+        _replayCapture?.Dispose();
+        _editorPreview?.Dispose();
         _player?.Dispose();
         _devices?.Dispose();
+        _httpClient?.Dispose();
         base.OnExit(e);
     }
 }

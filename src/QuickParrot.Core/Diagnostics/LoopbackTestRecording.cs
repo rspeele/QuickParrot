@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+using QuickParrot.Core.Replay;
 
 namespace QuickParrot.Core.Diagnostics;
 
@@ -27,12 +27,7 @@ public sealed class LoopbackTestRecording
         SampleRate = sampleRate;
         Channels = channels;
         Format = format;
-        _bytesPerSample = format switch
-        {
-            LoopbackSampleFormat.Pcm16 => 2,
-            LoopbackSampleFormat.Pcm24 => 3,
-            _ => 4,
-        };
+        _bytesPerSample = SampleConverter.BytesPerSample(format);
         _samples = new float[(int)Math.Ceiling(maxDuration.TotalSeconds * sampleRate)];
     }
 
@@ -67,7 +62,10 @@ public sealed class LoopbackTestRecording
                 if (!silent)
                 {
                     for (var channel = 0; channel < Channels; channel++)
-                        sum += Read(interleaved.Slice(frame * frameBytes + channel * _bytesPerSample, _bytesPerSample));
+                    {
+                        var at = frame * frameBytes + channel * _bytesPerSample;
+                        sum += SampleConverter.Read(interleaved.Slice(at, _bytesPerSample), Format);
+                    }
                 }
 
                 _samples[_count++] = sum / Channels;
@@ -80,12 +78,4 @@ public sealed class LoopbackTestRecording
         lock (_lock)
             return _samples.AsSpan(0, _count).ToArray();
     }
-
-    private float Read(ReadOnlySpan<byte> sample) => Format switch
-    {
-        LoopbackSampleFormat.Float32 => BinaryPrimitives.ReadSingleLittleEndian(sample),
-        LoopbackSampleFormat.Pcm16 => BinaryPrimitives.ReadInt16LittleEndian(sample) / 32768f,
-        LoopbackSampleFormat.Pcm24 => ((sample[2] << 24) | (sample[1] << 16) | (sample[0] << 8)) / 2147483648f,
-        _ => BinaryPrimitives.ReadInt32LittleEndian(sample) / 2147483648f,
-    };
 }

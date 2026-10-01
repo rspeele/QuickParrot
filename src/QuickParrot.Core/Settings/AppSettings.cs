@@ -16,6 +16,8 @@ public enum SmallFolderLayout
 public sealed record AppSettings
 {
     public const int MaxMarginMilliseconds = 5000;
+    public const int MinReplayBufferSeconds = 5;
+    public const int MaxReplayBufferSeconds = 120;
 
     public string? LibraryRoot { get; init; }
 
@@ -57,6 +59,21 @@ public sealed record AppSettings
 
     public SmallFolderLayout SmallFolderLayout { get; init; } = SmallFolderLayout.List;
 
+    /// <summary>Keep the last <see cref="ReplayBufferSeconds"/> of the monitor output in memory, for grabbing.</summary>
+    public bool ReplayBufferEnabled { get; init; } = true;
+
+    public int ReplayBufferSeconds { get; init; } = 30;
+
+    /// <summary>Null disables LiteLLM-based clip naming.</summary>
+    public string? LiteLlmBaseUrl { get; init; }
+
+    /// <summary>Base64 DPAPI ciphertext; never the plaintext key. See <see cref="Naming.IDpapiProtector"/>.</summary>
+    public string? LiteLlmApiKeyEncrypted { get; init; }
+
+    public string LiteLlmTranscriptionModel { get; init; } = "whisper-1";
+
+    public string LiteLlmChatModel { get; init; } = "gpt-4o-mini";
+
     public PlaybackOptions ToPlaybackOptions() => new(
         TimeSpan.FromMilliseconds(PreRollMilliseconds),
         TimeSpan.FromMilliseconds(PostRollMilliseconds),
@@ -85,6 +102,11 @@ public sealed record AppSettings
         MicAttenuationPercent = Math.Clamp(MicAttenuationPercent, 0, 100),
         MicDeviceId = string.IsNullOrEmpty(MicDeviceId) ? null : MicDeviceId,
         LegacyMicMuteEnabled = null,
+        ReplayBufferSeconds = Math.Clamp(ReplayBufferSeconds, MinReplayBufferSeconds, MaxReplayBufferSeconds),
+        LiteLlmBaseUrl = string.IsNullOrWhiteSpace(LiteLlmBaseUrl) ? null : LiteLlmBaseUrl.Trim(),
+        LiteLlmApiKeyEncrypted = string.IsNullOrEmpty(LiteLlmApiKeyEncrypted) ? null : LiteLlmApiKeyEncrypted,
+        LiteLlmTranscriptionModel = string.IsNullOrWhiteSpace(LiteLlmTranscriptionModel) ? "whisper-1" : LiteLlmTranscriptionModel.Trim(),
+        LiteLlmChatModel = string.IsNullOrWhiteSpace(LiteLlmChatModel) ? "gpt-4o-mini" : LiteLlmChatModel.Trim(),
     };
 
     private MicDuckMode SanitizeMicDuckMode()

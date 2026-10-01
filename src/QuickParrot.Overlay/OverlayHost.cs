@@ -8,8 +8,8 @@ using static QuickParrot.Overlay.NativeMethods;
 namespace QuickParrot.Overlay;
 
 /// <summary>
-/// Owns the overlay window and its dedicated STA UI thread. <see cref="Show"/> is safe from any thread,
-/// never blocks, and coalesces bursts so only the latest state gets drawn.
+/// Owns the overlay window and its dedicated STA UI thread. <see cref="Show"/> and <see cref="ShowToast"/> are safe
+/// from any thread, never block, and coalesce bursts so only the latest state gets drawn.
 /// </summary>
 public sealed class OverlayHost : IDisposable
 {
@@ -22,7 +22,9 @@ public sealed class OverlayHost : IDisposable
     private Exception? _startupError;
     private readonly LatestValueSlot<OverlayViewState> _pending = new();
     private volatile nint _hwnd;
-    private OverlayViewState? _drawn;
+    private object? _drawn; // the view state or toast on screen, or null
+    private ToastRequest? _toast;
+    private System.Threading.Timer? _toastTimer;
     private int _disposed;
     private volatile SmallFolderLayout _smallFolderLayout = SmallFolderLayout.List;
 
@@ -63,15 +65,36 @@ public sealed class OverlayHost : IDisposable
             Wake();
     }
 
+    /// <summary>
+    /// Shows a one-line confirmation near the top of the screen for <paramref name="duration"/>, replacing any earlier
+    /// one. While a chord session is showing, that takes precedence and the toast waits underneath until it expires.
+    /// </summary>
+    public void ShowToast(string text, TimeSpan duration, bool isError = false)
+    {
+        var toast = new ToastRequest(text, isError);
+        Volatile.Write(ref _toast, toast);
+        var timer = new System.Threading.Timer(_ => toast.Expire(this), null, duration, Timeout.InfiniteTimeSpan);
+        Interlocked.Exchange(ref _toastTimer, timer)?.Dispose();
+        RequestRedraw();
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
+        Interlocked.Exchange(ref _toastTimer, null)?.Dispose();
+
         if (_thread is not null && _hwnd != 0 && PostMessage(_hwnd, OverlayWindow.WM_QUIT_LOOP, 0, 0))
             _thread.Join(TimeSpan.FromSeconds(5));
 
         _ready.Dispose();
+    }
+
+    private void RequestRedraw()
+    {
+        if (_pending.RequestWake())
+            Wake();
     }
 
     private void Wake()
@@ -165,17 +188,22 @@ public sealed class OverlayHost : IDisposable
             return;
         }
 
+        // Read after Take, so a toast set concurrently is either seen now or wakes us again.
         var state = _pending.Take();
-        if (ReferenceEquals(state, _drawn))
+        var toast = Volatile.Read(ref _toast);
+        var scene = (object?)state ?? (toast is { Expired: false } ? toast : null);
+        if (ReferenceEquals(scene, _drawn))
             return;
 
-        _drawn = state;
+        _drawn = scene;
         try
         {
-            if (state is null)
-                Hide();
+            if (scene is OverlayViewState viewState)
+                Draw(viewState);
+            else if (scene is ToastRequest toastRequest)
+                DrawToast(toastRequest);
             else
-                Draw(state);
+                Hide();
         }
         catch (Exception e)
         {
@@ -186,22 +214,41 @@ public sealed class OverlayHost : IDisposable
 
     private void Draw(OverlayViewState state)
     {
+        UpdateMonitor();
+        var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi, _smallFolderLayout);
+        var topLeft = OverlayLayoutGeometry.CenterOn(_monitor.Bounds, layout.CanvasSize);
+        Present(layout.CanvasSize, topLeft, g => _renderer!.Draw(g, layout));
+    }
+
+    private void DrawToast(ToastRequest toast)
+    {
+        UpdateMonitor();
+        var layout = ToastGeometry.ComputeForMonitor(toast.Text, _monitor.Bounds.Size, _monitor.Dpi, toast.IsError);
+        var topLeft = ToastGeometry.PositionOn(_monitor.Bounds, layout.CanvasSize);
+        Present(layout.CanvasSize, topLeft, g => _renderer!.DrawToast(g, layout));
+    }
+
+    // Follows the game to another monitor, but never jumps while something is already showing.
+    private void UpdateMonitor()
+    {
         if (!_window!.IsShown)
             _monitor = MonitorTarget.ForForegroundWindow();
+    }
 
-        var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi, _smallFolderLayout);
-        if (_surface?.Size != layout.CanvasSize)
+    private void Present(Size canvasSize, Point topLeft, Action<Graphics> draw)
+    {
+        if (_surface?.Size != canvasSize)
         {
             _surface?.Dispose();
             _surface = null;
-            _surface = new LayeredSurface(layout.CanvasSize);
+            _surface = new LayeredSurface(canvasSize);
         }
 
         using (var bitmap = _surface.BeginDraw())
         using (var graphics = Graphics.FromImage(bitmap))
-            _renderer!.Draw(graphics, layout);
+            draw(graphics);
 
-        _window.ShowAt(_surface, OverlayLayoutGeometry.CenterOn(_monitor.Bounds, layout.CanvasSize));
+        _window!.ShowAt(_surface, topLeft);
     }
 
     // GDI+ startup and JIT cost ~40 ms, which would otherwise land on the first chord press.
@@ -220,5 +267,22 @@ public sealed class OverlayHost : IDisposable
         _window?.Hide();
         _surface?.Dispose();
         _surface = null;
+    }
+
+    private sealed class ToastRequest(string text, bool isError)
+    {
+        private volatile bool _expired;
+
+        public string Text { get; } = text;
+
+        public bool IsError { get; } = isError;
+
+        public bool Expired => _expired;
+
+        public void Expire(OverlayHost host)
+        {
+            _expired = true;
+            host.RequestRedraw();
+        }
     }
 }

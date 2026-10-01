@@ -89,7 +89,7 @@ internal sealed class LoopbackTesterCapture : IDisposable
             if (_recording is null)
             {
                 var format = _recorder.WaveFormat;
-                if (ToSampleFormat(format) is not { } sampleFormat)
+                if (CaptureFormats.ToSampleFormat(format) is not { } sampleFormat)
                 {
                     _captureError ??= $"CABLE Output uses an unsupported format ({format}).";
                     return;
@@ -104,23 +104,5 @@ internal sealed class LoopbackTesterCapture : IDisposable
         {
             _captureError ??= e.Message;
         }
-    }
-
-    private static LoopbackSampleFormat? ToSampleFormat(WaveFormat format)
-    {
-        var encoding = format is WaveFormatExtensible extensible
-            ? extensible.SubFormat == AudioMediaSubtypes.MEDIASUBTYPE_IEEE_FLOAT ? WaveFormatEncoding.IeeeFloat
-            : extensible.SubFormat == AudioMediaSubtypes.MEDIASUBTYPE_PCM ? WaveFormatEncoding.Pcm
-            : WaveFormatEncoding.Unknown
-            : format.Encoding;
-
-        return (encoding, format.BitsPerSample) switch
-        {
-            (WaveFormatEncoding.IeeeFloat, 32) => LoopbackSampleFormat.Float32,
-            (WaveFormatEncoding.Pcm, 16) => LoopbackSampleFormat.Pcm16,
-            (WaveFormatEncoding.Pcm, 24) => LoopbackSampleFormat.Pcm24,
-            (WaveFormatEncoding.Pcm, 32) => LoopbackSampleFormat.Pcm32,
-            _ => null,
-        };
     }
 }

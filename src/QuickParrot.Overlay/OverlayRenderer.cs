@@ -20,6 +20,8 @@ public sealed class OverlayRenderer : IDisposable
     private static readonly Color PillFill = Color.FromArgb(240, 16, 18, 24);
     private static readonly Color CellFill = Color.FromArgb(160, 40, 44, 54);
     private static readonly Color HighlightFill = Color.FromArgb(46, 67, 224, 160);
+    private static readonly Color ErrorColor = Color.FromArgb(255, 122, 89);
+    private static readonly Color GlyphInk = Color.FromArgb(14, 16, 22);
     private const int DimmedAlpha = 105;
     private const string TextFamily = "Segoe UI Semibold";
     private const string NumberFamily = "Segoe UI";
@@ -51,6 +53,18 @@ public sealed class OverlayRenderer : IDisposable
         DrawLabel(g, layout.Subtitle, MutedText);
         DrawHint(g, layout.Hint, layout.Scale);
         DrawLabel(g, layout.Note, MutedText);
+    }
+
+    public void DrawToast(Graphics g, ToastLayout toast)
+    {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+
+        DrawPanel(g, toast.Panel, toast.Scale, copyFill: true);
+        DrawStatusGlyph(g, toast.IconBounds, toast.IsError, toast.Scale);
+        var font = Font(TextFamily, toast.Text.FontPx, FontStyle.Regular);
+        DrawText(g, toast.Text.Text, toast.Text.Bounds, font, TextColor, toast.Text.Align);
     }
 
     public void Dispose()
@@ -113,6 +127,29 @@ public sealed class OverlayRenderer : IDisposable
         using var body = RoundedRect(new RectangleF(r.X, r.Y + r.Height * 0.2f, r.Width, r.Height * 0.8f), radius);
         g.FillPath(brush, tab);
         g.FillPath(brush, body);
+    }
+
+    // A filled disc holding a check mark, or an exclamation mark for errors.
+    private static void DrawStatusGlyph(Graphics g, RectangleF r, bool isError, float scale)
+    {
+        using (var disc = new SolidBrush(isError ? ErrorColor : Accent))
+            g.FillEllipse(disc, r);
+
+        using var ink = new Pen(GlyphInk, 2.4f * scale);
+        ink.StartCap = ink.EndCap = LineCap.Round;
+        ink.LineJoin = LineJoin.Round;
+        float X(float f) => r.X + r.Width * f;
+        float Y(float f) => r.Y + r.Height * f;
+        if (!isError)
+        {
+            g.DrawLines(ink, [new PointF(X(0.28f), Y(0.52f)), new PointF(X(0.44f), Y(0.68f)), new PointF(X(0.73f), Y(0.36f))]);
+            return;
+        }
+
+        g.DrawLine(ink, X(0.5f), Y(0.26f), X(0.5f), Y(0.56f));
+        using var dot = new SolidBrush(GlyphInk);
+        var dotSize = 3.2f * scale;
+        g.FillEllipse(dot, X(0.5f) - dotSize / 2, Y(0.74f) - dotSize / 2, dotSize, dotSize);
     }
 
     private void DrawLabel(Graphics g, OverlayLabel? label, Color color)

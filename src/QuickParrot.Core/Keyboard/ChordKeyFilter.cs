@@ -13,6 +13,7 @@ public sealed class ChordKeyFilter
     private static readonly ChordEvent Pressed = new ChordPressed();
     private static readonly ChordEvent Released = new ChordReleased();
     private static readonly ChordEvent Cancelled = new ChordCancelled();
+    private static readonly ChordEvent Grab = new GrabPressed();
     private static readonly ChordEvent[] Digits = BuildDigitEvents(shift: false);
     private static readonly ChordEvent[] ShiftedDigits = BuildDigitEvents(shift: true);
 
@@ -161,6 +162,12 @@ public sealed class ChordKeyFilter
         {
             _swallowed[slot] = true;
             return new KeyFilterResult(true, (ShiftHeld ? ShiftedDigits : Digits)[digit]);
+        }
+
+        if (_chordActive && key.IsEnter)
+        {
+            _swallowed[slot] = true;
+            return new KeyFilterResult(true, Grab);
         }
 
         return KeyFilterResult.PassThrough;

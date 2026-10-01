@@ -1,14 +1,23 @@
+using System.IO;
+using System.Net.Http;
+using QuickParrot.App.Editor;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
+using QuickParrot.Core.Editing;
 using QuickParrot.Core.Engine;
+using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Mic;
+using QuickParrot.Core.Naming;
 using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;
 using QuickParrot.Overlay;
 
 namespace QuickParrot.App;
+
+/// <summary>Asks the host window to show the clip editor for a just-opened grab.</summary>
+public sealed record GrabEditorRequest(ClipEditorViewModel ViewModel, PendingGrab Grab);
 
 public sealed record LibraryItem(FolderEntry Entry)
 {
@@ -29,8 +38,15 @@ public sealed class MainViewModel : ObservableObject
     private readonly ICaptureDeviceCatalog _captureDevices;
     private readonly IChordKeyHook _hook;
     private readonly OverlayHost _overlay;
+    private readonly IPendingGrabStore _grabStore;
+    private readonly IEditorPreview _preview;
+    private readonly IClipEncoder _encoder;
+    private readonly HttpClient _httpClient;
+    private readonly IDpapiProtector _protector;
     private readonly SynchronizationContext _ui;
     private readonly DiagnosticsStatusLine _diagnosticsStatus = new();
+    private readonly HashSet<string> _openGrabIds = [];
+    private readonly Dictionary<string, int> _savedGrabCounts = [];
     private LibraryBrowser? _browser;
     private IReadOnlyList<LibraryItem> _entries = [];
     private IReadOnlyList<DeviceChoice> _cableChoices = [];
@@ -53,6 +69,14 @@ public sealed class MainViewModel : ObservableObject
     private string _libraryWarning = "";
     private CancellationTokenSource? _captureCts;
     private string _statusBeforeCapture = "";
+    private bool _replayBufferEnabled;
+    private int _replayBufferSeconds;
+    private string _liteLlmBaseUrl = "";
+    private string _liteLlmTranscriptionModel = "";
+    private string _liteLlmChatModel = "";
+    private bool _hasSavedLiteLlmApiKey;
+    private bool _isTestingLiteLlmConnection;
+    private string _liteLlmConnectionTestResult = "";
 
     public MainViewModel(
         QuickParrotEngine engine,
@@ -60,6 +84,11 @@ public sealed class MainViewModel : ObservableObject
         ICaptureDeviceCatalog captureDevices,
         IChordKeyHook hook,
         OverlayHost overlay,
+        IPendingGrabStore grabStore,
+        IEditorPreview preview,
+        IClipEncoder encoder,
+        HttpClient httpClient,
+        IDpapiProtector protector,
         DiagnosticsViewModel diagnostics,
         string? startupWarning = null)
     {
@@ -68,7 +97,13 @@ public sealed class MainViewModel : ObservableObject
         _captureDevices = captureDevices;
         _hook = hook;
         _overlay = overlay;
+        _grabStore = grabStore;
+        _preview = preview;
+        _encoder = encoder;
+        _httpClient = httpClient;
+        _protector = protector;
         Diagnostics = diagnostics;
+        PendingGrabs = new PendingGrabsViewModel(grabStore, engine, OpenGrabAsync);
         diagnostics.ReportChanged += report =>
         {
             if (_diagnosticsStatus.Update(Status, report) is { } status)
@@ -89,12 +124,23 @@ public sealed class MainViewModel : ObservableObject
         _postRollMilliseconds = settings.PostRollMilliseconds;
         _micDuckMode = settings.MicDuckMode;
         _micAttenuationPercent = settings.MicAttenuationPercent;
+        _replayBufferEnabled = settings.ReplayBufferEnabled;
+        _replayBufferSeconds = settings.ReplayBufferSeconds;
+        _liteLlmBaseUrl = settings.LiteLlmBaseUrl ?? "";
+        _liteLlmTranscriptionModel = settings.LiteLlmTranscriptionModel;
+        _liteLlmChatModel = settings.LiteLlmChatModel;
+        _hasSavedLiteLlmApiKey = !string.IsNullOrEmpty(settings.LiteLlmApiKeyEncrypted);
         OpenLibrary(settings.LibraryRoot);
         RefreshDevices();
         Status = startupWarning ?? "";
     }
 
     public DiagnosticsViewModel Diagnostics { get; }
+
+    public PendingGrabsViewModel PendingGrabs { get; }
+
+    /// <summary>Raised when a grab is ready to edit; the view hosts <see cref="ClipEditorWindow"/> for it.</summary>
+    public event Action<GrabEditorRequest>? EditorRequested;
 
     public string LibraryRoot
     {
@@ -339,6 +385,189 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    public bool ReplayBufferEnabled
+    {
+        get => _replayBufferEnabled;
+        set
+        {
+            if (!SetField(ref _replayBufferEnabled, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { ReplayBufferEnabled = value });
+        }
+    }
+
+    public int ReplayBufferSeconds
+    {
+        get => _replayBufferSeconds;
+        set
+        {
+            var clamped = Math.Clamp(value, AppSettings.MinReplayBufferSeconds, AppSettings.MaxReplayBufferSeconds);
+            if (!SetField(ref _replayBufferSeconds, clamped))
+                return;
+
+            _engine.UpdateSettings(s => s with { ReplayBufferSeconds = clamped });
+        }
+    }
+
+    public string GrabHotkeyDisplay => $"{ChordKeyDisplay}+Enter";
+
+    public string LiteLlmBaseUrl
+    {
+        get => _liteLlmBaseUrl;
+        set
+        {
+            if (!SetField(ref _liteLlmBaseUrl, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { LiteLlmBaseUrl = NullIfEmpty(value) });
+        }
+    }
+
+    public string LiteLlmTranscriptionModel
+    {
+        get => _liteLlmTranscriptionModel;
+        set
+        {
+            if (!SetField(ref _liteLlmTranscriptionModel, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { LiteLlmTranscriptionModel = value });
+        }
+    }
+
+    public string LiteLlmChatModel
+    {
+        get => _liteLlmChatModel;
+        set
+        {
+            if (!SetField(ref _liteLlmChatModel, value))
+                return;
+
+            _engine.UpdateSettings(s => s with { LiteLlmChatModel = value });
+        }
+    }
+
+    public bool HasSavedLiteLlmApiKey => _hasSavedLiteLlmApiKey;
+
+    public string LiteLlmApiKeyPlaceholder => _hasSavedLiteLlmApiKey ? "(saved — type to replace)" : "(not set)";
+
+    public bool CanTestLiteLlmConnection => !_isTestingLiteLlmConnection;
+
+    public string LiteLlmTestConnectionLabel => _isTestingLiteLlmConnection ? "Testing…" : "Test connection";
+
+    public string LiteLlmConnectionTestResult
+    {
+        get => _liteLlmConnectionTestResult;
+        private set => SetField(ref _liteLlmConnectionTestResult, value);
+    }
+
+    /// <summary>Called from the password box's PasswordChanged handler; never bound, so the plaintext never round-trips through XAML.</summary>
+    public void SetLiteLlmApiKey(string plaintext)
+    {
+        var encrypted = string.IsNullOrEmpty(plaintext) ? null : _protector.Protect(plaintext);
+        _engine.UpdateSettings(s => s with { LiteLlmApiKeyEncrypted = encrypted });
+        _hasSavedLiteLlmApiKey = encrypted is not null;
+        OnPropertyChanged(nameof(HasSavedLiteLlmApiKey));
+        OnPropertyChanged(nameof(LiteLlmApiKeyPlaceholder));
+    }
+
+    public async Task TestLiteLlmConnectionAsync()
+    {
+        if (_isTestingLiteLlmConnection)
+            return;
+
+        await _engine.FlushAsync(); // the base URL box commits on lost focus, i.e. on this very click
+        var (options, warning) = LiteLlmOptionsResolver.Resolve(_engine.Settings, _protector);
+        if (warning is not null)
+            Status = warning;
+
+        if (options is null)
+        {
+            LiteLlmConnectionTestResult = "Set a base URL first.";
+            return;
+        }
+
+        _isTestingLiteLlmConnection = true;
+        OnPropertyChanged(nameof(CanTestLiteLlmConnection));
+        OnPropertyChanged(nameof(LiteLlmTestConnectionLabel));
+        try
+        {
+            var namer = new LiteLlmClipNamer(_httpClient, options);
+            var result = await namer.TestConnectionAsync(CancellationToken.None);
+            LiteLlmConnectionTestResult = result.Message;
+        }
+        catch (Exception e) when (e is InvalidOperationException or NotSupportedException or UriFormatException)
+        {
+            LiteLlmConnectionTestResult = $"That base URL isn't usable: {e.Message}";
+        }
+        finally
+        {
+            _isTestingLiteLlmConnection = false;
+            OnPropertyChanged(nameof(CanTestLiteLlmConnection));
+            OnPropertyChanged(nameof(LiteLlmTestConnectionLabel));
+        }
+    }
+
+    /// <summary>Reads the grab off the UI thread and asks the view to open the clip editor for it.</summary>
+    public async Task OpenGrabAsync(PendingGrab grab)
+    {
+        if (string.IsNullOrEmpty(_engine.Settings.LibraryRoot))
+        {
+            Status = "Choose a sound library folder first.";
+            return;
+        }
+
+        if (!_openGrabIds.Add(grab.Id))
+            return; // already open in another editor window
+
+        EditableAudio audio;
+        try
+        {
+            audio = await Task.Run(() => LoadGrabAudio(grab));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
+        {
+            _openGrabIds.Remove(grab.Id);
+            Status = $"Couldn't open the grab: {e.Message}";
+            return;
+        }
+
+        var options = new ClipEditorOptions
+        {
+            LibraryRoot = _engine.Settings.LibraryRoot!,
+            InitialFolder = _browser?.CurrentPath ?? "",
+            SuggestName = BuildSuggestName(),
+        };
+
+        var editorViewModel = new ClipEditorViewModel(audio, _preview, _encoder, options);
+        editorViewModel.ClipSaved += _ =>
+        {
+            _savedGrabCounts[grab.Id] = _savedGrabCounts.GetValueOrDefault(grab.Id) + 1;
+            RefreshLibraryView();
+        };
+
+        EditorRequested?.Invoke(new GrabEditorRequest(editorViewModel, grab));
+    }
+
+    /// <summary>Call when the clip editor for <paramref name="grab"/> closes, to apply the keep/delete rule.</summary>
+    public void OnGrabEditorClosed(PendingGrab grab, ClipEditorOutcome outcome)
+    {
+        _openGrabIds.Remove(grab.Id);
+        var savedCount = _savedGrabCounts.Remove(grab.Id, out var count) ? count : 0;
+        if (!PendingGrabCleanupRule.ShouldDelete(outcome == ClipEditorOutcome.Discarded, savedCount))
+            return;
+
+        try
+        {
+            _grabStore.Delete(grab);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Status = $"Couldn't delete the grab: {e.Message}";
+        }
+    }
+
     /// <summary>Waits for the next key press and, if valid, makes it the chord key.</summary>
     public Task ChangeChordKeyAsync() => CaptureKeyAsync("the chord key", key =>
     {
@@ -351,6 +580,7 @@ public sealed class MainViewModel : ObservableObject
         _hook.ChordKey = key;
         _engine.UpdateSettings(s => s with { ChordKey = key });
         OnPropertyChanged(nameof(ChordKeyDisplay));
+        OnPropertyChanged(nameof(GrabHotkeyDisplay));
         Status = $"Chord key changed to {key}.";
     });
 
@@ -485,6 +715,44 @@ public sealed class MainViewModel : ObservableObject
         LibraryWarning = _browser?.OverlayTruncationWarning ?? "";
         OnPropertyChanged(nameof(CurrentPath));
         OnPropertyChanged(nameof(CanGoUp));
+    }
+
+    private void RefreshLibraryView()
+    {
+        _browser?.Refresh();
+        ShowEntries();
+    }
+
+    private static EditableAudio LoadGrabAudio(PendingGrab grab)
+    {
+        using var stream = new FileStream(grab.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var wav = WavFile.ReadFloat32(stream);
+        return new EditableAudio(wav.Samples, wav.SampleRate, wav.Channels, sourceLabel: $"Grab at {grab.GrabbedAt.ToLocalTime():HH:mm}");
+    }
+
+    /// <summary>Null when LiteLLM naming isn't configured; otherwise resolves settings fresh on every call, so a
+    /// mid-session settings change takes effect without reopening the editor.</summary>
+    private Func<EditableAudio, CancellationToken, Task<string?>>? BuildSuggestName()
+    {
+        var (options, _) = LiteLlmOptionsResolver.Resolve(_engine.Settings, _protector);
+        if (options is null)
+            return null;
+
+        return async (audio, ct) =>
+        {
+            var (resolved, warning) = LiteLlmOptionsResolver.Resolve(_engine.Settings, _protector);
+            if (warning is not null)
+                Status = warning;
+            if (resolved is null)
+                return null;
+
+            var namer = new LiteLlmClipNamer(_httpClient, resolved);
+            var suggestion = await namer.SuggestAsync(audio.Samples, audio.SampleRate, audio.Channels, ct);
+            if (suggestion?.Name is { } name)
+                return name;
+
+            throw new InvalidOperationException(suggestion?.ErrorMessage ?? "No name suggested.");
+        };
     }
 
     private void UpdateDeviceStatus(IReadOnlyList<AudioDeviceInfo>? devices = null)

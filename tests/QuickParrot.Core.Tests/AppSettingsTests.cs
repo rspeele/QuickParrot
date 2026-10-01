@@ -28,6 +28,10 @@ public class AppSettingsTests
             PreRollMilliseconds = 300,
             PostRollMilliseconds = 750,
             SmallFolderLayout = SmallFolderLayout.Ring,
+            LiteLlmBaseUrl = "https://litellm.example.com",
+            LiteLlmApiKeyEncrypted = "base64ciphertext==",
+            LiteLlmTranscriptionModel = "whisper-1",
+            LiteLlmChatModel = "gpt-4o-mini",
         };
 
         var roundTripped = JsonSettingsStore.Deserialize(JsonSettingsStore.Serialize(settings));
@@ -48,6 +52,32 @@ public class AppSettingsTests
         Assert.Equal(500, settings.PreRollMilliseconds);
         Assert.Equal(500, settings.PostRollMilliseconds);
         Assert.Equal(SmallFolderLayout.List, settings.SmallFolderLayout);
+        Assert.Null(settings.LiteLlmBaseUrl);
+        Assert.Null(settings.LiteLlmApiKeyEncrypted);
+        Assert.Equal("whisper-1", settings.LiteLlmTranscriptionModel);
+        Assert.Equal("gpt-4o-mini", settings.LiteLlmChatModel);
+    }
+
+    [Fact]
+    public void LiteLlmFields_AreTrimmedAndBlankModelsFallBackToDefaults()
+    {
+        var json = """
+            { "liteLlmBaseUrl": "  https://litellm.example.com  ", "liteLlmTranscriptionModel": "   ",
+              "liteLlmChatModel": "", "liteLlmApiKeyEncrypted": "" }
+            """;
+
+        var settings = JsonSettingsStore.Deserialize(json);
+
+        Assert.Equal("https://litellm.example.com", settings.LiteLlmBaseUrl);
+        Assert.Null(settings.LiteLlmApiKeyEncrypted);
+        Assert.Equal("whisper-1", settings.LiteLlmTranscriptionModel);
+        Assert.Equal("gpt-4o-mini", settings.LiteLlmChatModel);
+    }
+
+    [Fact]
+    public void BlankLiteLlmBaseUrl_IsTreatedAsUnset()
+    {
+        Assert.Null(JsonSettingsStore.Deserialize("""{ "liteLlmBaseUrl": "   " }""").LiteLlmBaseUrl);
     }
 
     [Theory]

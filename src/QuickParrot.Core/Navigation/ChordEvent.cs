@@ -11,3 +11,6 @@ public sealed record ChordReleased : ChordEvent;
 public sealed record ChordCancelled : ChordEvent;
 
 public sealed record DigitPressed(int Digit, bool Shift) : ChordEvent;
+
+/// <summary>Enter pressed while the chord is held: save the replay buffer.</summary>
+public sealed record GrabPressed : ChordEvent;
