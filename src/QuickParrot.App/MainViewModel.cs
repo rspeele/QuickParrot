@@ -111,6 +111,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _time = time ?? TimeProvider.System;
         Diagnostics = diagnostics;
         PendingGrabs = new PendingGrabsViewModel(grabStore, engine, OpenGrabAsync);
+        Favorites = new FavoritesViewModel(engine, message => Status = message);
         diagnostics.ReportChanged += report =>
         {
             if (_diagnosticsStatus.Update(Status, report) is { } status)
@@ -145,6 +146,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public DiagnosticsViewModel Diagnostics { get; }
 
     public PendingGrabsViewModel PendingGrabs { get; }
+
+    public FavoritesViewModel Favorites { get; }
 
     /// <summary>Raised when a grab is ready to edit; the view hosts <see cref="ClipEditorWindow"/> for it.</summary>
     public event Action<GrabEditorRequest>? EditorRequested;
@@ -771,6 +774,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void OnLibraryChanged()
     {
         RefreshLibraryView();
+        Favorites.Refresh();
         foreach (var editor in _openEditors.Values)
             editor.RefreshFolders();
     }

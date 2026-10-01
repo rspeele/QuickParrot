@@ -8,3 +8,11 @@ public sealed record PlayClip(string RelativePath) : NavigationAction;
 public sealed record StopPlayback : NavigationAction;
 
 public sealed record GrabReplay : NavigationAction;
+
+public sealed record PlayFavorite(int Slot) : NavigationAction;
+
+public sealed record AssignFavorite(int Slot, string RelativePath) : NavigationAction;
+
+public sealed record AssignLastPlayedFavorite(int Slot) : NavigationAction;
+
+public sealed record ClearFavorite(int Slot) : NavigationAction;

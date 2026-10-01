@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Navigation;
@@ -32,6 +33,7 @@ public sealed class QuickParrotEngine : IDisposable
     private IFolderSource? _library;
     private ITimer? _saveTimer;
     private OverlayViewState? _publishedViewState;
+    private string? _lastPlayed;
     private bool _started;
     private bool _suppressPlayback;
 
@@ -76,6 +78,9 @@ public sealed class QuickParrotEngine : IDisposable
     /// </summary>
     public event Action<string>? GrabFailed;
 
+    /// <summary>Raised on the worker thread when a favorite is played, assigned or cleared, or that fails.</summary>
+    public event Action<FavoriteNotice>? FavoritesNotice;
+
     public AppSettings Settings => _settings;
 
     /// <summary>What the overlay should draw right now; safe to read from any thread.</summary>
@@ -93,6 +98,13 @@ public sealed class QuickParrotEngine : IDisposable
     public void Play(string relativePath) => Post(() => PlayRelative(relativePath));
 
     public void Stop() => Post(_controller.Stop);
+
+    public void PlayFavorite(int slot) => Post(() => PlayFavoriteSlot(slot));
+
+    /// <summary>Puts a library clip on F<paramref name="slot"/>; folders and paths outside the library are refused.</summary>
+    public void AssignFavorite(int slot, string relativePath) => Post(() => Assign(slot, relativePath));
+
+    public void ClearFavorite(int slot) => Post(() => Clear(slot));
 
     /// <summary>Saves the replay buffer as a pending grab, like chord+Enter.</summary>
     public void Grab() => Post(StartGrab);
@@ -197,17 +209,37 @@ public sealed class QuickParrotEngine : IDisposable
         {
             if (chordEvent is GrabPressed)
                 StartGrab(); // grabbing doesn't need a library
+            else if (chordEvent is FavoritePressed or ChordlessFavoritePressed)
+                Notify(FavoriteNotice.NoLibrary);
             return;
         }
 
         foreach (var action in navigator.Handle(chordEvent))
         {
-            if (action is PlayClip play)
-                PlayRelative(play.RelativePath);
-            else if (action is StopPlayback)
-                _controller.Stop();
-            else if (action is GrabReplay)
-                StartGrab();
+            switch (action)
+            {
+                case PlayClip play:
+                    PlayRelative(play.RelativePath);
+                    break;
+                case StopPlayback:
+                    _controller.Stop();
+                    break;
+                case GrabReplay:
+                    StartGrab();
+                    break;
+                case PlayFavorite favorite:
+                    PlayFavoriteSlot(favorite.Slot);
+                    break;
+                case AssignFavorite assign:
+                    Assign(assign.Slot, assign.RelativePath);
+                    break;
+                case AssignLastPlayedFavorite assign:
+                    AssignLastPlayed(assign.Slot);
+                    break;
+                case ClearFavorite clear:
+                    Clear(clear.Slot);
+                    break;
+            }
         }
     }
 
@@ -223,8 +255,90 @@ public sealed class QuickParrotEngine : IDisposable
             return;
         }
 
+        _lastPlayed = relativePath;
         _controller.Play(fullPath);
     }
+
+    private void PlayFavoriteSlot(int slot)
+    {
+        if (!FavoriteSlots.IsValidSlot(slot))
+            return;
+
+        if (_settings.Favorites[slot] is not { } path)
+            Notify(FavoriteNotice.SlotEmpty(slot));
+        else if (_library is null)
+            Notify(FavoriteNotice.NoLibrary);
+        else if (!_library.ClipExists(path))
+            Notify(FavoriteNotice.SlotMissing(slot));
+        else
+            PlayRelative(path);
+    }
+
+    private void Assign(int slot, string relativePath)
+    {
+        if (!FavoriteSlots.IsValidSlot(slot))
+            return;
+
+        if (_library is null)
+        {
+            Notify(FavoriteNotice.NoLibrary);
+            return;
+        }
+
+        var path = FavoriteSlots.NormalizePath(relativePath);
+        if (path is null || !_library.ClipExists(path))
+        {
+            Notify(FavoriteNotice.NotAClip);
+            return;
+        }
+
+        UpdateFavorites(_settings.Favorites.With(slot, path));
+        Notify(FavoriteNotice.Assigned(slot, path));
+    }
+
+    private void AssignLastPlayed(int slot)
+    {
+        if (_lastPlayed is not { } path)
+            Notify(FavoriteNotice.NothingPlayed);
+        else if (_library?.ClipExists(path) != true)
+            Notify(FavoriteNotice.LastPlayedMissing);
+        else
+            Assign(slot, path);
+    }
+
+    private void Clear(int slot)
+    {
+        if (!FavoriteSlots.IsValidSlot(slot))
+            return;
+
+        if (_settings.Favorites[slot] is null)
+        {
+            Notify(FavoriteNotice.AlreadyEmpty(slot));
+            return;
+        }
+
+        UpdateFavorites(_settings.Favorites.With(slot, null));
+        Notify(FavoriteNotice.Cleared(slot));
+    }
+
+    private void UpdateFavorites(FavoriteSlots favorites)
+    {
+        CommitSettings(_settings with { Favorites = favorites });
+        _navigator?.RefreshFavorites();
+    }
+
+    // Runs on the worker thread when assign mode starts, so the file checks stay off the keyboard hook.
+    private FavoritesPanel BuildFavoritesPanel(int targetSlot)
+    {
+        var settings = _settings;
+        var library = _library;
+        var slots = FavoriteStatus.Describe(
+            settings.Favorites, library is null ? null : library.ClipExists, settings.ChordKey, settings.PushToTalkBinding);
+        var lastPlayed = _lastPlayed is { } path && library?.ClipExists(path) == true ? FavoriteSlots.DisplayName(path) : null;
+        return new FavoritesPanel(slots, targetSlot, lastPlayed, settings.ChordKey.ToString());
+    }
+
+    private void Notify(FavoriteNotice notice) => FavoritesNotice?.Invoke(notice);
 
     // Snapshotting and saving run on the thread pool, so disk IO never delays chord handling.
     private void StartGrab()
@@ -274,6 +388,7 @@ public sealed class QuickParrotEngine : IDisposable
         if (_navigator is not null)
             _navigator.PersistentPathChanged -= OnPersistentPathChanged;
 
+        _lastPlayed = null; // relative to the old library
         if (string.IsNullOrEmpty(settings.LibraryRoot))
         {
             _library = null;
@@ -282,7 +397,7 @@ public sealed class QuickParrotEngine : IDisposable
         }
 
         _library = _createLibrary(settings.LibraryRoot);
-        var navigator = new ChordNavigator(_library, settings.NavigatorPersistentPath);
+        var navigator = new ChordNavigator(_library, settings.NavigatorPersistentPath, BuildFavoritesPanel);
         navigator.PersistentPathChanged += OnPersistentPathChanged;
         _navigator = navigator;
     }

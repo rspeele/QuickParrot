@@ -1,3 +1,4 @@
+using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Overlay.Tests;
@@ -11,6 +12,13 @@ internal static class ViewStates
             .ToList();
         return new OverlayViewState(folder, OverlayLayoutKind.Wheel, entries, [], null, false);
     }
+
+    /// <summary>F1 assigned, F2 missing, F3 unavailable, the rest empty.</summary>
+    public static FavoritesPanel Favorites(int target) => new(
+        Enumerable.Range(1, 12)
+            .Select(s => new FavoriteSlotView(s, s <= 2 ? $"Clip {s}" : null, s == 2, s == 3 ? "chord key" : null))
+            .ToList(),
+        target, "Clip 1", "B");
 
     public static OverlayViewState Grid(int count, string folder = "", int? zoomedColumn = null)
     {

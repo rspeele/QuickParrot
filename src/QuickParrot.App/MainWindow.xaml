@@ -48,8 +48,51 @@
                         </DockPanel>
                     </GroupBox>
 
+                    <GroupBox DockPanel.Dock="Right" Header="Favorites (chord+F1–F12)" Margin="8,0,0,0" Width="260">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Favorites.Rows}" Margin="4">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,1">
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding KeyName}" Width="30" FontWeight="Bold"
+                                                       VerticalAlignment="Center" />
+                                            <Button DockPanel.Dock="Right" Content="Clear" Padding="4,0" Margin="4,0,0,0"
+                                                    IsEnabled="{Binding HasClip}" Click="ClearFavorite_Click" />
+                                            <Button DockPanel.Dock="Right" Content="Play" Padding="4,0" Margin="4,0,0,0"
+                                                    IsEnabled="{Binding HasClip}" Click="PlayFavorite_Click" />
+                                            <TextBlock x:Name="Name" Text="{Binding Text}" ToolTip="{Binding Text}"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        </DockPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding HasClip}" Value="False">
+                                                <Setter TargetName="Name" Property="Foreground" Value="Gray" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                                <Setter TargetName="Name" Property="Foreground" Value="OrangeRed" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </GroupBox>
+
                     <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
-                             MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown" />
+                             MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown"
+                             ContextMenuOpening="Entries_ContextMenuOpening">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Assign to" ItemsSource="{Binding Favorites.Rows}">
+                                    <MenuItem.ItemContainerStyle>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Header" Value="{Binding MenuHeader}" />
+                                            <EventSetter Event="Click" Handler="AssignFavorite_Click" />
+                                        </Style>
+                                    </MenuItem.ItemContainerStyle>
+                                </MenuItem>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                    </ListBox>
                 </DockPanel>
             </TabItem>
 
@@ -101,11 +144,16 @@
                                               ToolTip="Turn off and on again to reinstall the keyboard hook if hotkeys stop responding." />
                                 </DockPanel>
 
-                                <DockPanel>
+                                <DockPanel Margin="0,0,0,8">
                                     <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
                                     <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
                                               ItemsSource="{Binding SmallFolderLayoutChoices}" SelectedItem="{Binding SmallFolderLayout}" />
                                 </DockPanel>
+
+                                <CheckBox Content="Play favorites with plain F-keys (no chord) in fullscreen games"
+                                          IsChecked="{Binding Favorites.PlayWithoutChord}" />
+                                <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="20,2,0,0"
+                                           Text="Only F-keys with a clip, and only while a fullscreen or borderless window has focus, so F5 and F2 keep working elsewhere." />
                             </StackPanel>
                         </GroupBox>
 

@@ -7,10 +7,16 @@ namespace QuickParrot.Overlay.Tests;
 public sealed class OverlayRendererTests
 {
     // UpdateLayeredWindow blends premultiplied pixels; a color channel above alpha would glow or fringe.
-    [Fact]
-    public void Output_IsValidPremultipliedAlpha_WithTransparentMargins()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Output_IsValidPremultipliedAlpha_WithTransparentMargins(bool assigningFavorite)
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(12, "Folder", zoomedColumn: 1), 0.5f);
+        var state = ViewStates.Grid(12, "Folder", zoomedColumn: 1);
+        if (assigningFavorite)
+            state = state with { Favorites = ViewStates.Favorites(target: 2) };
+
+        var layout = OverlayLayoutGeometry.Compute(state, 0.5f);
         using var bitmap = new Bitmap(layout.CanvasSize.Width, layout.CanvasSize.Height, PixelFormat.Format32bppPArgb);
         using (var renderer = new OverlayRenderer())
         using (var graphics = Graphics.FromImage(bitmap))

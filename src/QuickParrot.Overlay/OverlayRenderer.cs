@@ -36,6 +36,9 @@ public sealed class OverlayRenderer : IDisposable
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
 
+        if (layout.Favorites is { } favorites)
+            DrawFavorites(g, favorites, layout.Scale);
+
         // The first panel lands on bare transparency, so copying instead of blending halves its cost.
         for (var i = 0; i < layout.Panels.Count; i++)
             DrawPanel(g, layout.Panels[i], layout.Scale, copyFill: i == 0);
@@ -117,6 +120,52 @@ public sealed class OverlayRenderer : IDisposable
 
         var nameColor = item.Dimmed ? Fade(TextColor) : TextColor;
         DrawText(g, item.Name, item.NameBounds, Font(TextFamily, item.NameFontPx, FontStyle.Regular), nameColor, OverlayTextAlign.Near);
+    }
+
+    private void DrawFavorites(Graphics g, FavoritesStrip strip, float scale)
+    {
+        DrawPanel(g, strip.Panel, scale, copyFill: true);
+        DrawText(g, strip.Title.Text, strip.Title.Bounds, Font(TextFamily, strip.Title.FontPx, FontStyle.Regular), Accent, strip.Title.Align);
+        DrawLabel(g, strip.Instructions, MutedText);
+        foreach (var slot in strip.Slots)
+            DrawFavoriteSlot(g, slot, scale);
+    }
+
+    private void DrawFavoriteSlot(Graphics g, FavoriteSlotItem slot, float scale)
+    {
+        var faded = slot.State is FavoriteSlotState.Empty or FavoriteSlotState.Unavailable;
+        using (var path = RoundedRect(slot.Bounds, slot.CornerRadius))
+        {
+            using var fill = new SolidBrush(faded && !slot.Target ? Color.FromArgb(CellFill.A / 2, CellFill) : CellFill);
+            g.FillPath(fill, path);
+            if (slot.Target)
+            {
+                using var highlight = new SolidBrush(HighlightFill);
+                g.FillPath(highlight, path);
+            }
+
+            var borderColor = slot.Target ? Accent
+                : slot.State == FavoriteSlotState.Missing ? Color.FromArgb(150, ErrorColor)
+                : PanelBorder;
+            using var border = new Pen(borderColor, (slot.Target ? 1.5f : 1f) * scale);
+            g.DrawPath(border, path);
+        }
+
+        var keyColor = slot.Target || !faded ? Accent : Fade(MutedText);
+        DrawText(g, slot.KeyLabel, slot.KeyBounds, Font(NumberFamily, slot.KeyFontPx, FontStyle.Bold), keyColor, OverlayTextAlign.Near);
+        if (slot.Tag is { } tag)
+        {
+            var tagColor = slot.State == FavoriteSlotState.Missing ? ErrorColor : MutedText;
+            DrawText(g, tag, slot.TagBounds, Font(NumberFamily, slot.TagFontPx, FontStyle.Regular), tagColor, OverlayTextAlign.Far);
+        }
+
+        var nameColor = slot.State switch
+        {
+            FavoriteSlotState.Assigned => TextColor,
+            FavoriteSlotState.Missing => Fade(TextColor),
+            _ => Fade(MutedText),
+        };
+        DrawText(g, slot.Name, slot.NameBounds, Font(TextFamily, slot.NameFontPx, FontStyle.Regular), nameColor, OverlayTextAlign.Near);
     }
 
     private static void DrawFolderGlyph(Graphics g, RectangleF r, Color color)

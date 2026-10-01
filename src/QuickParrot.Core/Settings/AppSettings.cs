@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using QuickParrot.Core.Diagnostics;
+using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Mic;
 using QuickParrot.Core.Playback;
@@ -77,6 +78,11 @@ public sealed record AppSettings
     /// <summary>Whether releasing a clip-editor selection-edge drag plays a 1 s sample of that edge.</summary>
     public bool EditorPlaySampleOnDrag { get; init; } = true;
 
+    public FavoriteSlots Favorites { get; init; } = FavoriteSlots.Empty;
+
+    /// <summary>Plain F-keys play assigned favorites while a fullscreen game is focused, without the chord.</summary>
+    public bool FavoritesWithoutChord { get; init; }
+
     public PlaybackOptions ToPlaybackOptions() => new(
         TimeSpan.FromMilliseconds(PreRollMilliseconds),
         TimeSpan.FromMilliseconds(PostRollMilliseconds),
@@ -110,6 +116,7 @@ public sealed record AppSettings
         LiteLlmApiKeyEncrypted = string.IsNullOrEmpty(LiteLlmApiKeyEncrypted) ? null : LiteLlmApiKeyEncrypted,
         LiteLlmTranscriptionModel = string.IsNullOrWhiteSpace(LiteLlmTranscriptionModel) ? "whisper-1" : LiteLlmTranscriptionModel.Trim(),
         LiteLlmChatModel = string.IsNullOrWhiteSpace(LiteLlmChatModel) ? "gpt-4o-mini" : LiteLlmChatModel.Trim(),
+        Favorites = Favorites ?? FavoriteSlots.Empty,
     };
 
     private MicDuckMode SanitizeMicDuckMode()

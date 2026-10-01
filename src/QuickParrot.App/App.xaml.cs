@@ -4,6 +4,7 @@ using System.Net.Http;
 using QuickParrot.Audio;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
+using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Mic;
@@ -75,7 +76,9 @@ public partial class App : System.Windows.Application
         {
             Enabled = loaded.Settings.HotkeysEnabled,
         };
-        _hook.PushToTalk.Binding = loaded.Settings.PushToTalkBinding;
+        _hook.PushToTalkBinding = loaded.Settings.PushToTalkBinding;
+        _hook.SetChordlessFavoriteSlots(
+            FavoriteStatus.ChordlessMask(loaded.Settings.Favorites, loaded.Settings.FavoritesWithoutChord));
         try
         {
             _hook.Start();
@@ -109,8 +112,10 @@ public partial class App : System.Windows.Application
         _replayCapture = new LoopbackReplayCapture(_replayBuffer);
         _lastReplayCaptureConfig = (loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
         _replayCapture.Configure(loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
+        var hook = _hook;
         _engine.SettingsChanged += settings =>
         {
+            hook.SetChordlessFavoriteSlots(FavoriteStatus.ChordlessMask(settings.Favorites, settings.FavoritesWithoutChord));
             (bool Enabled, string? MonitorDeviceId) config = (settings.ReplayBufferEnabled, settings.MonitorDeviceId);
             if (config == _lastReplayCaptureConfig)
                 return;
@@ -171,6 +176,7 @@ public partial class App : System.Windows.Application
         // Both are safe to call from any thread; the status line update for a failed grab rides along on ErrorOccurred.
         _engine.GrabSaved += grab => _overlay.ShowToast(ReplayGrabber.SavedMessage(grab), TimeSpan.FromSeconds(1.5));
         _engine.GrabFailed += message => _overlay.ShowToast(message, TimeSpan.FromSeconds(1.5), isError: true);
+        _engine.FavoritesNotice += notice => _overlay.ShowToast(notice.Message, TimeSpan.FromSeconds(1.5), notice.IsError);
 
         MainWindow = new MainWindow(viewModel);
         MainWindow.Show();

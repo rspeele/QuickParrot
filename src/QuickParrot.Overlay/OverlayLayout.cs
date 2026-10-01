@@ -37,7 +37,38 @@ public sealed record OverlayItem(
 
 public sealed record OverlayColumnHeader(int Number, RectangleF Bounds, float FontPx, bool Highlighted, bool Dimmed);
 
-/// <summary>Everything the renderer draws, in canvas pixels. Drawn in order: panels, headers, items, labels.</summary>
+public enum FavoriteSlotState
+{
+    Assigned,
+    Empty,
+    Missing,
+    Unavailable,
+}
+
+/// <summary>One cell of the favorites strip: the F-key label, an optional tag beside it, and the clip name below.</summary>
+public sealed record FavoriteSlotItem(
+    int Slot,
+    string KeyLabel,
+    string Name,
+    string? Tag,
+    FavoriteSlotState State,
+    bool Target,
+    RectangleF Bounds,
+    float CornerRadius,
+    RectangleF KeyBounds,
+    RectangleF TagBounds,
+    RectangleF NameBounds,
+    float KeyFontPx,
+    float TagFontPx,
+    float NameFontPx);
+
+/// <summary>The assign-mode panel above the folder view: a title, instructions and the twelve slots.</summary>
+public sealed record FavoritesStrip(
+    OverlayPanel Panel, OverlayLabel Title, OverlayLabel Instructions, IReadOnlyList<FavoriteSlotItem> Slots);
+
+/// <summary>
+/// Everything the renderer draws, in canvas pixels. Drawn in order: favorites strip, panels, headers, items, labels.
+/// </summary>
 public sealed record OverlayLayout(
     OverlayLayoutKind Kind,
     Size CanvasSize,
@@ -48,4 +79,5 @@ public sealed record OverlayLayout(
     OverlayLabel Title,
     OverlayLabel? Subtitle,
     OverlayLabel? Hint,
-    OverlayLabel? Note);
+    OverlayLabel? Note,
+    FavoritesStrip? Favorites = null);

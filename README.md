@@ -66,6 +66,9 @@ focused window covers the whole screen (i.e. you're in a fullscreen or borderles
 
 Favorites can also be managed from the desktop app. If a favorite's file is moved or deleted, its slot shows as missing.
 
+If the chord key or push-to-talk key is itself an F-key, that F-key keeps its job and its slot shows as unavailable.
+Like number keys, F-keys, Delete and Backspace are swallowed while the chord key is held.
+
 ## Choosing a chord key
 
 The chord key is configurable, and QuickParrot fully owns it: the game never sees it. B is the default because the

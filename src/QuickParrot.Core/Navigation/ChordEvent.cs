@@ -14,3 +14,12 @@ public sealed record DigitPressed(int Digit, bool Shift) : ChordEvent;
 
 /// <summary>Enter pressed while the chord is held: save the replay buffer.</summary>
 public sealed record GrabPressed : ChordEvent;
+
+/// <summary>F1-F12 (<paramref name="Slot"/> 1-12) pressed while the chord is held.</summary>
+public sealed record FavoritePressed(int Slot, bool Shift) : ChordEvent;
+
+/// <summary>Delete or Backspace pressed while the chord is held.</summary>
+public sealed record FavoriteClearPressed : ChordEvent;
+
+/// <summary>A plain F-key, without the chord, in a fullscreen game: play that favorite outside any session.</summary>
+public sealed record ChordlessFavoritePressed(int Slot) : ChordEvent;

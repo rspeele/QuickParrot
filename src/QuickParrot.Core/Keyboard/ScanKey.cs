@@ -24,6 +24,34 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
     [JsonIgnore]
     public bool IsShift => ScanCode is 0x2A or 0x36;
 
+    /// <summary>1-12 for F1-F12; else 0.</summary>
+    [JsonIgnore]
+    public int FunctionKey => FunctionKeyOf(ScanCode, IsExtended);
+
+    /// <summary>Delete (not numpad ".") or Backspace: clears a favorite while assigning.</summary>
+    [JsonIgnore]
+    public bool IsClearKey => IsClearKeyCode(ScanCode, IsExtended);
+
+    public static int FunctionKeyOf(int scanCode, bool isExtended) => isExtended ? 0 : scanCode switch
+    {
+        >= 0x3B and <= 0x44 => scanCode - 0x3A,
+        0x57 => 11,
+        0x58 => 12,
+        _ => 0,
+    };
+
+    public static bool IsClearKeyCode(int scanCode, bool isExtended) =>
+        isExtended ? scanCode == 0x53 : scanCode == 0x0E;
+
+    /// <summary>The physical key for F1-F12.</summary>
+    public static ScanKey ForFunctionKey(int number) => number switch
+    {
+        >= 1 and <= 10 => new ScanKey(0x3A + number, false),
+        11 => new ScanKey(0x57, false),
+        12 => new ScanKey(0x58, false),
+        _ => throw new ArgumentOutOfRangeException(nameof(number)),
+    };
+
     public static int DigitOf(int scanCode, bool isExtended)
     {
         if (isExtended)

@@ -11,4 +11,7 @@ public interface IFolderSource
 
     /// <summary>Maps a relative clip path to an absolute file path, or null if it's empty or would escape the root.</summary>
     string? GetFullPath(string relativePath);
+
+    /// <summary>Whether <paramref name="relativePath"/> is an audio file inside the library (not a folder).</summary>
+    bool ClipExists(string relativePath);
 }

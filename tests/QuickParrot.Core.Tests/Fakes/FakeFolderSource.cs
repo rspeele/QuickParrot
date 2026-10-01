@@ -57,6 +57,9 @@ public sealed class FakeFolderSource : IFolderSource
     public string? GetFullPath(string relativePath) =>
         string.IsNullOrEmpty(relativePath) || relativePath.Contains("..") ? null : $"{FullPathPrefix}{relativePath}";
 
+    public bool ClipExists(string relativePath) =>
+        _children.Values.Any(entries => entries.Any(e => !e.IsFolder && e.RelativePath == relativePath));
+
     public const string FullPathPrefix = "fake:/";
 
     private static string Combine(string parentPath, string name) =>

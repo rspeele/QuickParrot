@@ -20,6 +20,11 @@ public static class OverlayLayoutGeometry
 
     public static OverlayLayout Compute(
         OverlayViewState state, float scale, SmallFolderLayout smallFolderLayout = SmallFolderLayout.List) =>
+        state.Favorites is { } favorites
+            ? FavoritesGeometry.Compute(favorites, ComputeFolder(state with { Favorites = null }, scale, smallFolderLayout), scale)
+            : ComputeFolder(state, scale, smallFolderLayout);
+
+    private static OverlayLayout ComputeFolder(OverlayViewState state, float scale, SmallFolderLayout smallFolderLayout) =>
         state.Layout != OverlayLayoutKind.Wheel ? GridGeometry.Compute(state, scale)
         : smallFolderLayout == SmallFolderLayout.Ring ? WheelGeometry.Compute(state, scale)
         : ListGeometry.Compute(state, scale);

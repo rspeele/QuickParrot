@@ -59,6 +59,46 @@ internal static unsafe partial class NativeMethods
 
     public static readonly nint HWND_MESSAGE = -3;
 
+    public const uint MONITOR_DEFAULTTONULL = 0;
+    public const int GWL_STYLE = -16;
+    public const int WS_CAPTION = 0x00C00000;
+
+    // Not the Ptr variant: styles fit in 32 bits, and this export exists on 32-bit Windows too.
+    [LibraryImport("user32.dll")]
+    public static partial int GetWindowLongW(nint hWnd, int nIndex);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetWindowRect(nint hWnd, out RECT lpRect);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint MonitorFromWindow(nint hwnd, uint dwFlags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetMonitorInfoW(nint hMonitor, ref MONITORINFO lpmi);
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetClassNameW(nint hWnd, char* lpClassName, int nMaxCount);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct KBDLLHOOKSTRUCT
     {

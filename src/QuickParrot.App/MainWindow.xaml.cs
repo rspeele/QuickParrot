@@ -72,6 +72,20 @@ public partial class MainWindow : Window
             _viewModel.GoUp();
     }
 
+    // Only files can be favorites, so the menu doesn't open on folders or empty space.
+    private void Entries_ContextMenuOpening(object sender, ContextMenuEventArgs e) =>
+        e.Handled = ItemsControl.ContainerFromElement(EntryList, e.OriginalSource as DependencyObject)
+            is not ListBoxItem { IsSelected: true, DataContext: LibraryItem { Entry.IsFolder: false } };
+
+    private void AssignFavorite_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.Favorites.Assign((sender as FrameworkElement)?.DataContext as FavoriteRow, (EntryList.SelectedItem as LibraryItem)?.Entry);
+
+    private void PlayFavorite_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.Favorites.Play((sender as FrameworkElement)?.DataContext as FavoriteRow);
+
+    private void ClearFavorite_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.Favorites.Clear((sender as FrameworkElement)?.DataContext as FavoriteRow);
+
     private void GrabNow_Click(object sender, RoutedEventArgs e) => _viewModel.PendingGrabs.GrabNow();
 
     private async void OpenGrab_Click(object sender, RoutedEventArgs e) =>

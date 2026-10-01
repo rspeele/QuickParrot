@@ -5,6 +5,30 @@ namespace QuickParrot.Core.Tests.Keyboard;
 public class ScanKeyTests
 {
     [Theory]
+    [InlineData(0x3B, false, 1)]
+    [InlineData(0x44, false, 10)]
+    [InlineData(0x57, false, 11)]
+    [InlineData(0x58, false, 12)]
+    [InlineData(0x3B, true, 0)]
+    [InlineData(0x45, false, 0)]
+    [InlineData(0x64, false, 0)] // F13
+    public void FunctionKeys(int scanCode, bool extended, int expected)
+    {
+        var key = new ScanKey(scanCode, extended);
+        Assert.Equal(expected, key.FunctionKey);
+        if (expected > 0)
+            Assert.Equal(key, ScanKey.ForFunctionKey(expected));
+    }
+
+    [Theory]
+    [InlineData(0x53, true, true)] // Delete
+    [InlineData(0x0E, false, true)] // Backspace
+    [InlineData(0x53, false, false)] // numpad "."
+    [InlineData(0x0E, true, false)]
+    public void ClearKeys(int scanCode, bool extended, bool expected) =>
+        Assert.Equal(expected, new ScanKey(scanCode, extended).IsClearKey);
+
+    [Theory]
     [InlineData(0x30, false, "B")]
     [InlineData(0x10, false, "Q")]
     [InlineData(0x32, false, "M")]

@@ -53,6 +53,9 @@ public sealed class FileSystemFolderSource : IFolderSource
         return fullPath is null || fullPath.Equals(_root, StringComparison.OrdinalIgnoreCase) ? null : fullPath;
     }
 
+    public bool ClipExists(string relativePath) =>
+        GetFullPath(relativePath) is { } fullPath && IsAudioFile(Path.GetExtension(fullPath)) && File.Exists(fullPath);
+
     // Resolves a "/"-separated relative path under the root, returning null if it would escape the root.
     private string? ResolvePath(string relativePath)
     {

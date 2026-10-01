@@ -45,7 +45,10 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 
     public LowLevelKeyboardHook(ScanKey chordKey, Action<ChordEvent> onChordEvent)
     {
-        _filter = new ChordKeyFilter(chordKey);
+        _filter = new ChordKeyFilter(chordKey, ForegroundWindow.IsFullscreenGame)
+        {
+            PushToTalkKey = PushToTalkBinding.Default.Key,
+        };
         _chordKey = chordKey;
         _onChordEvent = onChordEvent;
         PushToTalk = new SendInputPushToTalk(this, PushToTalkBinding.Default);
@@ -58,7 +61,22 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     public PushToTalkBinding PushToTalkBinding
     {
         get => PushToTalk.Binding;
-        set => PushToTalk.Binding = value;
+        set
+        {
+            PushToTalk.Binding = value;
+            lock (_lock)
+                Execute(() => _filter.PushToTalkKey = value.Key);
+        }
+    }
+
+    /// <summary>
+    /// Callable from any thread. Bit (n - 1) set: plain Fn plays favorite n while a fullscreen game is focused.
+    /// See <see cref="QuickParrot.Core.Favorites.FavoriteStatus.ChordlessMask"/>.
+    /// </summary>
+    public void SetChordlessFavoriteSlots(int mask)
+    {
+        lock (_lock)
+            Execute(() => _filter.ChordlessFavoriteSlots = mask);
     }
 
     /// <summary>Total key events the hook has received, injected ones included; handy to check it's alive.</summary>

@@ -14,8 +14,14 @@ public sealed class ChordKeyFilter
     private static readonly ChordEvent Released = new ChordReleased();
     private static readonly ChordEvent Cancelled = new ChordCancelled();
     private static readonly ChordEvent Grab = new GrabPressed();
+    private static readonly ChordEvent Clear = new FavoriteClearPressed();
     private static readonly ChordEvent[] Digits = BuildDigitEvents(shift: false);
     private static readonly ChordEvent[] ShiftedDigits = BuildDigitEvents(shift: true);
+    private static readonly ChordEvent[] Favorites = BuildFavoriteEvents(slot => new FavoritePressed(slot, false));
+    private static readonly ChordEvent[] ShiftedFavorites = BuildFavoriteEvents(slot => new FavoritePressed(slot, true));
+    private static readonly ChordEvent[] ChordlessFavorites = BuildFavoriteEvents(slot => new ChordlessFavoritePressed(slot));
+
+    private readonly Func<bool> _isGameFocused;
 
     // Held tracks every physical key so auto-repeat can be told apart from a fresh press; swallowed marks
     // keys whose down was hidden, so their up is hidden too and other apps never see an unmatched event.
@@ -26,13 +32,23 @@ public sealed class ChordKeyFilter
     private bool _chordActive;
     private bool _capturing;
 
-    public ChordKeyFilter(ScanKey chordKey)
+    /// <param name="isGameFocused">
+    /// Whether a fullscreen game has focus; asked only when a plain F-key with a chordless favorite goes down.
+    /// </param>
+    public ChordKeyFilter(ScanKey chordKey, Func<bool>? isGameFocused = null)
     {
         ThrowIfInvalid(chordKey);
         ChordKey = chordKey;
+        _isGameFocused = isGameFocused ?? (() => false);
     }
 
     public ScanKey ChordKey { get; private set; }
+
+    /// <summary>Left alone even while the chord is held, so the game always sees push-to-talk.</summary>
+    public ScanKey? PushToTalkKey { get; set; }
+
+    /// <summary>Bit (n - 1) set: plain Fn, without the chord, plays favorite n while a game is focused.</summary>
+    public int ChordlessFavoriteSlots { get; set; }
 
     public bool Enabled { get; private set; } = true;
 
@@ -41,6 +57,10 @@ public sealed class ChordKeyFilter
     public bool ShiftHeld => _leftShift || _rightShift;
 
     public bool Capturing => _capturing;
+
+    // Left/right Ctrl and Alt, and both Windows keys, by slot.
+    private bool SystemModifierHeld =>
+        _held[0x1D] || _held[0x11D] || _held[0x38] || _held[0x138] || _held[0x15B] || _held[0x15C];
 
     /// <param name="captureAllowed">
     /// If false, a key that would be captured instead cancels the capture and is processed normally.
@@ -170,7 +190,32 @@ public sealed class ChordKeyFilter
             return new KeyFilterResult(true, Grab);
         }
 
-        return KeyFilterResult.PassThrough;
+        if (key == PushToTalkKey)
+            return KeyFilterResult.PassThrough;
+
+        // Delete and Backspace only mean something in assign mode, but every chord-held key belongs to QuickParrot.
+        if (_chordActive && key.IsClearKey)
+        {
+            _swallowed[slot] = true;
+            return new KeyFilterResult(true, Clear);
+        }
+
+        var favorite = key.FunctionKey;
+        if (favorite == 0)
+            return KeyFilterResult.PassThrough;
+
+        if (_chordActive)
+        {
+            _swallowed[slot] = true;
+            return new KeyFilterResult(true, (ShiftHeld ? ShiftedFavorites : Favorites)[favorite - 1]);
+        }
+
+        // Only plain F-keys: Alt+F4 and other system shortcuts must keep working in the game.
+        if ((ChordlessFavoriteSlots & (1 << (favorite - 1))) == 0 || SystemModifierHeld || !_isGameFocused())
+            return KeyFilterResult.PassThrough;
+
+        _swallowed[slot] = true;
+        return new KeyFilterResult(true, ChordlessFavorites[favorite - 1]);
     }
 
     private KeyFilterResult KeyUp(int slot, int scanCode, bool isExtended)
@@ -202,6 +247,9 @@ public sealed class ChordKeyFilter
 
     private static ChordEvent[] BuildDigitEvents(bool shift) =>
         Enumerable.Range(0, 10).Select(ChordEvent (d) => new DigitPressed(d, shift)).ToArray();
+
+    private static ChordEvent[] BuildFavoriteEvents(Func<int, ChordEvent> create) =>
+        Enumerable.Range(1, 12).Select(create).ToArray();
 }
 
 /// <summary>What the hook should do with one key event.</summary>
