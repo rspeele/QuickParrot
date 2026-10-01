@@ -1,6 +1,5 @@
 using System.Drawing;
 using QuickParrot.Core.Navigation;
-using QuickParrot.Core.Settings;
 
 namespace QuickParrot.Overlay.Tests;
 
@@ -12,7 +11,7 @@ public sealed class WheelGeometryTests
     [InlineData(9)]
     public void Items_AreNumberedInEntryOrder(int count)
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(count), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(count), 1);
 
         Assert.Equal(Enumerable.Range(1, count), layout.Items.Select(i => i.Number));
         Assert.Equal(Enumerable.Range(1, count).Select(n => $"Entry {n}"), layout.Items.Select(i => i.Name));
@@ -21,7 +20,7 @@ public sealed class WheelGeometryTests
     [Fact]
     public void FirstItem_IsAtTopCenter()
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(5), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(5), 1);
         var first = Center(layout.Items[0].Bounds);
 
         Assert.Equal(layout.CanvasSize.Width / 2f, first.X, 0.01f);
@@ -31,7 +30,7 @@ public sealed class WheelGeometryTests
     [Fact]
     public void Items_GoClockwiseAroundTheCenter()
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(9), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(9), 1);
         var middle = new PointF(layout.CanvasSize.Width / 2f, layout.CanvasSize.Height / 2f);
 
         // Screen y points down, so atan2(dx, -dy) grows clockwise from 12 o'clock.
@@ -54,7 +53,7 @@ public sealed class WheelGeometryTests
     [InlineData(9, 1.37f)]
     public void Pills_DontOverlapEachOtherOrTheCenter_AndFitTheCanvas(int count, float scale)
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(count, "Movies"), scale, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(count, "Movies"), scale);
         var centerPanel = layout.Panels.Single(p => p.Style == OverlayPanelStyle.Panel).Bounds;
         var canvas = new RectangleF(PointF.Empty, layout.CanvasSize);
 
@@ -71,7 +70,7 @@ public sealed class WheelGeometryTests
     [Fact]
     public void FoldersGetAnIcon_AndEveryPartSitsInsideThePill()
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(2), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(2), 1);
         var (folder, file) = (layout.Items[0], layout.Items[1]);
 
         Assert.True(folder.IsFolder);
@@ -97,7 +96,7 @@ public sealed class WheelGeometryTests
             null,
             false);
 
-        var names = OverlayLayoutGeometry.Compute(state, 1, SmallFolderLayout.Ring).Items.Select(i => i.Name);
+        var names = Ring(state, 1).Items.Select(i => i.Name);
 
         Assert.Equal(["Mr. T", "I pity the fool", ".wav"], names);
     }
@@ -105,9 +104,9 @@ public sealed class WheelGeometryTests
     [Fact]
     public void Root_ShowsAppNameAndNoHint()
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(3), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(3), 1);
 
-        Assert.Equal(OverlayLayoutGeometry.RootTitle, layout.Title.Text);
+        Assert.Equal(OverlayText.RootTitle, layout.Title.Text);
         Assert.Null(layout.Hint);
         Assert.Null(layout.Subtitle);
     }
@@ -115,28 +114,28 @@ public sealed class WheelGeometryTests
     [Fact]
     public void NestedFolder_ShowsItsOwnNameAndUpHint()
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(3, "Movies/The Office"), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(3, "Movies/The Office"), 1);
 
         Assert.Equal("The Office", layout.Title.Text);
-        Assert.Equal(OverlayLayoutGeometry.UpHint, layout.Hint?.Text);
+        Assert.Equal(OverlayText.UpAction, layout.Hint?.Action);
         Assert.True(layout.Hint!.Bounds.Top >= layout.Title.Bounds.Bottom);
     }
 
     [Fact]
     public void EmptyFolder_SaysSoInTheCenter()
     {
-        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(0, "Empty"), 1, SmallFolderLayout.Ring);
+        var layout = Ring(ViewStates.Wheel(0, "Empty"), 1);
 
         Assert.Empty(layout.Items);
-        Assert.Equal(OverlayLayoutGeometry.EmptyLabel, layout.Subtitle?.Text);
-        Assert.Equal(OverlayLayoutGeometry.UpHint, layout.Hint?.Text);
+        Assert.Equal(OverlayText.EmptyLabel, layout.Subtitle?.Text);
+        Assert.Equal(OverlayText.UpAction, layout.Hint?.Action);
     }
 
     [Fact]
     public void Scale_ScalesEverything()
     {
-        var one = OverlayLayoutGeometry.Compute(ViewStates.Wheel(9, "Movies"), 1, SmallFolderLayout.Ring);
-        var two = OverlayLayoutGeometry.Compute(ViewStates.Wheel(9, "Movies"), 2, SmallFolderLayout.Ring);
+        var one = Ring(ViewStates.Wheel(9, "Movies"), 1);
+        var two = Ring(ViewStates.Wheel(9, "Movies"), 2);
 
         Assert.InRange(two.CanvasSize.Width, 2 * one.CanvasSize.Width - 2, 2 * one.CanvasSize.Width + 2);
         Assert.InRange(two.CanvasSize.Height, 2 * one.CanvasSize.Height - 2, 2 * one.CanvasSize.Height + 2);
@@ -144,6 +143,9 @@ public sealed class WheelGeometryTests
         Assert.Equal(2 * one.Items[3].NameFontPx, two.Items[3].NameFontPx, 0.01f);
         Assert.Equal(2 * one.Title.FontPx, two.Title.FontPx, 0.01f);
     }
+
+    private static OverlayLayout Ring(OverlayViewState state, float scale) =>
+        OverlayLayoutGeometry.Compute(state with { SmallFolderLayout = SmallFolderLayout.Ring }, scale);
 
     private static PointF Center(RectangleF r) => new(r.X + r.Width / 2, r.Y + r.Height / 2);
 }

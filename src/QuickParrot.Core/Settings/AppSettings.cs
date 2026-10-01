@@ -3,16 +3,10 @@ using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Mic;
+using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Settings;
-
-/// <summary>How a folder with 9 or fewer entries is drawn in the overlay.</summary>
-public enum SmallFolderLayout
-{
-    List,
-    Ring,
-}
 
 public sealed record AppSettings
 {

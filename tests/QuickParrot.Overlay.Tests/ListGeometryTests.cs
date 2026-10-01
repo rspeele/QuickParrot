@@ -88,7 +88,7 @@ public sealed class ListGeometryTests
     {
         var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(3), 1);
 
-        Assert.Equal(OverlayLayoutGeometry.RootTitle, layout.Title.Text);
+        Assert.Equal(OverlayText.RootTitle, layout.Title.Text);
         Assert.Null(layout.Hint);
         Assert.Null(layout.Subtitle);
     }
@@ -99,7 +99,7 @@ public sealed class ListGeometryTests
         var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(3, "Movies/The Office"), 1);
 
         Assert.Equal("The Office", layout.Title.Text);
-        Assert.Equal(OverlayLayoutGeometry.UpHint, layout.Hint?.Text);
+        Assert.Equal(OverlayText.UpAction, layout.Hint?.Action);
         Assert.True(layout.Hint!.Bounds.Top >= layout.Title.Bounds.Bottom);
     }
 
@@ -109,8 +109,8 @@ public sealed class ListGeometryTests
         var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(0, "Empty"), 1);
 
         Assert.Empty(layout.Items);
-        Assert.Equal(OverlayLayoutGeometry.EmptyLabel, layout.Subtitle?.Text);
-        Assert.Equal(OverlayLayoutGeometry.UpHint, layout.Hint?.Text);
+        Assert.Equal(OverlayText.EmptyLabel, layout.Subtitle?.Text);
+        Assert.Equal(OverlayText.UpAction, layout.Hint?.Action);
     }
 
     [Fact]

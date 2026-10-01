@@ -124,7 +124,7 @@ public partial class App : System.Windows.Application
             _replayCapture?.Configure(config.Enabled, config.MonitorDeviceId);
         };
 
-        _overlay = new OverlayHost { SmallFolderLayout = loaded.Settings.SmallFolderLayout };
+        _overlay = new OverlayHost();
         try
         {
             _overlay.Start();
@@ -153,7 +153,6 @@ public partial class App : System.Windows.Application
             _devices,
             _devices,
             _hook,
-            _overlay,
             _grabStore,
             _editorPreview,
             _clipEncoder,

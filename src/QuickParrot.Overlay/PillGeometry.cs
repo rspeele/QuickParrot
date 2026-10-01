@@ -35,7 +35,7 @@ internal static class PillGeometry
 
         var name = new RectangleF(x, bounds.Y, bounds.Right - NameEndPadding * scale - x, height);
         return new OverlayItem(
-            entry.Number, OverlayLayoutGeometry.DisplayName(entry), entry.IsFolder, bounds, height / 2, badge, icon, name,
+            entry.Number, OverlayText.DisplayName(entry), entry.IsFolder, bounds, height / 2, badge, icon, name,
             NameFont * scale, NumberFont * scale, Highlighted: false, Dimmed: false);
     }
 }

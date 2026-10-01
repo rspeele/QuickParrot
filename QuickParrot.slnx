@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/QuickParrot.Core.Tests/QuickParrot.Core.Tests.csproj" />
+    <Project Path="tests/QuickParrot.Input.Tests/QuickParrot.Input.Tests.csproj" />
     <Project Path="tests/QuickParrot.Overlay.Tests/QuickParrot.Overlay.Tests.csproj" />
   </Folder>
 </Solution>

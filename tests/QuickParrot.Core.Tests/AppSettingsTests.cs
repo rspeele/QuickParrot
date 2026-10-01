@@ -1,5 +1,6 @@
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Mic;
+using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;
 

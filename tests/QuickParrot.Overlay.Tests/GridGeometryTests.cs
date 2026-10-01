@@ -62,7 +62,7 @@ public sealed class GridGeometryTests
         Assert.All(layout.Items, i => Assert.False(i.Dimmed || i.Highlighted));
         Assert.All(layout.Items, i => Assert.True(i.NumberBounds.IsEmpty));
         Assert.DoesNotContain(layout.Panels, p => p.Style == OverlayPanelStyle.HighlightedColumn);
-        Assert.Equal(OverlayLayoutGeometry.UpHint, layout.Hint?.Text);
+        Assert.Equal(OverlayText.UpAction, layout.Hint?.Action);
     }
 
     [Fact]
@@ -86,8 +86,9 @@ public sealed class GridGeometryTests
     public void Hints_UpWhenNested_BackWhenZoomed_NoneAtRoot()
     {
         Assert.Null(OverlayLayoutGeometry.Compute(ViewStates.Grid(12), 1).Hint);
-        Assert.Equal(OverlayLayoutGeometry.UpHint, OverlayLayoutGeometry.Compute(ViewStates.Grid(12, "A/B"), 1).Hint?.Text);
-        Assert.Equal(OverlayLayoutGeometry.BackHint, OverlayLayoutGeometry.Compute(ViewStates.Grid(12, zoomedColumn: 1), 1).Hint?.Text);
+        Assert.Equal(OverlayText.UpAction, OverlayLayoutGeometry.Compute(ViewStates.Grid(12, "A/B"), 1).Hint?.Action);
+        Assert.Equal(OverlayText.BackAction, OverlayLayoutGeometry.Compute(ViewStates.Grid(12, zoomedColumn: 1), 1).Hint?.Action);
+        Assert.Equal(OverlayText.HintKey, OverlayLayoutGeometry.Compute(ViewStates.Grid(12, "A/B"), 1).Hint?.Key);
         Assert.Equal("B", OverlayLayoutGeometry.Compute(ViewStates.Grid(12, "A/B"), 1).Title.Text);
     }
 

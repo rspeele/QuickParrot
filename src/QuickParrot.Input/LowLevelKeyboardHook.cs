@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using QuickParrot.Core.Keyboard;
@@ -13,7 +12,6 @@ namespace QuickParrot.Input;
 public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 {
     private const string WindowClassName = "QuickParrot.KeyboardHook";
-    private const uint WM_RUN_COMMANDS = WM_APP + 1;
 
     private static readonly uint s_processId = (uint)Environment.ProcessId;
 
@@ -22,13 +20,12 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 
     private readonly ChordKeyFilter _filter;
     private readonly Action<ChordEvent> _onChordEvent;
-    private readonly ConcurrentQueue<Action> _commands = new();
+    private readonly HookThread _thread = new("QuickParrot keyboard hook");
     private readonly Lock _lock = new();
 
     // Guarded by _lock; the filter itself is only touched on the hook thread while it runs.
-    private Thread? _thread;
-    private uint _threadId;
     private ScanKey _chordKey;
+    private PushToTalkBinding _pushToTalkBinding = PushToTalkBinding.Default;
     private bool _enabled = true;
 
     // Hook thread only.
@@ -47,7 +44,8 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         };
         _chordKey = chordKey;
         _onChordEvent = onChordEvent;
-        PushToTalk = new SendInputPushToTalk(this, PushToTalkBinding.Default);
+        PushToTalk = new SendInputPushToTalk(_thread, PushToTalkBinding.Default);
+        PushToTalk.ErrorOccurred += RaiseError;
     }
 
     /// <summary>Hand this to the engine. Stopping the hook releases anything it holds.</summary>
@@ -56,12 +54,23 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     /// <summary>Settable from any thread; moves an in-progress hold across to the new binding.</summary>
     public PushToTalkBinding PushToTalkBinding
     {
-        get => PushToTalk.Binding;
+        get
+        {
+            lock (_lock)
+                return _pushToTalkBinding;
+        }
         set
         {
-            PushToTalk.Binding = value;
+            SendInputPushToTalk.ThrowIfMalformed(value);
             lock (_lock)
-                Execute(() => _filter.PushToTalkKey = value.Key);
+            {
+                _pushToTalkBinding = value;
+                _thread.Post(() =>
+                {
+                    PushToTalk.SetBinding(value);
+                    _filter.PushToTalkKey = value.Key;
+                });
+            }
         }
     }
 
@@ -69,11 +78,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     /// Callable from any thread. Bit (n - 1) set: plain Fn plays favorite n while a fullscreen game is focused.
     /// See <see cref="QuickParrot.Core.Favorites.FavoriteStatus.ChordlessMask"/>.
     /// </summary>
-    public void SetChordlessFavoriteSlots(int mask)
-    {
-        lock (_lock)
-            Execute(() => _filter.ChordlessFavoriteSlots = mask);
-    }
+    public void SetChordlessFavoriteSlots(int mask) => _thread.Post(() => _filter.ChordlessFavoriteSlots = mask);
 
     public ScanKey ChordKey
     {
@@ -88,7 +93,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
             lock (_lock)
             {
                 _chordKey = value;
-                Execute(() => Emit(_filter.SetChordKey(value)));
+                _thread.Post(() => Emit(_filter.SetChordKey(value)));
             }
         }
     }
@@ -108,9 +113,9 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         {
             lock (_lock)
             {
-                var reinstall = value && !_enabled && _thread is not null;
+                var reinstall = value && !_enabled && _thread.IsRunning;
                 _enabled = value;
-                Execute(() =>
+                _thread.Post(() =>
                 {
                     Emit(_filter.SetEnabled(value));
                     if (reinstall)
@@ -124,44 +129,14 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     public void Start()
     {
         lock (_lock)
-        {
-            if (_thread is not null)
-                return;
-
-            var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var thread = new Thread(() => Run(started))
-            {
-                IsBackground = true,
-                Name = "QuickParrot keyboard hook",
-                Priority = ThreadPriority.Highest, // every keystroke system-wide waits on this thread
-            };
-            thread.Start();
-            try
-            {
-                started.Task.GetAwaiter().GetResult();
-            }
-            catch
-            {
-                thread.Join();
-                throw;
-            }
-
-            _thread = thread;
-        }
+            _thread.Start(Install, Uninstall, Release);
     }
 
     /// <summary>Removes the hook, ends any active chord and releases push-to-talk. Safe to call repeatedly.</summary>
     public void Stop()
     {
         lock (_lock)
-        {
-            if (_thread is null)
-                return;
-
-            PostThreadMessageW(_threadId, WM_QUIT, 0, 0);
-            _thread.Join();
-            _thread = null;
-        }
+            _thread.Stop();
     }
 
     public void Dispose() => Stop();
@@ -175,10 +150,10 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         var capture = new TaskCompletionSource<ScanKey?>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_lock)
         {
-            if (_thread is null)
+            if (!_thread.IsRunning)
                 throw new InvalidOperationException("The keyboard hook isn't running.");
 
-            Execute(() =>
+            _thread.Post(() =>
             {
                 _capture?.TrySetResult(null);
                 _capture = capture;
@@ -197,86 +172,39 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
 
     private void CancelCapture(TaskCompletionSource<ScanKey?> capture, CancellationToken cancellationToken)
     {
-        lock (_lock)
+        _thread.Post(() =>
         {
-            Execute(() =>
+            if (_capture == capture)
             {
-                if (_capture == capture)
-                {
-                    _capture = null;
-                    _filter.CancelCapture();
-                }
-            });
-        }
+                _capture = null;
+                _filter.CancelCapture();
+            }
+        });
 
         capture.TrySetCanceled(cancellationToken);
     }
 
-    /// <summary>Queues a command for the hook thread; if it isn't running, runs it here unless told to drop it.</summary>
-    internal void Post(Action command, bool dropIfStopped)
-    {
-        lock (_lock)
-        {
-            if (_thread is not null || !dropIfStopped)
-                Execute(command);
-        }
-    }
-
-    // Caller holds _lock. Runs on the hook thread if it's running, else right here.
-    private void Execute(Action command)
-    {
-        if (_thread is null)
-        {
-            command();
-            return;
-        }
-
-        _commands.Enqueue(command);
-        PostThreadMessageW(_threadId, WM_RUN_COMMANDS, 0, 0);
-    }
-
-    private void Run(TaskCompletionSource started)
+    private void Install()
     {
         t_current = this;
         PushToTalk.Attach();
-        try
-        {
-            _threadId = GetCurrentThreadId();
-            _module = GetModuleHandleW(null);
-            _window = CreateMessageWindow(_module);
-            WTSRegisterSessionNotification(_window, NOTIFY_FOR_THIS_SESSION);
+        _module = GetModuleHandleW(null);
+        _window = CreateMessageWindow(_module);
+        WTSRegisterSessionNotification(_window, NOTIFY_FOR_THIS_SESSION);
 
-            _hook = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, _module, 0);
-            if (_hook == 0)
-                throw new Win32Exception(Marshal.GetLastPInvokeError(), "Couldn't install the keyboard hook.");
+        _hook = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, _module, 0);
+        if (_hook == 0)
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Couldn't install the keyboard hook.");
 
-            // Best effort: without these a lost chord-key up, or a dead hook, goes unnoticed as before.
-            _foregroundEvents = SetWinEventHook(
-                EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
-            _desktopEvents = SetWinEventHook(
-                EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
-            ResetFilter(); // a chord key held since before the hook existed mustn't chord on its repeats
-        }
-        catch (Exception e)
-        {
-            Cleanup();
-            started.SetException(e);
-            return;
-        }
-
-        started.SetResult();
-        while (GetMessageW(out var msg, 0, 0, 0) > 0)
-        {
-            if (msg.hwnd == 0 && msg.message == WM_RUN_COMMANDS)
-                RunCommands();
-            else
-                DispatchMessageW(in msg);
-        }
-
-        Cleanup();
+        // Best effort: without these a lost chord-key up, or a dead hook, goes unnoticed as before.
+        _foregroundEvents = SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+        _desktopEvents = SetWinEventHook(
+            EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, 0, &WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+        ResetFilter(); // a chord key held since before the hook existed mustn't chord on its repeats
     }
 
-    private void Cleanup()
+    private void Uninstall()
     {
         if (_hook != 0)
             UnhookWindowsHookEx(_hook);
@@ -297,19 +225,16 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
         _window = 0;
         _foregroundEvents = 0;
         _desktopEvents = 0;
-        RunCommands();
+    }
+
+    private void Release()
+    {
         PushToTalk.Detach();
         Emit(_filter.Reset());
         _filter.CancelCapture();
         _capture?.TrySetResult(null);
         _capture = null;
         t_current = null;
-    }
-
-    private void RunCommands()
-    {
-        while (_commands.TryDequeue(out var command))
-            command();
     }
 
     private static nint CreateMessageWindow(nint module)
@@ -414,6 +339,9 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     // key slips past if the old one was still alive.
     private void ReinstallHook()
     {
+        if (_hook == 0)
+            return; // already uninstalled: this is a re-enable drained during shutdown
+
         var fresh = SetWindowsHookExW(WH_KEYBOARD_LL, &HookProc, _module, 0);
         if (fresh == 0)
         {
@@ -459,7 +387,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
     /// </summary>
     public event Action<string>? ErrorOccurred;
 
-    internal void RaiseError(string message)
+    private void RaiseError(string message)
     {
         try
         {

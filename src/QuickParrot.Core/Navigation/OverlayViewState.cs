@@ -8,6 +8,13 @@ public enum OverlayLayoutKind
     Grid,
 }
 
+/// <summary>How a <see cref="OverlayLayoutKind.Wheel"/> folder (9 or fewer entries) is drawn.</summary>
+public enum SmallFolderLayout
+{
+    List,
+    Ring,
+}
+
 public sealed record NumberedEntry(int Number, string Name, bool IsFolder);
 
 public sealed record GridColumn(int Number, IReadOnlyList<NumberedEntry> Entries);
@@ -25,6 +32,7 @@ public sealed record FavoritesPanel(
 /// <see cref="GridColumns"/> is empty; for <see cref="OverlayLayoutKind.Grid"/> it's the reverse.
 /// <see cref="Favorites"/> is set only while assigning a favorite.
 /// </summary>
+/// <param name="SmallFolderLayout">The user's setting, applied by the engine; the navigator leaves the default.</param>
 public sealed record OverlayViewState(
     string FolderPath,
     OverlayLayoutKind Layout,
@@ -32,4 +40,5 @@ public sealed record OverlayViewState(
     IReadOnlyList<GridColumn> GridColumns,
     int? ZoomedColumn,
     bool Truncated,
-    FavoritesPanel? Favorites = null);
+    FavoritesPanel? Favorites = null,
+    SmallFolderLayout SmallFolderLayout = SmallFolderLayout.List);

@@ -24,6 +24,7 @@ public sealed class OverlayRenderer : IDisposable
     private const int DimmedAlpha = 105;
     private const string TextFamily = "Segoe UI Semibold";
     private const string NumberFamily = "Segoe UI";
+    private const int MaxCachedFonts = 64; // a few scales' worth
 
     private readonly Dictionary<(string Family, float Px, FontStyle Style), Font> _fonts = [];
     private readonly StringFormat[] _formats =
@@ -31,13 +32,12 @@ public sealed class OverlayRenderer : IDisposable
 
     public void Draw(Graphics g, OverlayLayout layout)
     {
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
+        Prepare(g);
         if (layout.Favorites is { } favorites)
             DrawFavorites(g, favorites, layout.Scale);
 
+        var untranslated = g.Save();
+        g.TranslateTransform(layout.FolderOrigin.X, layout.FolderOrigin.Y);
         // The first panel lands on bare transparency, so copying instead of blending halves its cost.
         for (var i = 0; i < layout.Panels.Count; i++)
             DrawPanel(g, layout.Panels[i], layout.Scale, copyFill: i == 0);
@@ -55,28 +55,41 @@ public sealed class OverlayRenderer : IDisposable
         DrawLabel(g, layout.Subtitle, MutedText);
         DrawHint(g, layout.Hint, layout.Scale);
         DrawLabel(g, layout.Note, MutedText);
+        g.Restore(untranslated);
     }
 
     public void DrawToast(Graphics g, ToastLayout toast)
     {
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
+        Prepare(g);
         DrawPanel(g, toast.Panel, toast.Scale, copyFill: true);
         DrawStatusGlyph(g, toast.IconBounds, toast.IsError, toast.Scale);
-        var font = Font(TextFamily, toast.Text.FontPx, FontStyle.Regular);
-        DrawText(g, toast.Text.Text, toast.Text.Bounds, font, TextColor, toast.Text.Align);
+        DrawLabel(g, toast.Text, TextColor);
     }
 
     public void Dispose()
+    {
+        ClearFonts();
+        foreach (var format in _formats)
+            format.Dispose();
+    }
+
+    // Only between draws: fonts handed out during one must stay alive until it ends.
+    private void Prepare(Graphics g)
+    {
+        if (_fonts.Count > MaxCachedFonts)
+            ClearFonts();
+
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+    }
+
+    private void ClearFonts()
     {
         foreach (var font in _fonts.Values)
             font.Dispose();
 
         _fonts.Clear();
-        foreach (var format in _formats)
-            format.Dispose();
     }
 
     private static void DrawPanel(Graphics g, OverlayPanel panel, float scale, bool copyFill)
@@ -124,7 +137,7 @@ public sealed class OverlayRenderer : IDisposable
     private void DrawFavorites(Graphics g, FavoritesStrip strip, float scale)
     {
         DrawPanel(g, strip.Panel, scale, copyFill: true);
-        DrawText(g, strip.Title.Text, strip.Title.Bounds, Font(TextFamily, strip.Title.FontPx, FontStyle.Regular), Accent, strip.Title.Align);
+        DrawLabel(g, strip.Title, Accent);
         DrawLabel(g, strip.Instructions, MutedText);
         foreach (var slot in strip.Slots)
             DrawFavoriteSlot(g, slot, scale);
@@ -205,25 +218,20 @@ public sealed class OverlayRenderer : IDisposable
         if (label is null)
             return;
 
-        var family = label.FontPx >= 20 ? TextFamily : NumberFamily;
+        var family = label.Font == OverlayFont.Semibold ? TextFamily : NumberFamily;
         DrawText(g, label.Text, label.Bounds, Font(family, label.FontPx, FontStyle.Regular), color, label.Align);
     }
 
-    // "0 · Up" is drawn as a keycap holding "0" followed by "Up".
-    private void DrawHint(Graphics g, OverlayLabel? hint, float scale)
+    private void DrawHint(Graphics g, OverlayHint? hint, float scale)
     {
-        var parts = hint?.Text.Split(" · ", 2);
-        if (hint is null || parts is not [var key, var action])
-        {
-            DrawLabel(g, hint, MutedText);
+        if (hint is null)
             return;
-        }
 
         var bounds = hint.Bounds;
         var textFont = Font(NumberFamily, hint.FontPx, FontStyle.Regular);
         var capSize = hint.FontPx * 1.4f;
         var gap = hint.FontPx * 0.4f;
-        var actionWidth = g.MeasureString(action, textFont, PointF.Empty, _formats[0]).Width;
+        var actionWidth = g.MeasureString(hint.Action, textFont, PointF.Empty, _formats[0]).Width;
         var total = capSize + gap + actionWidth;
         var x = hint.Align switch
         {
@@ -241,9 +249,9 @@ public sealed class OverlayRenderer : IDisposable
             g.DrawPath(border, path);
         }
 
-        DrawText(g, key, cap, Font(NumberFamily, hint.FontPx, FontStyle.Bold), TextColor, OverlayTextAlign.Center);
+        DrawText(g, hint.Key, cap, Font(NumberFamily, hint.FontPx, FontStyle.Bold), TextColor, OverlayTextAlign.Center);
         var actionBounds = new RectangleF(cap.Right + gap, bounds.Y, actionWidth + hint.FontPx, bounds.Height);
-        DrawText(g, action, actionBounds, textFont, MutedText, OverlayTextAlign.Near);
+        DrawText(g, hint.Action, actionBounds, textFont, MutedText, OverlayTextAlign.Near);
     }
 
     private void DrawText(Graphics g, string text, RectangleF bounds, Font font, Color color, OverlayTextAlign align)

@@ -78,17 +78,19 @@ internal static class GridGeometry
             }
         }
 
-        var hintText = OverlayLayoutGeometry.HintFor(state);
-        var titleWidth = contentWidth - (hintText is null ? 0 : HintWidth);
+        var hintAction = OverlayText.HintActionFor(state);
+        var titleWidth = contentWidth - (hintAction is null ? 0 : HintWidth);
         var title = new OverlayLabel(
-            OverlayLayoutGeometry.TitleFor(state.FolderPath),
+            OverlayText.TitleFor(state.FolderPath),
             S(Padding, Padding, titleWidth, TitleHeight, scale),
             TitleFont * scale,
-            OverlayTextAlign.Near);
-        var hint = hintText is null
+            OverlayTextAlign.Near,
+            OverlayFont.Semibold);
+        var hint = hintAction is null
             ? null
-            : new OverlayLabel(
-                hintText,
+            : new OverlayHint(
+                OverlayText.HintKey,
+                hintAction,
                 S(Padding + contentWidth - HintWidth, Padding, HintWidth, TitleHeight, scale),
                 HintFont * scale,
                 OverlayTextAlign.Far);
@@ -97,7 +99,8 @@ internal static class GridGeometry
                 $"Only the first {state.GridColumns.Sum(c => c.Entries.Count)} entries are shown",
                 S(Padding, cellsTop + cellsHeight, contentWidth, NoteHeight, scale),
                 NoteFont * scale,
-                OverlayTextAlign.Center)
+                OverlayTextAlign.Center,
+                OverlayFont.Regular)
             : null;
 
         return new OverlayLayout(
@@ -126,7 +129,7 @@ internal static class GridGeometry
 
         var name = S(cursor, y, x + ColumnWidth - NamePadding - cursor, CellHeight, scale);
         return new OverlayItem(
-            entry.Number, OverlayLayoutGeometry.DisplayName(entry), entry.IsFolder, bounds, CellCorner * scale, badge, icon, name,
+            entry.Number, OverlayText.DisplayName(entry), entry.IsFolder, bounds, CellCorner * scale, badge, icon, name,
             NameFont * scale, NumberFont * scale, zoomed, dimmed);
     }
 

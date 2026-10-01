@@ -1,6 +1,5 @@
 using System.Drawing.Imaging;
 using QuickParrot.Core.Navigation;
-using QuickParrot.Core.Settings;
 using static QuickParrot.Overlay.NativeMethods;
 
 namespace QuickParrot.Overlay;
@@ -22,19 +21,11 @@ public sealed class OverlayHost : IDisposable
     private volatile nint _hwnd;
     private object? _drawn; // the view state or toast on screen, or null
     private ToastRequest? _toast;
-    private System.Threading.Timer? _toastTimer;
+    private System.Threading.Timer? _toastTimer; // overlay thread only
     private int _disposed;
-    private volatile SmallFolderLayout _smallFolderLayout = SmallFolderLayout.List;
 
     /// <summary>A user-facing error message. Raised on the overlay thread.</summary>
     public event Action<string>? ErrorOccurred;
-
-    /// <summary>How folders with 9 or fewer entries are drawn. Safe to set from any thread; takes effect on the next render.</summary>
-    public SmallFolderLayout SmallFolderLayout
-    {
-        get => _smallFolderLayout;
-        set => _smallFolderLayout = value;
-    }
 
     /// <summary>Starts the overlay thread and waits until its (hidden) window exists.</summary>
     public void Start()
@@ -66,10 +57,7 @@ public sealed class OverlayHost : IDisposable
     /// </summary>
     public void ShowToast(string text, TimeSpan duration, bool isError = false)
     {
-        var toast = new ToastRequest(text, isError);
-        Volatile.Write(ref _toast, toast);
-        var timer = new System.Threading.Timer(_ => toast.Expire(this), null, duration, Timeout.InfiniteTimeSpan);
-        Interlocked.Exchange(ref _toastTimer, timer)?.Dispose();
+        Volatile.Write(ref _toast, ToastRequest.Create(text, isError, duration, Environment.TickCount64));
         RequestRedraw();
     }
 
@@ -77,8 +65,6 @@ public sealed class OverlayHost : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
-
-        Interlocked.Exchange(ref _toastTimer, null)?.Dispose();
 
         if (_thread is not null && _hwnd != 0 && PostMessage(_hwnd, OverlayWindow.WM_QUIT_LOOP, 0, 0))
             _thread.Join(TimeSpan.FromSeconds(5));
@@ -110,6 +96,7 @@ public sealed class OverlayHost : IDisposable
             _renderer = new OverlayRenderer();
             WarmUp(_renderer);
             _window = new OverlayWindow(OnAppMessage, OnWindowError);
+            _toastTimer = new System.Threading.Timer(_ => RequestRedraw());
             _hwnd = _window.Handle;
         }
         catch (Exception e)
@@ -137,6 +124,7 @@ public sealed class OverlayHost : IDisposable
         _hwnd = 0;
         try
         {
+            _toastTimer?.Dispose();
             _window?.Hide();
             _window?.DestroyHandle();
             _surface?.Dispose();
@@ -184,9 +172,14 @@ public sealed class OverlayHost : IDisposable
         }
 
         // Read after Take, so a toast set concurrently is either seen now or wakes us again.
+        var now = Environment.TickCount64;
         var state = _pending.Take();
         var toast = Volatile.Read(ref _toast);
-        var scene = (object?)state ?? (toast is { Expired: false } ? toast : null);
+        // Re-armed on every wake, so a timer firing slightly early just wakes us again.
+        if (toast is not null && toast.IsLive(now))
+            _toastTimer!.Change(TimeSpan.FromMilliseconds(toast.ExpiresAt - now), Timeout.InfiniteTimeSpan);
+
+        var scene = ToastRequest.ChooseScene(state, toast, now);
         if (ReferenceEquals(scene, _drawn))
             return;
 
@@ -210,7 +203,7 @@ public sealed class OverlayHost : IDisposable
     private void Draw(OverlayViewState state)
     {
         UpdateMonitor();
-        var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi, _smallFolderLayout);
+        var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi);
         var topLeft = OverlayLayoutGeometry.CenterOn(_monitor.Bounds, layout.CanvasSize);
         Present(layout.CanvasSize, topLeft, g => _renderer!.Draw(g, layout));
     }
@@ -249,7 +242,7 @@ public sealed class OverlayHost : IDisposable
     // GDI+ startup and JIT cost ~40 ms, which would otherwise land on the first chord press.
     private static void WarmUp(OverlayRenderer renderer)
     {
-        var entry = new NumberedEntry(1, OverlayLayoutGeometry.RootTitle, true);
+        var entry = new NumberedEntry(1, OverlayText.RootTitle, true);
         var layout = OverlayLayoutGeometry.Compute(new OverlayViewState("", OverlayLayoutKind.Wheel, [entry], [], null, false), 0.25f);
         using var bitmap = new Bitmap(layout.CanvasSize.Width, layout.CanvasSize.Height, PixelFormat.Format32bppPArgb);
         using var graphics = Graphics.FromImage(bitmap);
@@ -262,22 +255,5 @@ public sealed class OverlayHost : IDisposable
         _window?.Hide();
         _surface?.Dispose();
         _surface = null;
-    }
-
-    private sealed class ToastRequest(string text, bool isError)
-    {
-        private volatile bool _expired;
-
-        public string Text { get; } = text;
-
-        public bool IsError { get; } = isError;
-
-        public bool Expired => _expired;
-
-        public void Expire(OverlayHost host)
-        {
-            _expired = true;
-            host.RequestRedraw();
-        }
     }
 }

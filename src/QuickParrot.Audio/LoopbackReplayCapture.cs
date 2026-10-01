@@ -142,7 +142,7 @@ public sealed class LoopbackReplayCapture : IDisposable
         }
 
         var target = ResolveTarget(monitorId);
-        if (_session is { HasStopped: false } running && running.DeviceId == target)
+        if (_session is { Stopped.IsCompleted: false } running && running.DeviceId == target)
             return;
 
         StopSession();
@@ -157,7 +157,9 @@ public sealed class LoopbackReplayCapture : IDisposable
 
         try
         {
-            Volatile.Write(ref _session, LoopbackReplaySession.Start(target, _buffer, Report, OnSessionStopped));
+            var session = LoopbackReplaySession.Start(target, _buffer);
+            Volatile.Write(ref _session, session);
+            Watch(session);
             ClearLastError();
         }
         catch (Exception e)
@@ -169,9 +171,26 @@ public sealed class LoopbackReplayCapture : IDisposable
         }
     }
 
+    private void Watch(LoopbackReplaySession session)
+    {
+        session.DataFailed.ContinueWith(
+            failed =>
+            {
+                if (IsCurrent(session))
+                    Report($"The replay buffer couldn't store audio: {failed.Result.Message}");
+            },
+            TaskScheduler.Default);
+        session.Stopped.ContinueWith(stopped => OnSessionStopped(session, stopped.Result), TaskScheduler.Default);
+    }
+
+    private bool IsCurrent(LoopbackReplaySession session) => ReferenceEquals(Volatile.Read(ref _session), session);
+
     // A session that had been running a while (e.g. stopped by a device format change) gets one quiet retry.
     private void OnSessionStopped(LoopbackReplaySession session, Exception? error)
     {
+        if (!IsCurrent(session))
+            return; // already replaced or disposed
+
         var ranMilliseconds = Environment.TickCount64 - session.StartedAtMilliseconds;
         if (ranMilliseconds < HealthySessionMilliseconds)
         {
@@ -225,7 +244,7 @@ public sealed class LoopbackReplayCapture : IDisposable
     {
         lock (_gate)
         {
-            if (message == _lastError)
+            if (_disposed || message == _lastError)
                 return;
 
             _lastError = message;

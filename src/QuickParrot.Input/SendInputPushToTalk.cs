@@ -21,9 +21,7 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
     [ThreadStatic]
     private static SendInputPushToTalk? t_current;
 
-    private readonly LowLevelKeyboardHook _hook;
-    private readonly Lock _lock = new();
-    private PushToTalkBinding _binding; // guarded by _lock
+    private readonly HookThread _thread;
 
     // Held around each command, so an emergency release sees what it left held and stops any later press.
     private readonly Lock _commandLock = new();
@@ -37,38 +35,21 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
     private long _lastUpTicks;
     private bool _sendFailing;
 
-    internal SendInputPushToTalk(LowLevelKeyboardHook hook, PushToTalkBinding binding)
+    internal SendInputPushToTalk(HookThread thread, PushToTalkBinding binding)
     {
         ThrowIfMalformed(binding);
-        _hook = hook;
-        _binding = binding;
+        _thread = thread;
         _merger = new PushToTalkMerger(binding);
     }
 
-    /// <summary>Changing it mid-clip moves the hold over to the new binding.</summary>
-    public PushToTalkBinding Binding
-    {
-        get
-        {
-            lock (_lock)
-                return _binding;
-        }
-        set
-        {
-            ThrowIfMalformed(value);
-            lock (_lock)
-            {
-                _binding = value;
-                _hook.Post(() => RunCommand(() => ApplyBinding(value)), dropIfStopped: false);
-            }
-        }
-    }
+    /// <summary>Raised on the hook thread when push-to-talk can't be simulated or watched.</summary>
+    public event Action<string>? ErrorOccurred;
 
     /// <summary>Queues the press and returns; ignored while the keyboard hook isn't running.</summary>
-    public void Press() => _hook.Post(() => RunCommand(OnPress), dropIfStopped: true);
+    public void Press() => _thread.Post(() => RunCommand(OnPress), dropIfStopped: true);
 
     /// <summary>Queues the release and returns; stopping the keyboard hook releases anyway.</summary>
-    public void Release() => _hook.Post(() => RunCommand(OnRelease), dropIfStopped: true);
+    public void Release() => _thread.Post(() => RunCommand(OnRelease), dropIfStopped: true);
 
     /// <summary>
     /// For a crash: from any thread, without waiting long on the hook thread, sends an up for everything held and
@@ -99,6 +80,9 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
 
     internal void Attach() => t_current = this;
 
+    /// <summary>Moves any hold over to the new binding. Hook thread only.</summary>
+    internal void SetBinding(PushToTalkBinding binding) => RunCommand(() => ApplyBinding(binding));
+
     /// <summary>Returns true to hide the physical key event. After an emergency release everything passes.</summary>
     internal bool HandleKey(int scanCode, bool isExtended, bool isKeyDown, bool isInjected) =>
         !_emergencyReleased && _merger.HandleKey(new ScanKey(scanCode, isExtended), isKeyDown, isInjected);
@@ -118,7 +102,7 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
         t_current = null;
     }
 
-    private static void ThrowIfMalformed(PushToTalkBinding binding)
+    internal static void ThrowIfMalformed(PushToTalkBinding binding)
     {
         if (!binding.IsWellFormed)
             throw new ArgumentException($"{binding} can't be push-to-talk.", nameof(binding));
@@ -195,7 +179,7 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
         else if (!_sendFailing)
         {
             _sendFailing = true;
-            _hook.RaiseError(UnreachableMessage);
+            RaiseError(UnreachableMessage);
         }
     }
 
@@ -237,7 +221,20 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
 
         _mouseHook = SetWindowsHookExW(WH_MOUSE_LL, &MouseProc, GetModuleHandleW(null), 0);
         if (_mouseHook == 0)
-            _hook.RaiseError("Couldn't watch the mouse, so letting go of push-to-talk mid-clip may cut it off.");
+            RaiseError("Couldn't watch the mouse, so letting go of push-to-talk mid-clip may cut it off.");
+    }
+
+    // An exception escaping into the native hook chain would take down the process.
+    private void RaiseError(string message)
+    {
+        try
+        {
+            ErrorOccurred?.Invoke(message);
+        }
+        catch
+        {
+            // Dropped: nothing useful can be done from inside the hook.
+        }
     }
 
     [UnmanagedCallersOnly]

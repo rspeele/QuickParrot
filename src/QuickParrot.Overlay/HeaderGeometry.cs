@@ -17,27 +17,32 @@ internal static class HeaderGeometry
     public static float ContentHeight(OverlayViewState state) =>
         TitleHeight
         + (state.WheelEntries.Count == 0 ? SubtitleHeight : 0)
-        + (OverlayLayoutGeometry.HintFor(state) is null ? 0 : HintHeight);
+        + (OverlayText.HintActionFor(state) is null ? 0 : HintHeight);
 
-    public static (OverlayLabel Title, OverlayLabel? Subtitle, OverlayLabel? Hint) Build(
+    public static (OverlayLabel Title, OverlayLabel? Subtitle, OverlayHint? Hint) Build(
         OverlayViewState state, RectangleF panelBounds, float scale)
     {
         var textX = panelBounds.X + Padding * scale;
         var textWidth = panelBounds.Width - 2 * Padding * scale;
         var y = panelBounds.Y + Padding * scale;
 
-        OverlayLabel Line(string text, float lineHeight, float font)
+        RectangleF Line(float lineHeight)
         {
-            var label = new OverlayLabel(
-                text, new RectangleF(textX, y, textWidth, lineHeight * scale), font * scale, OverlayTextAlign.Center);
+            var bounds = new RectangleF(textX, y, textWidth, lineHeight * scale);
             y += lineHeight * scale;
-            return label;
+            return bounds;
         }
 
-        var title = Line(OverlayLayoutGeometry.TitleFor(state.FolderPath), TitleHeight, TitleFont);
-        var subtitle = state.WheelEntries.Count == 0 ? Line(OverlayLayoutGeometry.EmptyLabel, SubtitleHeight, SubtitleFont) : null;
-        var hintText = OverlayLayoutGeometry.HintFor(state);
-        var hint = hintText is null ? null : Line(hintText, HintHeight, HintFont);
+        var title = new OverlayLabel(
+            OverlayText.TitleFor(state.FolderPath), Line(TitleHeight), TitleFont * scale, OverlayTextAlign.Center,
+            OverlayFont.Semibold);
+        var subtitle = state.WheelEntries.Count == 0
+            ? new OverlayLabel(
+                OverlayText.EmptyLabel, Line(SubtitleHeight), SubtitleFont * scale, OverlayTextAlign.Center, OverlayFont.Regular)
+            : null;
+        var hint = OverlayText.HintActionFor(state) is { } action
+            ? new OverlayHint(OverlayText.HintKey, action, Line(HintHeight), HintFont * scale, OverlayTextAlign.Center)
+            : null;
 
         return (title, subtitle, hint);
     }

@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="QuickParrot.Input.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\QuickParrot.Core\QuickParrot.Core.csproj" />
   </ItemGroup>
 

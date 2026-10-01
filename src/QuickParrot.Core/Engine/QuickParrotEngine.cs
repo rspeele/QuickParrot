@@ -35,6 +35,7 @@ public sealed class QuickParrotEngine : IDisposable
     private IFolderSource? _library;
     private ITimer? _saveTimer;
     private OverlayViewState? _publishedViewState;
+    private OverlayViewState? _publishedFrom; // the navigator's state behind _publishedViewState
     private string? _lastPlayed;
     private bool _started;
     private bool _suppressPlayback;
@@ -69,7 +70,10 @@ public sealed class QuickParrotEngine : IDisposable
     /// <summary>Raised on the worker thread after any settings change, including navigator persistence.</summary>
     public event Action<AppSettings>? SettingsChanged;
 
-    /// <summary>Raised on the worker thread whenever <see cref="ViewState"/> changes (null = hide the overlay).</summary>
+    /// <summary>
+    /// Raised on the worker thread whenever <see cref="ViewState"/> or the small-folder layout setting changes, with
+    /// the state to draw (null = hide the overlay).
+    /// </summary>
     public event Action<OverlayViewState?>? ViewStateChanged;
 
     /// <summary>Raised on the worker thread once a grab is saved; see <see cref="ReplayGrabber.SavedMessage"/>.</summary>
@@ -190,14 +194,20 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void PublishViewState()
     {
-        var current = ViewState;
-        if (ReferenceEquals(current, _publishedViewState))
+        var source = ViewState;
+        var smallFolderLayout = _settings.SmallFolderLayout;
+        // The small-folder layout only changes how a wheel folder looks.
+        if (ReferenceEquals(source, _publishedFrom)
+            && (source is not { Layout: OverlayLayoutKind.Wheel } || _publishedViewState!.SmallFolderLayout == smallFolderLayout))
+        {
             return;
+        }
 
-        _publishedViewState = current;
+        _publishedFrom = source;
+        _publishedViewState = source is null ? null : source with { SmallFolderLayout = smallFolderLayout };
         try
         {
-            ViewStateChanged?.Invoke(current);
+            ViewStateChanged?.Invoke(_publishedViewState);
         }
         catch (Exception e)
         {

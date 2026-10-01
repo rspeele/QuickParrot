@@ -17,7 +17,16 @@ public enum OverlayPanelStyle
 
 public sealed record OverlayPanel(RectangleF Bounds, float CornerRadius, OverlayPanelStyle Style);
 
-public sealed record OverlayLabel(string Text, RectangleF Bounds, float FontPx, OverlayTextAlign Align);
+public enum OverlayFont
+{
+    Regular,
+    Semibold,
+}
+
+public sealed record OverlayLabel(string Text, RectangleF Bounds, float FontPx, OverlayTextAlign Align, OverlayFont Font);
+
+/// <summary>A keycap holding <see cref="Key"/>, followed by <see cref="Action"/>, e.g. "0" then "Up".</summary>
+public sealed record OverlayHint(string Key, string Action, RectangleF Bounds, float FontPx, OverlayTextAlign Align);
 
 /// <summary>A wheel pill or grid cell. Empty sub-rectangles mean "don't draw that part".</summary>
 public sealed record OverlayItem(
@@ -66,6 +75,7 @@ public sealed record FavoritesStrip(
 
 /// <summary>
 /// Everything the renderer draws, in canvas pixels. Drawn in order: favorites strip, panels, headers, items, labels.
+/// Everything but the favorites strip is relative to <see cref="FolderOrigin"/>.
 /// </summary>
 public sealed record OverlayLayout(
     OverlayLayoutKind Kind,
@@ -76,6 +86,7 @@ public sealed record OverlayLayout(
     IReadOnlyList<OverlayItem> Items,
     OverlayLabel Title,
     OverlayLabel? Subtitle,
-    OverlayLabel? Hint,
+    OverlayHint? Hint,
     OverlayLabel? Note,
-    FavoritesStrip? Favorites = null);
+    FavoritesStrip? Favorites = null,
+    PointF FolderOrigin = default);

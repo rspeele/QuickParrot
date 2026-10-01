@@ -1,7 +1,6 @@
 using System.Drawing;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Navigation;
-using QuickParrot.Core.Settings;
 
 namespace QuickParrot.Overlay.Tests;
 
@@ -18,7 +17,11 @@ public sealed class FavoritesGeometryTests
         target, lastPlayed, chord);
 
     private static OverlayLayout Compute(OverlayViewState state, float scale = 1, SmallFolderLayout small = SmallFolderLayout.List) =>
-        OverlayLayoutGeometry.Compute(state, scale, small);
+        OverlayLayoutGeometry.Compute(state with { SmallFolderLayout = small }, scale);
+
+    // Folder parts are drawn relative to the folder origin.
+    private static RectangleF OnCanvas(RectangleF r, OverlayLayout layout) =>
+        r with { X = r.X + layout.FolderOrigin.X, Y = r.Y + layout.FolderOrigin.Y };
 
     [Fact]
     public void WithoutFavorites_TheLayoutIsUnchanged()
@@ -40,30 +43,23 @@ public sealed class FavoritesGeometryTests
         var strip = layout.Favorites!;
 
         Assert.True(canvas.Contains(strip.Panel.Bounds));
-        Assert.All(layout.Panels, p => Assert.True(canvas.Contains(p.Bounds)));
-        Assert.All(layout.Items, i => Assert.True(canvas.Contains(i.Bounds)));
-        Assert.True(layout.Panels.Min(p => p.Bounds.Top) > strip.Panel.Bounds.Bottom);
-        Assert.True(layout.Title.Bounds.Top > strip.Panel.Bounds.Bottom);
+        Assert.All(layout.Panels, p => Assert.True(canvas.Contains(OnCanvas(p.Bounds, layout))));
+        Assert.All(layout.Items, i => Assert.True(canvas.Contains(OnCanvas(i.Bounds, layout))));
+        Assert.True(layout.Panels.Min(p => OnCanvas(p.Bounds, layout).Top) > strip.Panel.Bounds.Bottom);
+        Assert.True(OnCanvas(layout.Title.Bounds, layout).Top > strip.Panel.Bounds.Bottom);
     }
 
     [Fact]
-    public void FolderView_IsTheSameShape_JustMovedDown()
+    public void FolderView_IsTheSameLayout_JustMovedDown()
     {
         var plain = Compute(ViewStates.Wheel(4, "Folder"));
         var assigning = Compute(ViewStates.Wheel(4, "Folder") with { Favorites = Panel() });
-        var dx = assigning.Items[0].Bounds.X - plain.Items[0].Bounds.X;
-        var dy = assigning.Items[0].Bounds.Y - plain.Items[0].Bounds.Y;
 
-        Assert.True(dy > 0);
-        for (var i = 0; i < plain.Items.Count; i++)
-        {
-            Assert.Equal(plain.Items[i].Bounds.Size, assigning.Items[i].Bounds.Size);
-            Assert.Equal(plain.Items[i].Bounds.X + dx, assigning.Items[i].Bounds.X, 0.01f);
-            Assert.Equal(plain.Items[i].Bounds.Y + dy, assigning.Items[i].Bounds.Y, 0.01f);
-            Assert.Equal(plain.Items[i].NameBounds.Y + dy, assigning.Items[i].NameBounds.Y, 0.01f);
-        }
-
-        Assert.Equal(plain.Title.Bounds.Y + dy, assigning.Title.Bounds.Y, 0.01f);
+        Assert.Equal(PointF.Empty, plain.FolderOrigin);
+        Assert.True(assigning.FolderOrigin.Y > 0);
+        Assert.Equal(plain.Items, assigning.Items);
+        Assert.Equal(plain.Panels, assigning.Panels);
+        Assert.Equal((plain.Title, plain.Subtitle, plain.Hint), (assigning.Title, assigning.Subtitle, assigning.Hint));
     }
 
     [Fact]
@@ -71,7 +67,8 @@ public sealed class FavoritesGeometryTests
     {
         var layout = Compute(ViewStates.Wheel(4) with { Favorites = Panel() });
         var stripCenter = layout.Favorites!.Panel.Bounds.Left + layout.Favorites.Panel.Bounds.Width / 2;
-        var itemCenter = layout.Items[0].Bounds.Left + layout.Items[0].Bounds.Width / 2;
+        var item = OnCanvas(layout.Items[0].Bounds, layout);
+        var itemCenter = item.Left + item.Width / 2;
 
         Assert.Equal(stripCenter, itemCenter, 1f);
     }

@@ -160,6 +160,23 @@ public sealed class QuickParrotEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task SmallFolderLayoutSetting_RidesOnTheViewState_AndRepublishesWhileShown()
+    {
+        _library.AddFile("", "wall.wav");
+        var states = new List<OverlayViewState?>();
+        _engine.ViewStateChanged += s => { lock (states) states.Add(s); };
+
+        _engine.UpdateSettings(s => s with { SmallFolderLayout = SmallFolderLayout.Ring });
+        _engine.Post(new ChordPressed());
+        _engine.UpdateSettings(s => s with { SmallFolderLayout = SmallFolderLayout.List });
+        _engine.UpdateSettings(s => s with { CableVolume = 0.25f });
+        await _engine.FlushAsync();
+
+        Assert.Equal([SmallFolderLayout.Ring, SmallFolderLayout.List], states.Select(s => s!.SmallFolderLayout));
+        Assert.Equal("wall.wav", Assert.Single(states[1]!.WheelEntries).Name);
+    }
+
+    [Fact]
     public async Task EventsThatDontChangeViewState_DontRaiseViewStateChanged()
     {
         var raised = 0;

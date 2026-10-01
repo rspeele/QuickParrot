@@ -36,7 +36,7 @@ public static class ToastGeometry
             panelBounds.X + Padding * scale, panelBounds.Y + (panelHeight - iconSize) / 2, iconSize, iconSize);
         var textX = icon.Right + Gap * scale;
         var textBounds = new RectangleF(textX, panelBounds.Y, panelBounds.Right - Padding * scale - textX, panelHeight);
-        var label = new OverlayLabel(text, textBounds, FontPx * scale, OverlayTextAlign.Near);
+        var label = new OverlayLabel(text, textBounds, FontPx * scale, OverlayTextAlign.Near, OverlayFont.Semibold);
 
         var panel = new OverlayPanel(panelBounds, panelHeight / 2, OverlayPanelStyle.Panel);
         return new ToastLayout(canvas, scale, panel, icon, label, isError);

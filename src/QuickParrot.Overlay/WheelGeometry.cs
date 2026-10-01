@@ -38,7 +38,7 @@ internal static class WheelGeometry
             null);
     }
 
-    private static (OverlayPanel, OverlayLabel, OverlayLabel?, OverlayLabel?) CenterLabels(
+    private static (OverlayPanel, OverlayLabel, OverlayLabel?, OverlayHint?) CenterLabels(
         OverlayViewState state, PointF center, float scale)
     {
         var panelHeight = (HeaderGeometry.ContentHeight(state) + 2 * HeaderGeometry.Padding) * scale;

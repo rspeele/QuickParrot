@@ -46,8 +46,8 @@ internal static class FavoritesGeometry
 
         var stripBounds = new RectangleF((canvas.Width - stripWidth) / 2, Margin * scale, stripWidth, StripHeight * scale);
         var strip = BuildStrip(favorites, stripBounds, scale);
-        var moved = Translate(folder, (canvas.Width - folder.CanvasSize.Width) / 2f, MathF.Ceiling(top));
-        return moved with { CanvasSize = canvas, Favorites = strip };
+        var folderOrigin = new PointF((canvas.Width - folder.CanvasSize.Width) / 2f, MathF.Ceiling(top));
+        return folder with { CanvasSize = canvas, Favorites = strip, FolderOrigin = folderOrigin };
     }
 
     public static string TitleFor(FavoritesPanel favorites) => $"Assigning {FavoriteSlots.KeyName(favorites.TargetSlot)}";
@@ -69,11 +69,12 @@ internal static class FavoritesGeometry
         var y = bounds.Y + Padding * scale;
         var width = bounds.Width - 2 * Padding * scale;
         var title = new OverlayLabel(
-            TitleFor(favorites), new RectangleF(x, y, width, TitleHeight * scale), TitleFont * scale, OverlayTextAlign.Center);
+            TitleFor(favorites), new RectangleF(x, y, width, TitleHeight * scale), TitleFont * scale, OverlayTextAlign.Center,
+            OverlayFont.Semibold);
         y += TitleHeight * scale;
         var instructions = new OverlayLabel(
             InstructionsFor(favorites), new RectangleF(x, y, width, InstructionsHeight * scale), InstructionsFont * scale,
-            OverlayTextAlign.Center);
+            OverlayTextAlign.Center, OverlayFont.Regular);
         y += (InstructionsHeight + SlotsTop) * scale;
 
         var slots = new List<FavoriteSlotItem>(favorites.Slots.Count);
@@ -106,28 +107,5 @@ internal static class FavoritesGeometry
         return new FavoriteSlotItem(
             view.KeyName, name, tag, state, target, bounds, SlotCorner * scale, keyBounds,
             tagBounds, nameBounds, KeyFont * scale, TagFont * scale, NameFont * scale);
-    }
-
-    private static OverlayLayout Translate(OverlayLayout layout, float dx, float dy)
-    {
-        RectangleF Move(RectangleF r) => r.IsEmpty ? r : new RectangleF(r.X + dx, r.Y + dy, r.Width, r.Height);
-        OverlayLabel? MoveLabel(OverlayLabel? label) => label is null ? null : label with { Bounds = Move(label.Bounds) };
-
-        return layout with
-        {
-            Panels = layout.Panels.Select(p => p with { Bounds = Move(p.Bounds) }).ToList(),
-            Headers = layout.Headers.Select(h => h with { Bounds = Move(h.Bounds) }).ToList(),
-            Items = layout.Items.Select(i => i with
-            {
-                Bounds = Move(i.Bounds),
-                NumberBounds = Move(i.NumberBounds),
-                IconBounds = Move(i.IconBounds),
-                NameBounds = Move(i.NameBounds),
-            }).ToList(),
-            Title = MoveLabel(layout.Title)!,
-            Subtitle = MoveLabel(layout.Subtitle),
-            Hint = MoveLabel(layout.Hint),
-            Note = MoveLabel(layout.Note),
-        };
     }
 }

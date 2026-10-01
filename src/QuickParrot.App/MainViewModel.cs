@@ -14,7 +14,6 @@ using QuickParrot.Core.Mic;
 using QuickParrot.Core.Naming;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Settings;
-using QuickParrot.Overlay;
 
 namespace QuickParrot.App;
 
@@ -39,7 +38,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioDeviceCatalog _devices;
     private readonly ICaptureDeviceCatalog _captureDevices;
     private readonly IChordKeyHook _hook;
-    private readonly OverlayHost _overlay;
     private readonly IPendingGrabStore _grabStore;
     private readonly IEditorPreview _preview;
     private readonly IClipEncoder _encoder;
@@ -88,7 +86,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IAudioDeviceCatalog devices,
         ICaptureDeviceCatalog captureDevices,
         IChordKeyHook hook,
-        OverlayHost overlay,
         IPendingGrabStore grabStore,
         IEditorPreview preview,
         IClipEncoder encoder,
@@ -102,7 +99,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _devices = devices;
         _captureDevices = captureDevices;
         _hook = hook;
-        _overlay = overlay;
         _grabStore = grabStore;
         _preview = preview;
         _encoder = encoder;
@@ -242,7 +238,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 return;
 
             _engine.UpdateSettings(s => s with { SmallFolderLayout = value });
-            _overlay.SmallFolderLayout = value;
         }
     }
 

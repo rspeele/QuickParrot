@@ -18,16 +18,15 @@ internal sealed class LoopbackReplaySession : IDisposable
     private readonly ReplayBuffer _buffer;
     private readonly SampleFormat _format;
     private readonly ChannelMixer? _mixer; // null when the device is already mono or stereo
-    private readonly Action<string> _onError;
+    private readonly TaskCompletionSource<Exception?> _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<Exception> _dataFailed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private float[] _scratch = [];
     private float[] _mixScratch = [];
     private volatile bool _disposing;
-    private volatile bool _stopped;
-    private bool _dataErrorReported;
 
     private LoopbackReplaySession(
         string deviceId, MMDevice device, WasapiRecorder recorder, ReplayBuffer buffer, SampleFormat format,
-        ChannelMixer? mixer, Action<string> onError, Action<LoopbackReplaySession, Exception?> onStopped)
+        ChannelMixer? mixer)
     {
         DeviceId = deviceId;
         _device = device;
@@ -35,25 +34,25 @@ internal sealed class LoopbackReplaySession : IDisposable
         _buffer = buffer;
         _format = format;
         _mixer = mixer;
-        _onError = onError;
         _recorder.DataAvailable += OnDataAvailable;
         _recorder.RecordingStopped += (_, e) =>
         {
-            _stopped = true;
             if (!_disposing)
-                onStopped(this, e.Exception);
+                _stopped.TrySetResult(e.Exception);
         };
     }
 
     public string DeviceId { get; }
 
-    public bool HasStopped => _stopped;
-
     public long StartedAtMilliseconds { get; } = Environment.TickCount64;
 
-    /// <param name="onStopped">Raised on the capture thread if recording stops by itself, e.g. the device vanished.</param>
-    public static LoopbackReplaySession Start(
-        string deviceId, ReplayBuffer buffer, Action<string> onError, Action<LoopbackReplaySession, Exception?> onStopped)
+    /// <summary>Completes if recording stops by itself, e.g. the device vanished; never once disposed.</summary>
+    public Task<Exception?> Stopped => _stopped.Task;
+
+    /// <summary>Completes with the first failure to store captured audio; recording carries on regardless.</summary>
+    public Task<Exception> DataFailed => _dataFailed.Task;
+
+    public static LoopbackReplaySession Start(string deviceId, ReplayBuffer buffer)
     {
         using var enumerator = new MMDeviceEnumerator();
         var device = enumerator.GetDevice(deviceId);
@@ -76,7 +75,7 @@ internal sealed class LoopbackReplaySession : IDisposable
             // (e.g. a virtual 7.1 headset): everything past stereo is folded down before it ever reaches the ring.
             var mixer = waveFormat.Channels > 2 ? new ChannelMixer(waveFormat.Channels, 2) : null;
             buffer.Begin(waveFormat.SampleRate, mixer?.OutputChannels ?? waveFormat.Channels);
-            var session = new LoopbackReplaySession(deviceId, device, recorder, buffer, format, mixer, onError, onStopped);
+            var session = new LoopbackReplaySession(deviceId, device, recorder, buffer, format, mixer);
             recorder.StartRecording();
             return session;
         }
@@ -152,11 +151,7 @@ internal sealed class LoopbackReplaySession : IDisposable
         }
         catch (Exception e)
         {
-            if (!_dataErrorReported)
-            {
-                _dataErrorReported = true;
-                _onError($"The replay buffer couldn't store audio: {e.Message}");
-            }
+            _dataFailed.TrySetResult(e);
         }
     }
 }
