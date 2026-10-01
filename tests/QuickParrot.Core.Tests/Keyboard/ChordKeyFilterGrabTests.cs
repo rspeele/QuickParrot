@@ -60,12 +60,10 @@ public class ChordKeyFilterGrabTests
     }
 
     [Fact]
-    public void EnterAsChordKey_Chords_AndNumpadEnterStillGrabs()
+    public void Enter_CannotBeTheChordKey()
     {
-        var filter = new ChordKeyFilter(ScanKey.Enter);
-
-        Assert.Equal(new ChordPressed(), filter.Process(0x1C, false, isKeyDown: true, isInjected: false).Event);
-        Assert.Equal(new GrabPressed(), filter.Process(0x1C, true, isKeyDown: true, isInjected: false).Event);
+        Assert.Throws<ArgumentException>(() => new ChordKeyFilter(ScanKey.Enter));
+        Assert.Throws<ArgumentException>(() => new ChordKeyFilter(ScanKey.NumpadEnter));
     }
 
     private KeyFilterResult Down(ScanKey key) =>

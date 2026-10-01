@@ -79,6 +79,26 @@ public class LiteLlmOptionsResolverTests
     }
 
     [Fact]
+    public void ToString_RedactsTheApiKey()
+    {
+        var options = new LiteLlmOptions("https://litellm.example.com", "sk-super-secret", "whisper-1", "gpt-4o-mini");
+
+        var text = options.ToString();
+
+        Assert.DoesNotContain("sk-super-secret", text);
+        Assert.Contains("ApiKey = ***", text);
+        Assert.Contains("https://litellm.example.com", text);
+    }
+
+    [Fact]
+    public void ToString_NoKey_ShowsNull()
+    {
+        var options = new LiteLlmOptions("https://litellm.example.com", null, "whisper-1", "gpt-4o-mini");
+
+        Assert.Contains("ApiKey = null", options.ToString());
+    }
+
+    [Fact]
     public void ModelNames_FallBackToDefaultsWhenBlank()
     {
         var settings = new AppSettings

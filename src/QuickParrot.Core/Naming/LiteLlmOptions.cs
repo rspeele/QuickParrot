@@ -3,7 +3,13 @@ using QuickParrot.Core.Settings;
 namespace QuickParrot.Core.Naming;
 
 /// <summary>Resolved, ready-to-use LiteLLM connection settings (API key already decrypted into memory).</summary>
-public sealed record LiteLlmOptions(string BaseUrl, string? ApiKey, string TranscriptionModel, string ChatModel);
+public sealed record LiteLlmOptions(string BaseUrl, string? ApiKey, string TranscriptionModel, string ChatModel)
+{
+    // The default record ToString() would print the decrypted key in full, e.g. into logs or exception messages.
+    public override string ToString() =>
+        $"{nameof(LiteLlmOptions)} {{ {nameof(BaseUrl)} = {BaseUrl}, {nameof(ApiKey)} = {(ApiKey is null ? "null" : "***")}, " +
+        $"{nameof(TranscriptionModel)} = {TranscriptionModel}, {nameof(ChatModel)} = {ChatModel} }}";
+}
 
 public static class LiteLlmOptionsResolver
 {

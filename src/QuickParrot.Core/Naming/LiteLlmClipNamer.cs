@@ -14,6 +14,9 @@ public sealed class LiteLlmClipNamer : IClipNamer
 {
     private const int MaxTranscriptionSeconds = 60;
     private const int TargetSampleRate = 16_000;
+
+    // Generous enough for a reasoning model's hidden preamble plus the actual name; only the first line is kept.
+    private const int MaxNameTokens = 60;
     private static readonly TimeSpan DefaultOverallTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan ConnectionTestTimeout = TimeSpan.FromSeconds(10);
 
@@ -176,11 +179,11 @@ public sealed class LiteLlmClipNamer : IClipNamer
         {
             model = _options.ChatModel,
             temperature = 0.2,
-            max_tokens = 20,
+            max_tokens = MaxNameTokens,
             messages = new object[]
             {
                 new { role = "system", content = SystemPrompt },
-                new { role = "user", content = transcript },
+                new { role = "user", content = $"Transcript:\n{transcript}" },
             },
         };
 
@@ -223,7 +226,7 @@ public sealed class LiteLlmClipNamer : IClipNamer
                     .GetProperty("message")
                     .GetProperty("content")
                     .GetString();
-                return (CleanName(content), null);
+                return (CleanName(FirstNonEmptyLine(content)), null);
             }
             catch (Exception e) when (e is JsonException or InvalidOperationException or IndexOutOfRangeException or KeyNotFoundException)
             {
@@ -238,6 +241,22 @@ public sealed class LiteLlmClipNamer : IClipNamer
         var clipped = interleaved.Length <= maxSamples ? interleaved : interleaved[..maxSamples];
         var mono = AudioDownmixer.ToMono(clipped.Span, channels);
         return WavEncoder.EncodePcm16(AudioResampler.Resample(mono, sampleRate, TargetSampleRate), TargetSampleRate);
+    }
+
+    // A reasoning model may think out loud before the name; only its first non-blank line is ever usable.
+    private static string? FirstNonEmptyLine(string? raw)
+    {
+        if (raw is null)
+            return null;
+
+        foreach (var line in raw.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length > 0)
+                return trimmed;
+        }
+
+        return null;
     }
 
     // Strips quotes/punctuation/extension the model sometimes adds despite instructions, and caps length.

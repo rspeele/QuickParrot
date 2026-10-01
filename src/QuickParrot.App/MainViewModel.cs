@@ -142,6 +142,9 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Raised when a grab is ready to edit; the view hosts <see cref="ClipEditorWindow"/> for it.</summary>
     public event Action<GrabEditorRequest>? EditorRequested;
 
+    /// <summary>Raised when a grab that's already open is requested again; the view brings its window to the front.</summary>
+    public event Action<PendingGrab>? EditorBringToFrontRequested;
+
     public string LibraryRoot
     {
         get => _libraryRoot;
@@ -519,7 +522,10 @@ public sealed class MainViewModel : ObservableObject
         }
 
         if (!_openGrabIds.Add(grab.Id))
-            return; // already open in another editor window
+        {
+            EditorBringToFrontRequested?.Invoke(grab);
+            return;
+        }
 
         EditableAudio audio;
         try

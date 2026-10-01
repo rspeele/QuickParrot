@@ -1,13 +1,17 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using QuickParrot.App.Editor;
+using QuickParrot.Core.Grabs;
 
 namespace QuickParrot.App;
 
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private readonly Dictionary<string, ClipEditorWindow> _openEditorWindows = [];
+    private bool _apiKeyDirty;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -15,13 +19,31 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
         _viewModel.EditorRequested += OnEditorRequested;
+        _viewModel.EditorBringToFrontRequested += OnEditorBringToFrontRequested;
     }
 
     private void OnEditorRequested(GrabEditorRequest request)
     {
         var window = new ClipEditorWindow(request.ViewModel) { Owner = this };
-        window.Closed += (_, _) => _viewModel.OnGrabEditorClosed(request.Grab, window.Outcome);
+        _openEditorWindows[request.Grab.Id] = window;
+        window.Closed += (_, _) =>
+        {
+            _openEditorWindows.Remove(request.Grab.Id);
+            _viewModel.OnGrabEditorClosed(request.Grab, window.Outcome);
+        };
         window.Show();
+    }
+
+    // The grab was already open in another editor window; surface it instead of silently doing nothing.
+    private void OnEditorBringToFrontRequested(PendingGrab grab)
+    {
+        if (!_openEditorWindows.TryGetValue(grab.Id, out var window))
+            return;
+
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+
+        window.Activate();
     }
 
     private void ChooseLibrary_Click(object sender, RoutedEventArgs e)
@@ -62,8 +84,36 @@ public partial class MainWindow : Window
     private async void PendingGrabs_MouseDoubleClick(object sender, MouseButtonEventArgs e) =>
         await _viewModel.PendingGrabs.OpenAsync(PendingGrabsList.SelectedItem as PendingGrabItem);
 
-    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) =>
-        _viewModel.SetLiteLlmApiKey(((System.Windows.Controls.PasswordBox)sender).Password);
+    // Committing on every keystroke would DPAPI-encrypt and save a partial key after each one; commit once instead,
+    // on LostFocus or Enter.
+    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) => _apiKeyDirty = true;
+
+    private void ApiKeyBox_LostFocus(object sender, RoutedEventArgs e) => CommitApiKeyIfDirty();
+
+    private void ApiKeyBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+            return;
+
+        CommitApiKeyIfDirty();
+        e.Handled = true;
+    }
+
+    private void ClearApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        _apiKeyDirty = false;
+        ApiKeyBox.Clear();
+        _viewModel.SetLiteLlmApiKey("");
+    }
+
+    private void CommitApiKeyIfDirty()
+    {
+        if (!_apiKeyDirty)
+            return;
+
+        _apiKeyDirty = false;
+        _viewModel.SetLiteLlmApiKey(ApiKeyBox.Password);
+    }
 
     private async void TestLiteLlmConnection_Click(object sender, RoutedEventArgs e) => await _viewModel.TestLiteLlmConnectionAsync();
 

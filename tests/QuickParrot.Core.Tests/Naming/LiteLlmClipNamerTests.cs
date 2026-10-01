@@ -59,6 +59,8 @@ public class LiteLlmClipNamerTests
         Assert.Contains("\"model\":\"gpt-4o-mini\"", body);
         Assert.Contains("hello there", body);
         Assert.Contains("\"temperature\":0.2", body);
+        Assert.Contains("\"max_tokens\":60", body);
+        Assert.Contains("Transcript:\\nhello there", body);
     }
 
     [Theory]
@@ -190,6 +192,19 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.Equal(expectedName, result!.Name);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_UsesOnlyTheFirstNonEmptyLineOfTheReply()
+    {
+        var handler = FakeHttpMessageHandler.Json(request => request.RequestUri!.ToString().Contains("transcriptions")
+            ? (HttpStatusCode.OK, TranscriptionJson("hello there"))
+            : (HttpStatusCode.OK, ChatJson("\n\nHoly Cow\nThat was a good one.")));
+        var namer = CreateNamer(handler);
+
+        var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
+
+        Assert.Equal("Holy Cow", result!.Name);
     }
 
     [Fact]

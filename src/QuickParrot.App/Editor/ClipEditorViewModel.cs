@@ -28,6 +28,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     private double? _selectionLufs;
     private int _measureVersion;
     private string _name = "";
+    private string _nameHint = "";
     private bool _nameEditedByUser;
     private bool _isSuggesting;
     private bool _isSaving;
@@ -151,6 +152,22 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// A subtle note next to the name box for errors from automatic (debounced) suggestions, e.g. "No speech was
+    /// detected" — these mustn't steal the status line from a "Saved …" message or a manual save in progress.
+    /// </summary>
+    public string NameHint
+    {
+        get => _nameHint;
+        private set
+        {
+            if (SetField(ref _nameHint, value))
+                OnPropertyChanged(nameof(HasNameHint));
+        }
+    }
+
+    public bool HasNameHint => _nameHint.Length > 0;
+
     public bool CanSuggestName => _namer is not null && !_isSuggesting;
 
     public bool HasNamer => _namer is not null;
@@ -235,6 +252,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             return;
 
         IsSuggesting = true;
+        NameHint = "";
         ApplySuggestion(await _namer.SuggestNowAsync(Session.SelectionAudio()), force: true);
     }
 
@@ -260,6 +278,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             IsSuggesting = false;
             _name = "";
             _nameEditedByUser = false;
+            NameHint = "";
             OnPropertyChanged(nameof(Name));
             ClipSaved?.Invoke(saved);
         }
@@ -376,6 +395,8 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     }
 
     // A null result means it was superseded by a newer request, which owns the busy state.
+    // Automatic (debounced) suggestions never touch Status: that would overwrite a "Saved …" message with something
+    // like "No speech was detected" every time the selection settles. Their errors go to the quieter NameHint instead.
     private void ApplySuggestion(NameSuggestion? suggestion, bool force)
     {
         IsSuggesting = _namer?.IsBusy == true;
@@ -383,13 +404,22 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             return;
 
         if (suggestion.Error is { } error)
-            Status = $"Couldn't suggest a name: {error}";
+        {
+            if (force)
+                Status = $"Couldn't suggest a name: {error}";
+            else
+                NameHint = error;
+        }
         else if (suggestion.Name is null)
-            Status = force ? "No name suggested." : Status;
+        {
+            if (force)
+                Status = "No name suggested.";
+        }
         else if (force || !_nameEditedByUser)
         {
             _name = suggestion.Name;
             _nameEditedByUser = false;
+            NameHint = "";
             OnPropertyChanged(nameof(Name));
         }
     }

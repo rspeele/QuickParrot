@@ -330,13 +330,12 @@ public class ChordKeyFilterTests
     [Fact]
     public void Reset_WithExtendedChordKeyDown_MarksTheExtendedKey()
     {
-        var numpadEnter = new ScanKey(0x1C, true);
-        var filter = new ChordKeyFilter(numpadEnter);
+        var filter = new ChordKeyFilter(Home);
 
         filter.Reset(chordKeyDown: true);
 
-        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(0x1C, true, isKeyDown: true, isInjected: false));
-        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(0x1C, true, isKeyDown: false, isInjected: false));
+        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(0x47, true, isKeyDown: true, isInjected: false));
+        Assert.Equal(KeyFilterResult.PassThrough, filter.Process(0x47, true, isKeyDown: false, isInjected: false));
     }
 
     [Fact]

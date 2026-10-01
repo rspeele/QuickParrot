@@ -42,4 +42,19 @@ public class ScanKeyTests
         Assert.Equal([0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9], digits);
         Assert.All(Enumerable.Range(0, 0x100), code => Assert.Equal(-1, ScanKey.DigitOf(code, true)));
     }
+
+    // Enter is the grab key within the chord, so it can't also be the chord key: pressing it would be ambiguous.
+    [Theory]
+    [InlineData(0x1C, false)]
+    [InlineData(0x1C, true)]
+    public void Enter_IsNeverAValidChordKey(int scanCode, bool extended)
+    {
+        Assert.False(new ScanKey(scanCode, extended).IsValidChordKey);
+    }
+
+    [Fact]
+    public void DefaultChordKey_IsValid()
+    {
+        Assert.True(ScanKey.DefaultChordKey.IsValidChordKey);
+    }
 }

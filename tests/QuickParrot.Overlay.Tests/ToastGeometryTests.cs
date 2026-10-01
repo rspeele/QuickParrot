@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using QuickParrot.Core.Grabs;
 
 namespace QuickParrot.Overlay.Tests;
 
@@ -67,6 +68,21 @@ public sealed class ToastGeometryTests
         var toast = ToastGeometry.ComputeForMonitor(new string('x', 500), new Size(400, 300), 96);
 
         Assert.True(toast.CanvasSize.Width <= 400);
+    }
+
+    // Regression for toast text that was being ellipsized: the fixed grab messages must stay short enough to render
+    // in full at the estimated width, not just clamped (and therefore truncated) to it.
+    [Theory]
+    [InlineData(ReplayGrabber.DisabledMessage)]
+    [InlineData(ReplayGrabber.EmptyMessage)]
+    [InlineData("Grabbed last 120 s")]
+    [InlineData("Nothing was playing in the last 120 s.")]
+    public void GrabMessages_FitWithinMaxTextWidth(string message)
+    {
+        var toast = ToastGeometry.Compute(message, 1);
+
+        Assert.True(toast.Text.Bounds.Width < ToastGeometry.MaxTextWidth,
+            $"\"{message}\" ({message.Length} chars) is wide enough to be ellipsized.");
     }
 
     [Fact]

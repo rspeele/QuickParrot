@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using QuickParrot.Core.Diagnostics;
+using QuickParrot.Core.Playback;
 using QuickParrot.Core.Replay;
 
 namespace QuickParrot.Audio;
@@ -17,21 +18,24 @@ internal sealed class LoopbackReplaySession : IDisposable
     private readonly WasapiRecorder _recorder;
     private readonly ReplayBuffer _buffer;
     private readonly LoopbackSampleFormat _format;
+    private readonly ChannelMixer? _mixer; // null when the device is already mono or stereo
     private readonly Action<string> _onError;
     private float[] _scratch = [];
+    private float[] _mixScratch = [];
     private volatile bool _disposing;
     private volatile bool _stopped;
     private bool _dataErrorReported;
 
     private LoopbackReplaySession(
         string deviceId, MMDevice device, WasapiRecorder recorder, ReplayBuffer buffer, LoopbackSampleFormat format,
-        Action<string> onError, Action<LoopbackReplaySession, Exception?> onStopped)
+        ChannelMixer? mixer, Action<string> onError, Action<LoopbackReplaySession, Exception?> onStopped)
     {
         DeviceId = deviceId;
         _device = device;
         _recorder = recorder;
         _buffer = buffer;
         _format = format;
+        _mixer = mixer;
         _onError = onError;
         _recorder.DataAvailable += OnDataAvailable;
         _recorder.RecordingStopped += (_, e) =>
@@ -69,8 +73,11 @@ internal sealed class LoopbackReplaySession : IDisposable
             var format = CaptureFormats.ToSampleFormat(waveFormat)
                 ?? throw new NotSupportedException($"the output uses an unsupported format ({waveFormat}).");
 
-            buffer.Begin(waveFormat.SampleRate, waveFormat.Channels);
-            var session = new LoopbackReplaySession(deviceId, device, recorder, buffer, format, onError, onStopped);
+            // Keeps the replay buffer's memory use bounded regardless of how many channels the device captures
+            // (e.g. a virtual 7.1 headset): everything past stereo is folded down before it ever reaches the ring.
+            var mixer = waveFormat.Channels > 2 ? new ChannelMixer(waveFormat.Channels, 2) : null;
+            buffer.Begin(waveFormat.SampleRate, mixer?.OutputChannels ?? waveFormat.Channels);
+            var session = new LoopbackReplaySession(deviceId, device, recorder, buffer, format, mixer, onError, onStopped);
             recorder.StartRecording();
             return session;
         }
@@ -100,24 +107,49 @@ internal sealed class LoopbackReplaySession : IDisposable
         }
     }
 
-    // Runs on the capture thread, so it must not throw.
+    // Runs on the capture thread, so it must not throw or allocate (past the scratch buffers' one-time growth).
     private void OnDataAvailable(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
     {
         try
         {
             var replayFlags = CaptureFormats.ToReplayFlags(flags);
+            ReadOnlySpan<float> samples;
             if (_format == LoopbackSampleFormat.Float32)
             {
-                _buffer.Write(MemoryMarshal.Cast<byte, float>(data), qpcPosition, replayFlags);
+                samples = MemoryMarshal.Cast<byte, float>(data);
+            }
+            else
+            {
+                var count = data.Length / SampleConverter.BytesPerSample(_format);
+                if (_scratch.Length < count)
+                    _scratch = new float[count];
+
+                samples = _scratch.AsSpan(0, SampleConverter.ToFloat(data, _format, _scratch));
+            }
+
+            if (_mixer is null)
+            {
+                _buffer.Write(samples, qpcPosition, replayFlags);
                 return;
             }
 
-            var samples = data.Length / SampleConverter.BytesPerSample(_format);
-            if (_scratch.Length < samples)
-                _scratch = new float[samples];
+            var frames = samples.Length / _mixer.InputChannels;
+            var mixedLength = frames * _mixer.OutputChannels;
+            if (_mixScratch.Length < mixedLength)
+                _mixScratch = new float[mixedLength];
 
-            var converted = SampleConverter.ToFloat(data, _format, _scratch);
-            _buffer.Write(_scratch.AsSpan(0, converted), qpcPosition, replayFlags);
+            // The buffer discards the actual content for a silent packet anyway, so skip the mixing work.
+            if (!replayFlags.HasFlag(ReplayPacketFlags.Silent))
+            {
+                for (var frame = 0; frame < frames; frame++)
+                {
+                    _mixer.MixFrame(
+                        samples.Slice(frame * _mixer.InputChannels, _mixer.InputChannels),
+                        _mixScratch.AsSpan(frame * _mixer.OutputChannels, _mixer.OutputChannels));
+                }
+            }
+
+            _buffer.Write(_mixScratch.AsSpan(0, mixedLength), qpcPosition, replayFlags);
         }
         catch (Exception e)
         {

@@ -23,6 +23,10 @@ public static class WavFile
     private const int HeaderBytes = 12 + 8 + FmtChunkSize + 12 + 8;
     private const int MaxChunksScanned = 64;
 
+    // A sane upper bound on what ReadFloat32 will allocate for: 10 minutes of 8-channel 192 kHz float32 audio.
+    // Protects against a corrupt or hostile header causing a huge (or merely implausible) allocation.
+    private const long MaxReadableDataBytes = 600L * 192_000 * 8 * sizeof(float);
+
     public static void WriteFloat32(Stream stream, ReadOnlySpan<float> samples, int sampleRate, int channels)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
@@ -112,6 +116,12 @@ public static class WavFile
         var info = TryReadInfo(stream) ?? throw new InvalidDataException("Not a WAV file this app understands.");
         if (info.FormatTag != IeeeFloatFormat || info.BitsPerSample != 32)
             throw new NotSupportedException("Only 32-bit float WAV files can be read back.");
+
+        if (info.DataBytes > MaxReadableDataBytes)
+            throw new InvalidDataException("The WAV file's data chunk is larger than this app will read.");
+
+        if (stream.CanSeek && info.DataBytes > Math.Max(0, stream.Length - stream.Position))
+            throw new InvalidDataException("The WAV file's header claims more data than the file actually has.");
 
         var samples = new float[info.Frames * info.Channels];
         var bytes = MemoryMarshal.AsBytes(samples.AsSpan());

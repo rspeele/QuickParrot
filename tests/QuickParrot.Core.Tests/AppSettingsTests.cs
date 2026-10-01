@@ -133,6 +133,8 @@ public class AppSettingsTests
     [InlineData("""{ "scanCode": 42, "isExtended": false }""")] // left shift
     [InlineData("""{ "scanCode": 0 }""")]
     [InlineData("""{ "scanCode": 99999 }""")]
+    [InlineData("""{ "scanCode": 28, "isExtended": false }""")] // Enter
+    [InlineData("""{ "scanCode": 28, "isExtended": true }""")] // Numpad Enter
     [InlineData("""{ }""")]
     public void InvalidChordKey_FallsBackToDefault(string chordKeyJson)
     {

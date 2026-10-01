@@ -100,6 +100,56 @@ public sealed class WavFileTests
     }
 
     [Fact]
+    public void ReadFloat32_RejectsDataChunkLargerThanTheStream()
+    {
+        using var stream = new MemoryStream();
+        var w = new BinaryWriter(stream);
+        w.Write("RIFF"u8);
+        w.Write(0);
+        w.Write("WAVE"u8);
+        w.Write("fmt "u8);
+        w.Write(16);
+        w.Write((short)WavFile.IeeeFloatFormat);
+        w.Write((short)2);
+        w.Write(48_000);
+        w.Write(48_000 * 2 * 4);
+        w.Write((short)8);
+        w.Write((short)32);
+        w.Write("data"u8);
+        w.Write(1_000_000); // claims far more data than actually follows: a truncated/corrupt file
+        w.Write(new byte[16]);
+        w.Flush();
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => WavFile.ReadFloat32(stream));
+    }
+
+    [Fact]
+    public void ReadFloat32_RejectsImplausiblyLargeDataChunk_EvenOnAnUnseekableStream()
+    {
+        using var inner = new MemoryStream();
+        var w = new BinaryWriter(inner);
+        w.Write("RIFF"u8);
+        w.Write(0);
+        w.Write("WAVE"u8);
+        w.Write("fmt "u8);
+        w.Write(16);
+        w.Write((short)WavFile.IeeeFloatFormat);
+        w.Write((short)8);
+        w.Write(192_000);
+        w.Write(192_000 * 8 * 4);
+        w.Write((short)32);
+        w.Write((short)32);
+        w.Write("data"u8);
+        w.Write(uint.MaxValue); // far beyond 10 minutes of 8-channel 192 kHz
+        w.Flush();
+        inner.Position = 0;
+        using var stream = new UnseekableStream(inner);
+
+        Assert.Throws<InvalidDataException>(() => WavFile.ReadFloat32(stream));
+    }
+
+    [Fact]
     public void ReadFloat32_RejectsOtherFormats()
     {
         using var stream = new MemoryStream();
@@ -122,5 +172,29 @@ public sealed class WavFileTests
         stream.Position = 0;
 
         Assert.Throws<NotSupportedException>(() => WavFile.ReadFloat32(stream));
+    }
+
+    // So the data-size sanity check is exercised independently of the "bigger than the stream" check, which needs CanSeek.
+    private sealed class UnseekableStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => inner.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

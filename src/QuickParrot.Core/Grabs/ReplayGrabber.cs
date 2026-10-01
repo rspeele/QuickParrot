@@ -13,8 +13,8 @@ public sealed record GrabResult(PendingGrab? Grab, string? Error)
 /// <summary>Saves the replay buffer's recent audio as a pending grab. Does disk IO, so keep it off hot threads.</summary>
 public sealed class ReplayGrabber(IReplaySource replay, IPendingGrabStore store)
 {
-    public const string DisabledMessage = "The replay buffer is off. Turn it on in settings to grab audio.";
-    public const string EmptyMessage = "Nothing to grab yet: the replay buffer hasn't captured any audio.";
+    public const string DisabledMessage = "Instant replay is off";
+    public const string EmptyMessage = "Nothing to grab yet";
 
     /// <summary>Never throws.</summary>
     public GrabResult Grab(TimeSpan length, DateTimeOffset grabbedAt)
