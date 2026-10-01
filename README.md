@@ -46,6 +46,26 @@ out of the zoomed column. Long names are truncated to fit.
 That handles up to 81 entries per folder. Beyond that, make some subfolders: the desktop app warns about it, and the
 overlay silently shows only the first 81.
 
+## Favorites (F1–F12)
+
+The clips you use constantly can live on the F-keys. B+F3 plays whatever is on F3, with the same push-to-talk and
+replace-the-current-clip behavior as any other clip.
+
+To assign, press B+shift+F3. The overlay switches to the favorites panel: all twelve slots across the top with F3
+highlighted ("Assigning F3"), and your folders below.
+
+* Pick a clip with the number keys as usual: it goes on F3 without playing.
+* Press F3 again to put the last-played clip on it. (Heard something funny? B+shift+F3, F3.)
+* Press Delete or Backspace to clear F3.
+* Press a different F-key to switch which slot you're assigning, so you can edit several in one go.
+* Release B to back out without changing anything. This also makes B+shift+F-key the way to just look at your favorites.
+
+A setting lets the plain F-key play its favorite without holding B, for games that don't use the F-keys. To keep F5
+refreshing your browser and F2 renaming files, plain F-keys only fire for slots that have a clip, and only while the
+focused window covers the whole screen (i.e. you're in a fullscreen or borderless game). The default is to require B.
+
+Favorites can also be managed from the desktop app. If a favorite's file is moved or deleted, its slot shows as missing.
+
 ## Choosing a chord key
 
 The chord key is configurable, and QuickParrot fully owns it: the game never sees it. B is the default because the
