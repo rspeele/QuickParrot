@@ -1,5 +1,7 @@
 namespace QuickParrot.Core.Editing;
 
+/// <param name="TargetLufs">-18 is roughly ordinary speaking volume in voice chat (podcast-ish range) and leaves
+/// headroom under the -1 dBTP ceiling.</param>
 /// <param name="CeilingDbtp">True-peak ceiling the output never exceeds.</param>
 /// <param name="MaxGainDb">Cap on boost, so near-silent clips don't turn into amplified noise.</param>
 public sealed record LoudnessOptions(double TargetLufs = -18, double CeilingDbtp = -1, double MaxGainDb = 24);

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Time.Testing;
 using QuickParrot.Core.Editing;
 using static QuickParrot.Core.Tests.Editing.TestSignals;
 
@@ -93,6 +92,25 @@ public class ClipEditorSessionTests
         Assert.Equal(DbToLinear(-18 - lufs), session.PreviewGain(lufs, normalize: true), 1e-4);
         Assert.Equal(1f, session.PreviewGain(lufs, normalize: false));
     }
+
+    [Fact]
+    public void PostSaveSelection_WithRoomLeft_MovesToTheEndOfTheCapture()
+    {
+        var session = new ClipEditorSession(Capture, new FakeEncoder(), new LoudnessOptions());
+
+        var next = session.PostSaveSelection(new ClipSelection(0, Capture.FrameCount - session.MinSelectionFrames - 1));
+
+        Assert.Equal(new ClipSelection(Capture.FrameCount - session.MinSelectionFrames - 1, Capture.FrameCount), next);
+    }
+
+    [Fact]
+    public void PostSaveSelection_WithLittleLeft_KeepsTheSavedSelection()
+    {
+        var session = new ClipEditorSession(Capture, new FakeEncoder(), new LoudnessOptions());
+        var saved = new ClipSelection(0, Capture.FrameCount);
+
+        Assert.Equal(saved, session.PostSaveSelection(saved));
+    }
 }
 
 public class NameSuggestionDebouncerTests
@@ -100,28 +118,9 @@ public class NameSuggestionDebouncerTests
     private static readonly EditableAudio Clip = Audio(Silence(0.1));
 
     [Fact]
-    public async Task AutomaticRequests_WaitForTheQuietPeriod_AndOnlyTheLastOneRuns()
+    public async Task SuggestNow_Sanitizes()
     {
-        var time = new FakeTimeProvider();
-        var calls = 0;
-        using var debouncer = new NameSuggestionDebouncer((_, _) => Task.FromResult<string?>($"Name {++calls}"), TimeSpan.FromSeconds(1), time);
-
-        var first = debouncer.RequestAsync(Clip);
-        time.Advance(TimeSpan.FromMilliseconds(500));
-        var second = debouncer.RequestAsync(Clip);
-        time.Advance(TimeSpan.FromMilliseconds(999));
-        Assert.Equal(0, calls);
-        time.Advance(TimeSpan.FromMilliseconds(1));
-
-        Assert.Null(await first);
-        Assert.Equal(new NameSuggestion("Name 1"), await second);
-    }
-
-    [Fact]
-    public async Task SuggestNow_SkipsTheDelay_AndSanitizes()
-    {
-        using var debouncer = new NameSuggestionDebouncer(
-            (_, _) => Task.FromResult<string?>("\"Hasta la vista?\""), TimeSpan.FromSeconds(1), new FakeTimeProvider());
+        using var debouncer = new NameSuggestionDebouncer((_, _) => Task.FromResult<string?>("\"Hasta la vista?\""));
 
         Assert.Equal(new NameSuggestion("Hasta la vista"), await debouncer.SuggestNowAsync(Clip));
     }
@@ -129,12 +128,38 @@ public class NameSuggestionDebouncerTests
     [Fact]
     public async Task Failures_AreReported_AndBlankNamesAreNull()
     {
-        using var failing = new NameSuggestionDebouncer(
-            (_, _) => throw new HttpRequestException("offline"), TimeSpan.Zero, new FakeTimeProvider());
-        using var blank = new NameSuggestionDebouncer((_, _) => Task.FromResult<string?>("  "), TimeSpan.Zero, new FakeTimeProvider());
+        using var failing = new NameSuggestionDebouncer((_, _) => throw new HttpRequestException("offline"));
+        using var blank = new NameSuggestionDebouncer((_, _) => Task.FromResult<string?>("  "));
 
         Assert.Equal(new NameSuggestion(null, "offline"), await failing.SuggestNowAsync(Clip));
         Assert.Equal(new NameSuggestion(null), await blank.SuggestNowAsync(Clip));
+    }
+
+    [Fact]
+    public async Task ASecondRequest_CancelsTheFirst()
+    {
+        var firstRelease = new TaskCompletionSource<string?>();
+        CancellationToken firstToken = default;
+        var callCount = 0;
+        using var debouncer = new NameSuggestionDebouncer((_, token) =>
+        {
+            if (++callCount == 1)
+            {
+                firstToken = token;
+                return firstRelease.Task;
+            }
+
+            return Task.FromResult<string?>("Second");
+        });
+
+        var first = debouncer.SuggestNowAsync(Clip);
+        Assert.True(debouncer.IsBusy);
+        var second = await debouncer.SuggestNowAsync(Clip); // immediately cancels the first
+        firstRelease.SetResult("Too late");
+
+        Assert.Null(await first);
+        Assert.True(firstToken.IsCancellationRequested);
+        Assert.Equal(new NameSuggestion("Second"), second);
     }
 
     [Fact]
@@ -146,7 +171,7 @@ public class NameSuggestionDebouncerTests
         {
             seen = token;
             return release.Task;
-        }, TimeSpan.Zero, new FakeTimeProvider());
+        });
 
         var pending = debouncer.SuggestNowAsync(Clip);
         Assert.True(debouncer.IsBusy);
@@ -155,6 +180,29 @@ public class NameSuggestionDebouncerTests
 
         Assert.Null(await pending);
         Assert.True(seen.IsCancellationRequested);
+        Assert.False(debouncer.IsBusy);
+    }
+
+    [Fact]
+    public async Task ACancelledRequestFinishingLate_LeavesANewerOneBusy()
+    {
+        var releases = new List<TaskCompletionSource<string?>>();
+        using var debouncer = new NameSuggestionDebouncer((_, _) =>
+        {
+            var release = new TaskCompletionSource<string?>();
+            releases.Add(release);
+            return release.Task;
+        });
+
+        var first = debouncer.SuggestNowAsync(Clip);
+        debouncer.Cancel(); // e.g. a save
+        var second = debouncer.SuggestNowAsync(Clip);
+        releases[0].SetResult("Too late");
+
+        Assert.Null(await first);
+        Assert.True(debouncer.IsBusy);
+        releases[1].SetResult("Fresh");
+        Assert.Equal(new NameSuggestion("Fresh"), await second);
         Assert.False(debouncer.IsBusy);
     }
 }

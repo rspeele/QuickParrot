@@ -16,8 +16,6 @@ public sealed record ClipEditorOptions
     /// <summary>Optional AI namer: given the selected audio, returns a short name or null. Enables "Suggest name".</summary>
     public Func<EditableAudio, CancellationToken, Task<string?>>? SuggestName { get; init; }
 
-    public TimeSpan SuggestDelay { get; init; } = NameSuggestionDebouncer.DefaultDelay;
-
     /// <summary>Whether releasing a selection-edge drag plays a 1 s sample of that edge.</summary>
     public bool PlaySampleOnDrag { get; init; } = true;
 

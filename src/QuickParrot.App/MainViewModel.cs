@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using QuickParrot.App.Editor;
+using QuickParrot.App.Library;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Editing;
@@ -31,7 +33,7 @@ public sealed record MicDuckModeChoice(MicDuckMode Mode, string Label);
 
 public sealed record MouseButtonChoice(PushToTalkMouseButton Button, string Label);
 
-public sealed class MainViewModel : ObservableObject
+public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private readonly QuickParrotEngine _engine;
     private readonly IAudioDeviceCatalog _devices;
@@ -44,10 +46,13 @@ public sealed class MainViewModel : ObservableObject
     private readonly HttpClient _httpClient;
     private readonly IDpapiProtector _protector;
     private readonly SynchronizationContext _ui;
+    private readonly TimeProvider _time;
     private readonly DiagnosticsStatusLine _diagnosticsStatus = new();
     private readonly HashSet<string> _openGrabIds = [];
     private readonly Dictionary<string, int> _savedGrabCounts = [];
+    private readonly Dictionary<string, ClipEditorViewModel> _openEditors = [];
     private LibraryBrowser? _browser;
+    private LibraryWatcher? _libraryWatcher;
     private IReadOnlyList<LibraryItem> _entries = [];
     private IReadOnlyList<DeviceChoice> _cableChoices = [];
     private IReadOnlyList<DeviceChoice> _monitorChoices = [];
@@ -90,7 +95,8 @@ public sealed class MainViewModel : ObservableObject
         HttpClient httpClient,
         IDpapiProtector protector,
         DiagnosticsViewModel diagnostics,
-        string? startupWarning = null)
+        string? startupWarning = null,
+        TimeProvider? time = null)
     {
         _engine = engine;
         _devices = devices;
@@ -102,6 +108,7 @@ public sealed class MainViewModel : ObservableObject
         _encoder = encoder;
         _httpClient = httpClient;
         _protector = protector;
+        _time = time ?? TimeProvider.System;
         Diagnostics = diagnostics;
         PendingGrabs = new PendingGrabsViewModel(grabStore, engine, OpenGrabAsync);
         diagnostics.ReportChanged += report =>
@@ -554,6 +561,7 @@ public sealed class MainViewModel : ObservableObject
             _savedGrabCounts[grab.Id] = _savedGrabCounts.GetValueOrDefault(grab.Id) + 1;
             RefreshLibraryView();
         };
+        _openEditors[grab.Id] = editorViewModel;
 
         EditorRequested?.Invoke(new GrabEditorRequest(editorViewModel, grab));
     }
@@ -562,6 +570,7 @@ public sealed class MainViewModel : ObservableObject
     public void OnGrabEditorClosed(PendingGrab grab, ClipEditorOutcome outcome)
     {
         _openGrabIds.Remove(grab.Id);
+        _openEditors.Remove(grab.Id);
         var savedCount = _savedGrabCounts.Remove(grab.Id, out var count) ? count : 0;
         if (!PendingGrabCleanupRule.ShouldDelete(outcome == ClipEditorOutcome.Discarded, savedCount))
             return;
@@ -710,19 +719,72 @@ public sealed class MainViewModel : ObservableObject
         ShowEntries();
     }
 
+    /// <summary>The full path of the folder currently shown on the Library tab, or null with no library chosen.</summary>
+    public string? LibraryFolderFullPath =>
+        _browser is null ? null : LibraryPathResolver.FullPath(_engine.Settings.LibraryRoot!, _browser.CurrentPath);
+
+    public bool CanOpenInExplorer => LibraryFolderFullPath is not null;
+
+    /// <summary>Opens the folder currently shown on the Library tab in Windows Explorer.</summary>
+    public void OpenCurrentFolderInExplorer()
+    {
+        if (LibraryFolderFullPath is not { } path)
+            return;
+
+        if (!Directory.Exists(path))
+        {
+            RefreshLibraryView();
+            Status = "That folder no longer exists.";
+            return;
+        }
+
+        try
+        {
+            // Shell-opening the folder itself sidesteps explorer.exe's own argument parsing (commas, "D:\" roots).
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Status = $"Couldn't open the folder: {e.Message}";
+        }
+    }
+
+    public void Dispose() => _libraryWatcher?.Dispose();
+
     private void OpenLibrary(string? root)
     {
+        _libraryWatcher?.Dispose();
+        _libraryWatcher = null;
         _browser = string.IsNullOrEmpty(root) ? null : new LibraryBrowser(new FileSystemFolderSource(root));
         LibraryRoot = string.IsNullOrEmpty(root) ? "(no sound library chosen)" : root;
+        if (!string.IsNullOrEmpty(root))
+        {
+            _libraryWatcher = new LibraryWatcher(root, _time);
+            _libraryWatcher.Changed += () => _ui.Post(_ => OnLibraryChanged(), null);
+        }
+
         ShowEntries();
+    }
+
+    // Raised off the UI thread by the watcher (already marshalled by the caller); refreshes the Library tab's
+    // listing (falling back to the nearest existing ancestor) and every open editor's folder list.
+    private void OnLibraryChanged()
+    {
+        RefreshLibraryView();
+        foreach (var editor in _openEditors.Values)
+            editor.RefreshFolders();
     }
 
     private void ShowEntries()
     {
-        Entries = _browser?.Entries.Select(e => new LibraryItem(e)).ToList() ?? [];
+        var entries = _browser?.Entries.Select(e => new LibraryItem(e)).ToList() ?? [];
+        if (!entries.SequenceEqual(_entries)) // unchanged after a live refresh: keep the list's focus and scroll position
+            Entries = entries;
         LibraryWarning = _browser?.OverlayTruncationWarning ?? "";
         OnPropertyChanged(nameof(CurrentPath));
         OnPropertyChanged(nameof(CanGoUp));
+        OnPropertyChanged(nameof(LibraryFolderFullPath));
+        OnPropertyChanged(nameof(CanOpenInExplorer));
     }
 
     private void RefreshLibraryView()

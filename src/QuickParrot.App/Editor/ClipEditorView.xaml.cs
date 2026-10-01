@@ -11,12 +11,34 @@ public partial class ClipEditorView : UserControl
     public ClipEditorView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
     }
 
     /// <summary>Raised by Done and Discard; the hosting window closes.</summary>
     public event Action<ClipEditorOutcome>? CloseRequested;
 
     private ClipEditorViewModel Vm => (ClipEditorViewModel)DataContext;
+
+    /// <summary>Ctrl+S: focuses the name box and selects any text in it, so typing a name replaces it.</summary>
+    public void FocusName()
+    {
+        NameBox.Focus();
+        NameBox.SelectAll();
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is ClipEditorViewModel old)
+            old.FolderBrowseRequested -= OnFolderBrowseRequested;
+        if (e.NewValue is ClipEditorViewModel vm)
+            vm.FolderBrowseRequested += OnFolderBrowseRequested;
+    }
+
+    private void OnFolderBrowseRequested(string initialDirectory)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = initialDirectory };
+        Vm.ApplyBrowsedFolder(dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FolderName : null);
+    }
 
     private void Wave_SelectionCommitted(object sender, RoutedEventArgs e)
     {

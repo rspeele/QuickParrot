@@ -21,6 +21,8 @@
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Left" Content="Up" Padding="8,2" IsEnabled="{Binding CanGoUp}" Click="Up_Click" />
                         <Button DockPanel.Dock="Right" Content="Stop" Padding="12,2" Click="Stop_Click" />
+                        <Button DockPanel.Dock="Right" Content="Open in Explorer" Padding="8,2" Margin="0,0,6,0"
+                                IsEnabled="{Binding CanOpenInExplorer}" Click="OpenInExplorer_Click" />
                         <TextBlock Text="{Binding CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
 

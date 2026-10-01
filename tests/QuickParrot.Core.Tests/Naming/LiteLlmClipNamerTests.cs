@@ -18,6 +18,8 @@ public class LiteLlmClipNamerTests
     private static string ChatJson(string content) =>
         $$"""{ "choices": [ { "message": { "content": {{System.Text.Json.JsonSerializer.Serialize(content)}} } } ] }""";
 
+    private static HttpResponseMessage Json(HttpStatusCode status, string body) => new(status) { Content = new StringContent(body) };
+
     [Fact]
     public async Task SuggestAsync_SendsExpectedTranscriptionRequest()
     {
@@ -59,7 +61,8 @@ public class LiteLlmClipNamerTests
         Assert.Contains("\"model\":\"gpt-4o-mini\"", body);
         Assert.Contains("hello there", body);
         Assert.Contains("\"temperature\":0.2", body);
-        Assert.Contains("\"max_tokens\":60", body);
+        Assert.Contains("\"max_completion_tokens\":60", body);
+        Assert.DoesNotContain("\"max_tokens\"", body);
         Assert.Contains("Transcript:\\nhello there", body);
     }
 
@@ -146,6 +149,56 @@ public class LiteLlmClipNamerTests
         Assert.Null(result!.Name);
         Assert.Contains("500", result.ErrorMessage);
         Assert.Equal("hello", result.Transcript);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ChatRejectsTemperature_RetriesWithoutItAndSucceeds()
+    {
+        var chatAttempts = 0;
+        var handler = new FakeHttpMessageHandler(async (request, ct) =>
+        {
+            if (request.RequestUri!.ToString().Contains("transcriptions"))
+                return Json(HttpStatusCode.OK, TranscriptionJson("hello"));
+
+            chatAttempts++;
+            var body = await request.Content!.ReadAsStringAsync(ct);
+            if (chatAttempts == 1)
+            {
+                Assert.Contains("\"temperature\"", body);
+                return Json(HttpStatusCode.BadRequest, """{ "error": { "message": "Unsupported value: 'temperature'" } }""");
+            }
+
+            Assert.DoesNotContain("\"temperature\"", body);
+            return Json(HttpStatusCode.OK, ChatJson("Retried Name"));
+        });
+        var namer = CreateNamer(handler);
+
+        var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
+
+        Assert.Equal(2, chatAttempts);
+        Assert.Equal("Retried Name", result!.Name);
+        Assert.Null(result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ChatRejectsSomethingElse_DoesNotRetry()
+    {
+        var chatAttempts = 0;
+        var handler = FakeHttpMessageHandler.Json(request =>
+        {
+            if (request.RequestUri!.ToString().Contains("transcriptions"))
+                return (HttpStatusCode.OK, TranscriptionJson("hello"));
+
+            chatAttempts++;
+            return (HttpStatusCode.BadRequest, """{ "error": { "message": "model not found" } }""");
+        });
+        var namer = CreateNamer(handler);
+
+        var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
+
+        Assert.Equal(1, chatAttempts);
+        Assert.Null(result!.Name);
+        Assert.Contains("400", result.ErrorMessage);
     }
 
     [Fact]

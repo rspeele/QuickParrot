@@ -15,11 +15,19 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 {
     private static readonly TimeSpan PlayheadInterval = TimeSpan.FromMilliseconds(30);
 
+    /// <summary>
+    /// A sentinel "Browse…" row appended to <see cref="Folders"/>; selecting it opens a folder picker instead.
+    /// Its RelativePath doubles as the display text (see <see cref="LibraryFolder.Display"/>), not a real path —
+    /// intercepted by reference before it's ever used as one.
+    /// </summary>
+    private static readonly LibraryFolder BrowseEntry = new("Browse…", "Browse…", 0);
+
     private readonly IEditorPreview _preview;
     private readonly ClipEditorOptions _options;
     private readonly NameSuggestionDebouncer? _namer;
     private readonly DispatcherTimer _playheadTimer;
     private readonly Dispatcher _dispatcher;
+    private readonly SelectionHistory _history;
     private ClipSelection _selection;
     private int _cursorFrame;
     private double _playheadFrame = double.NaN;
@@ -30,12 +38,12 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     private double? _selectionLufs;
     private int _measureVersion;
     private string _name = "";
-    private string _nameHint = "";
     private bool _nameEditedByUser;
     private bool _isSuggesting;
     private bool _isSaving;
     private string _status = "";
     private LibraryFolder _selectedFolder;
+    private IReadOnlyList<LibraryFolder> _libraryFolders;
     private CancellationTokenSource? _playCts;
 
     public ClipEditorViewModel(EditableAudio audio, IEditorPreview preview, IClipEncoder encoder, ClipEditorOptions options)
@@ -45,27 +53,30 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
         Session = new ClipEditorSession(audio, encoder, options.Loudness);
         _selection = Session.Selection;
+        _history = new SelectionHistory(_selection);
         _cursorFrame = Session.Cursor;
         _playSampleOnDrag = options.PlaySampleOnDrag;
         _name = string.IsNullOrWhiteSpace(audio.SuggestedTitle) ? "" : ClipFileNames.Sanitize(audio.SuggestedTitle);
 
-        Folders = LibraryFolderList.Build(new FileSystemFolderSource(options.LibraryRoot));
-        _selectedFolder = LibraryFolderList.Find(Folders, options.InitialFolder);
+        _libraryFolders = LibraryFolderList.Build(new FileSystemFolderSource(options.LibraryRoot));
+        Folders = [.. _libraryFolders, BrowseEntry];
+        _selectedFolder = LibraryFolderList.Find(_libraryFolders, options.InitialFolder);
 
         if (options.SuggestName is { } suggest)
-            _namer = new NameSuggestionDebouncer(suggest, options.SuggestDelay, TimeProvider.System);
+            _namer = new NameSuggestionDebouncer(suggest);
 
         _playheadTimer = new DispatcherTimer(DispatcherPriority.Render, _dispatcher) { Interval = PlayheadInterval };
         _playheadTimer.Tick += (_, _) => UpdatePlayhead();
         _preview.Stopped += OnPreviewStopped;
 
         MeasureSelection();
-        if (_name.Length == 0)
-            _ = AutoSuggestNameAsync();
     }
 
     /// <summary>Raised after each clip is saved.</summary>
     public event Action<SavedClip>? ClipSaved;
+
+    /// <summary>Raised when "Browse…" is picked, with the folder a picker dialog should start in; the view owns the dialog.</summary>
+    public event Action<string>? FolderBrowseRequested;
 
     public ClipEditorSession Session { get; }
 
@@ -132,7 +143,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string NormalizeLabel => string.Create(CultureInfo.CurrentCulture, $"Normalize loudness to {_options.Loudness.TargetLufs:0.#} LUFS");
+    public string NormalizeLabel => "Normalize to ordinary speaking volume";
 
     public bool PlaySampleOnDrag
     {
@@ -144,21 +155,24 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>A plain-words description of the normalization gain; hidden (empty) unless <see cref="Normalize"/> is on.</summary>
     public string LoudnessText
     {
         get
         {
+            if (!_normalize)
+                return "";
             if (_selectionLufs is not { } lufs)
-                return "Measuring loudness…";
+                return "Measuring…";
             if (!double.IsFinite(lufs))
                 return "Selection is silent";
 
-            var measured = string.Create(CultureInfo.CurrentCulture, $"Selection: {lufs:0.0} LUFS");
-            if (!_normalize)
-                return measured;
-
             var gain = LoudnessNormalizer.GainDbFor(lufs, _options.Loudness);
-            return string.Create(CultureInfo.CurrentCulture, $"{measured}  ({gain:+0.0;−0.0;0.0} dB)");
+            if (Math.Abs(gain) < 0.5)
+                return "Already about right";
+
+            var direction = gain > 0 ? "turned up" : "turned down";
+            return string.Create(CultureInfo.CurrentCulture, $"Will be {direction} {Math.Abs(gain):0.#} dB");
         }
     }
 
@@ -171,22 +185,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
                 _nameEditedByUser = value.Length > 0;
         }
     }
-
-    /// <summary>
-    /// A subtle note next to the name box for errors from automatic (debounced) suggestions, e.g. "No speech was
-    /// detected" — these mustn't steal the status line from a "Saved …" message or a manual save in progress.
-    /// </summary>
-    public string NameHint
-    {
-        get => _nameHint;
-        private set
-        {
-            if (SetField(ref _nameHint, value))
-                OnPropertyChanged(nameof(HasNameHint));
-        }
-    }
-
-    public bool HasNameHint => _nameHint.Length > 0;
 
     public bool CanSuggestName => _namer is not null && !_isSuggesting;
 
@@ -207,12 +205,23 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    public IReadOnlyList<LibraryFolder> Folders { get; }
+    public IReadOnlyList<LibraryFolder> Folders { get; private set; }
 
     public LibraryFolder SelectedFolder
     {
         get => _selectedFolder;
-        set => SetField(ref _selectedFolder, value ?? Folders[0]);
+        set
+        {
+            if (ReferenceEquals(value, BrowseEntry))
+            {
+                OnPropertyChanged(nameof(SelectedFolder)); // the combo box picked "Browse…"; snap it back to the real selection
+                var initialDirectory = FolderPath(_selectedFolder);
+                _dispatcher.BeginInvoke(() => FolderBrowseRequested?.Invoke(initialDirectory)); // after the dropdown closes
+                return;
+            }
+
+            SetField(ref _selectedFolder, value ?? Folders[0]);
+        }
     }
 
     public bool CanSave => Session.CanSave && !_isSaving;
@@ -228,15 +237,15 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     public ClipEditorOutcome Outcome { get; set; } = ClipEditorOutcome.Done;
 
     /// <summary>
-    /// Called when a selection drag ends: snaps its edges to quiet points, re-measures, re-suggests a name, and
-    /// (if enabled) plays a 1 s sample of the edge the drag touched.
+    /// Called when a selection drag ends: snaps its edges to quiet points, re-measures, and (if enabled) plays a
+    /// 1 s sample of the edge the drag touched. Naming is manual — see <see cref="SuggestNameAsync"/>.
     /// </summary>
     public void CommitSelection(SelectionDragTarget target, int anchorFrame)
     {
         var snapped = Session.Select(_selection, snap: true);
         ApplySelection(snapped);
+        _history.Push(snapped);
         MeasureSelection();
-        _ = AutoSuggestNameAsync();
         if (_playSampleOnDrag)
             _ = PlayAsync(PlaybackPlanner.DragReleaseSampleRange(snapped, target, anchorFrame, OneSecondFrames));
     }
@@ -245,9 +254,15 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     {
         Session.SelectAll();
         ApplySelection(Session.Selection);
+        _history.Push(_selection);
         MeasureSelection();
-        _ = AutoSuggestNameAsync();
     }
+
+    /// <summary>Ctrl+Z: steps back to the previous selection, if any. Re-measures but doesn't play a sample or suggest a name.</summary>
+    public void Undo() => ApplyHistorySelection(_history.Undo());
+
+    /// <summary>Ctrl+Y / Ctrl+Shift+Z: re-applies the selection undone most recently, if any.</summary>
+    public void Redo() => ApplyHistorySelection(_history.Redo());
 
     /// <summary>"[" or "]": sets that edge to the playhead (while playing) or the cursor (while stopped); see <see cref="PlaybackPlanner"/>.</summary>
     public void SetSelectionEdgeAtPlayheadOrCursor(bool isStart)
@@ -259,8 +274,8 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             : PlaybackPlanner.SetSelectionEnd(_selection, target, totalFrames);
 
         ApplySelection(Session.Select(candidate, snap: true));
+        _history.Push(_selection);
         MeasureSelection();
-        _ = AutoSuggestNameAsync();
     }
 
     public Task TogglePlayAsync()
@@ -282,14 +297,15 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     /// <summary>Stops this editor's preview; another editor window's preview on the shared output is left playing.</summary>
     public void Stop() => StopInternal(manualStop: true);
 
+    /// <summary>Suggest name button / Ctrl+E: requests a name now. No-op if naming isn't configured or already in flight.</summary>
     public async Task SuggestNameAsync()
     {
-        if (_namer is null)
+        if (_namer is null || _isSuggesting)
             return;
 
         IsSuggesting = true;
-        NameHint = "";
-        ApplySuggestion(await _namer.SuggestNowAsync(Session.SelectionAudio()), force: true);
+        _nameEditedByUser = false; // about to replace the name; typing while this is in flight should still win
+        ApplySuggestion(await _namer.SuggestNowAsync(Session.SelectionAudio()));
     }
 
     public async Task SaveAsync()
@@ -314,8 +330,14 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             IsSuggesting = false;
             _name = "";
             _nameEditedByUser = false;
-            NameHint = "";
             OnPropertyChanged(nameof(Name));
+
+            var next = Session.PostSaveSelection(selection);
+            ApplySelection(Session.Select(next, snap: false));
+            CursorFrame = _selection.Start;
+            _history.Push(_selection);
+            MeasureSelection();
+
             ClipSaved?.Invoke(saved);
         }
         catch (Exception e)
@@ -419,6 +441,16 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanSave));
     }
 
+    /// <summary>Applies a selection popped off the undo history: re-measures only, no sample playback or name suggestion.</summary>
+    private void ApplyHistorySelection(ClipSelection? selection)
+    {
+        if (selection is not { } value)
+            return;
+
+        ApplySelection(Session.Select(value, snap: false));
+        MeasureSelection();
+    }
+
     private async void MeasureSelection()
     {
         var version = ++_measureVersion;
@@ -433,41 +465,20 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(LoudnessText));
     }
 
-    private async Task AutoSuggestNameAsync()
+    // A null result means a save or Dispose() cancelled it while in flight; nothing to report.
+    private void ApplySuggestion(NameSuggestion? suggestion)
     {
-        if (_namer is null || _nameEditedByUser || Session.Selection.Length <= 0)
-            return;
-
-        IsSuggesting = true;
-        ApplySuggestion(await _namer.RequestAsync(Session.SelectionAudio()), force: false);
-    }
-
-    // A null result means it was superseded by a newer request, which owns the busy state.
-    // Automatic (debounced) suggestions never touch Status: that would overwrite a "Saved …" message with something
-    // like "No speech was detected" every time the selection settles. Their errors go to the quieter NameHint instead.
-    private void ApplySuggestion(NameSuggestion? suggestion, bool force)
-    {
-        IsSuggesting = _namer?.IsBusy == true;
+        IsSuggesting = _namer?.IsBusy == true; // a request cancelled by a save may finish after a newer one started
         if (suggestion is null)
             return;
 
         if (suggestion.Error is { } error)
-        {
-            if (force)
-                Status = $"Couldn't suggest a name: {error}";
-            else
-                NameHint = error;
-        }
+            Status = $"Couldn't suggest a name: {error}";
         else if (suggestion.Name is null)
-        {
-            if (force)
-                Status = "No name suggested.";
-        }
-        else if (force || !_nameEditedByUser)
+            Status = "No name suggested.";
+        else if (!_nameEditedByUser) // the user may have typed a name of their own while this was in flight
         {
             _name = suggestion.Name;
-            _nameEditedByUser = false;
-            NameHint = "";
             OnPropertyChanged(nameof(Name));
         }
     }
@@ -478,7 +489,45 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanSave));
     }
 
-    private string FolderPath(LibraryFolder folder) => folder.RelativePath.Length == 0
-        ? _options.LibraryRoot
-        : Path.Combine(_options.LibraryRoot, folder.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+    private string FolderPath(LibraryFolder folder) => LibraryPathResolver.FullPath(_options.LibraryRoot, folder.RelativePath);
+
+    // Leaves the list (and the combo box's open dropdown) alone when nothing about the folders changed.
+    private void RebuildFolders()
+    {
+        var latest = LibraryFolderList.Build(new FileSystemFolderSource(_options.LibraryRoot));
+        if (latest.SequenceEqual(_libraryFolders))
+            return;
+
+        _libraryFolders = latest;
+        Folders = [.. latest, BrowseEntry];
+        OnPropertyChanged(nameof(Folders));
+    }
+
+    /// <summary>Called after a folder picked via <see cref="FolderBrowseRequested"/> comes back; null means the dialog was cancelled.</summary>
+    public void ApplyBrowsedFolder(string? pickedFullPath)
+    {
+        if (pickedFullPath is null)
+            return; // cancelled; the combo box already snapped back to the previous selection
+
+        var relative = LibraryPathResolver.RelativePathWithin(_options.LibraryRoot, pickedFullPath);
+        if (relative is null)
+        {
+            Status = $"Pick a folder inside your library ({_options.LibraryRoot}).";
+            return;
+        }
+
+        RebuildFolders();
+        var found = LibraryFolderList.Find(_libraryFolders, relative);
+        SelectedFolder = found;
+        if (!found.RelativePath.Equals(relative, StringComparison.OrdinalIgnoreCase))
+            Status = $"That folder isn't listed (hidden or nested too deep), so clips will go to {found.Display}.";
+    }
+
+    /// <summary>Call when the library changes on disk: rebuilds the folder list, keeping the selection if it still exists.</summary>
+    public void RefreshFolders()
+    {
+        var previousPath = _selectedFolder.RelativePath;
+        RebuildFolders();
+        SelectedFolder = LibraryFolderList.Find(_libraryFolders, previousPath);
+    }
 }

@@ -35,9 +35,13 @@ public partial class ClipEditorWindow : Window
         var typing = Keyboard.FocusedElement is TextBoxBase;
         switch (e.Key)
         {
-            case Key.Space or Key.Enter or Key.OemOpenBrackets or Key.OemCloseBrackets when e.IsRepeat:
-                e.Handled = !typing || e.Key == Key.Enter; // holding a key mustn't toggle play, save, or re-edit the selection repeatedly
+            case Key.Space or Key.Enter or Key.OemOpenBrackets or Key.OemCloseBrackets or Key.S or Key.E when e.IsRepeat:
+            {
+                // holding a key mustn't toggle play, save, re-edit the selection, replay+refocus, or re-suggest repeatedly
+                var isControlShortcut = (e.Key is Key.S or Key.E) && Keyboard.Modifiers == ModifierKeys.Control;
+                e.Handled = !typing || e.Key == Key.Enter || isControlShortcut;
                 break;
+            }
             case Key.Space when !typing && Keyboard.Modifiers == ModifierKeys.None:
                 _ = _viewModel.TogglePlayAsync();
                 e.Handled = true;
@@ -60,6 +64,25 @@ public partial class ClipEditorWindow : Window
                 break;
             case Key.OemCloseBrackets when !typing && Keyboard.Modifiers == ModifierKeys.None:
                 _viewModel.SetSelectionEdgeAtPlayheadOrCursor(isStart: false);
+                e.Handled = true;
+                break;
+            // Both work regardless of focus, including from inside the name box itself.
+            case Key.S when Keyboard.Modifiers == ModifierKeys.Control:
+                _ = _viewModel.PlaySelectionAsync();
+                Editor.FocusName();
+                e.Handled = true;
+                break;
+            case Key.E when Keyboard.Modifiers == ModifierKeys.Control:
+                _ = _viewModel.SuggestNameAsync();
+                e.Handled = true;
+                break;
+            case Key.Z when !typing && Keyboard.Modifiers == ModifierKeys.Control:
+                _viewModel.Undo();
+                e.Handled = true;
+                break;
+            case Key.Z when !typing && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift):
+            case Key.Y when !typing && Keyboard.Modifiers == ModifierKeys.Control:
+                _viewModel.Redo();
                 e.Handled = true;
                 break;
         }

@@ -33,6 +33,7 @@ public partial class App : System.Windows.Application
     private EditorPreview? _editorPreview;
     private HttpClient? _httpClient;
     private DpapiProtector? _dpapiProtector;
+    private MainViewModel? _viewModel;
     private (bool Enabled, string? MonitorDeviceId)? _lastReplayCaptureConfig;
     private int _crashCleanupStarted;
 
@@ -155,6 +156,7 @@ public partial class App : System.Windows.Application
             _dpapiProtector,
             new DiagnosticsViewModel(_diagnostics, new LoopbackTester(), _devices, _devices, _engine),
             warnings.Count == 0 ? null : string.Join(" ", warnings));
+        _viewModel = viewModel;
 
         // All raise these on their own thread, so they must be marshalled onto the UI thread.
         _overlay.ErrorOccurred += message =>
@@ -215,6 +217,7 @@ public partial class App : System.Windows.Application
         if (_devices is not null && _diagnostics is not null)
             _devices.SetupChanged -= _diagnostics.RequestCheck;
         _diagnostics?.Dispose();
+        _viewModel?.Dispose();
         _engine?.Dispose();
         _hook?.Dispose();
         if (_engine is not null && _overlay is not null)

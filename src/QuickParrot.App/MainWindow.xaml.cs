@@ -55,6 +55,8 @@ public partial class MainWindow : Window
 
     private void Up_Click(object sender, RoutedEventArgs e) => _viewModel.GoUp();
 
+    private void OpenInExplorer_Click(object sender, RoutedEventArgs e) => _viewModel.OpenCurrentFolderInExplorer();
+
     private void Stop_Click(object sender, RoutedEventArgs e) => _viewModel.Stop();
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => _viewModel.RefreshDevices();

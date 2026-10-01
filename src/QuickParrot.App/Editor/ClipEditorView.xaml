@@ -57,25 +57,20 @@
                     <RowDefinition />
                     <RowDefinition />
                     <RowDefinition />
-                    <RowDefinition />
                 </Grid.RowDefinitions>
 
                 <TextBlock Text="Name" Style="{StaticResource Label}" Margin="0,0,10,6" />
                 <TextBox x:Name="NameBox" Grid.Column="1" Margin="0,0,6,6" Padding="2,2" VerticalContentAlignment="Center"
                          Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
                 <Button Grid.Column="2" Margin="0,0,0,6" Content="{Binding SuggestButtonText}" IsEnabled="{Binding CanSuggestName}"
-                        Visibility="{Binding HasNamer, Converter={StaticResource BoolToVisibility}}" Click="SuggestName_Click" />
+                        Visibility="{Binding HasNamer, Converter={StaticResource BoolToVisibility}}" Click="SuggestName_Click"
+                        ToolTip="Ctrl+E" />
 
-                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,6,6" FontStyle="Italic" TextWrapping="Wrap"
-                           Text="{Binding NameHint}" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
-                           Visibility="{Binding HasNameHint, Converter={StaticResource BoolToVisibility}}"
-                           ToolTip="A note from automatic name suggestion; it doesn't affect the status line below." />
-
-                <TextBlock Grid.Row="2" Text="Folder" Style="{StaticResource Label}" Margin="0,0,10,6" />
-                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,0,6,6" ItemsSource="{Binding Folders}"
+                <TextBlock Grid.Row="1" Text="Folder" Style="{StaticResource Label}" Margin="0,0,10,6" />
+                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,6,6" ItemsSource="{Binding Folders}"
                           DisplayMemberPath="Display" SelectedItem="{Binding SelectedFolder}" />
 
-                <CheckBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding Normalize}">
+                <CheckBox Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding Normalize}">
                     <TextBlock>
                         <Run Text="{Binding NormalizeLabel, Mode=OneWay}" />
                         <Run Text="   " />
@@ -83,7 +78,7 @@
                              Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
                     </TextBlock>
                 </CheckBox>
-                <Button Grid.Row="2" Grid.RowSpan="2" Grid.Column="2" Content="Save clip" FontWeight="SemiBold" MinWidth="96"
+                <Button Grid.Row="1" Grid.RowSpan="2" Grid.Column="2" Content="Save clip" FontWeight="SemiBold" MinWidth="96"
                         VerticalAlignment="Stretch" Margin="0,0,0,0" IsEnabled="{Binding CanSave}" Click="Save_Click"
                         ToolTip="Save the selection to the library (Enter). The editor stays open for more bites." />
             </Grid>
@@ -112,7 +107,7 @@
         </DockPanel>
 
         <TextBlock DockPanel.Dock="Bottom" Margin="0,4,0,0" Style="{StaticResource Label}" FontSize="11"
-                   Text="Shortcuts: Space play/stop selection  ·  [ set selection start  ·  ] set selection end  ·  Ctrl+A select all" />
+                   Text="Shortcuts: Space play/stop selection  ·  [ set selection start  ·  ] set selection end  ·  Ctrl+A select all  ·  Ctrl+S play &amp; name this bite  ·  Ctrl+E suggest name  ·  Ctrl+Z / Ctrl+Y undo/redo selection" />
 
         <ScrollBar DockPanel.Dock="Bottom" Orientation="Horizontal" Minimum="0" SmallChange="1"
                    Maximum="{Binding ScrollMaximum, ElementName=Wave}"

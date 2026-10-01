@@ -196,3 +196,38 @@ public class StopMarkerTests
         Assert.Equal(5555, PlaybackPlanner.StopMarker(1234, manualStop: true, frame: 5555));
     }
 }
+
+public class PostSaveSelectionTests
+{
+    [Fact]
+    public void PlentyLeftAfterTheSave_SelectsFromItsEndToTheCaptureEnd()
+    {
+        var saved = new ClipSelection(1000, 9000);
+
+        Assert.Equal(new ClipSelection(9000, 20000), PlaybackPlanner.PostSaveSelection(saved, totalFrames: 20000, toleranceFrames: 2400));
+    }
+
+    [Fact]
+    public void NearTheCaptureEnd_KeepsTheSavedSelection()
+    {
+        var saved = new ClipSelection(1000, 18000);
+
+        Assert.Equal(saved, PlaybackPlanner.PostSaveSelection(saved, totalFrames: 20000, toleranceFrames: 2400));
+    }
+
+    [Fact]
+    public void ExactlyAtTheTolerance_StillResets()
+    {
+        var saved = new ClipSelection(1000, 17600);
+
+        Assert.Equal(new ClipSelection(17600, 20000), PlaybackPlanner.PostSaveSelection(saved, totalFrames: 20000, toleranceFrames: 2400));
+    }
+
+    [Fact]
+    public void SavedSelectionConsumedTheWholeRemainder_KeepsIt()
+    {
+        var saved = new ClipSelection(1000, 20000);
+
+        Assert.Equal(saved, PlaybackPlanner.PostSaveSelection(saved, totalFrames: 20000, toleranceFrames: 2400));
+    }
+}

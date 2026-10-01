@@ -68,6 +68,10 @@ public sealed class ClipEditorSession
 
     public EditableAudio SelectionAudio() => Audio.Slice(Selection.Start, Selection.End);
 
+    /// <summary>Where the selection should move after saving <paramref name="saved"/>; see <see cref="PlaybackPlanner.PostSaveSelection"/>.</summary>
+    public ClipSelection PostSaveSelection(ClipSelection saved) =>
+        PlaybackPlanner.PostSaveSelection(saved, Audio.FrameCount, MinSelectionFrames);
+
     /// <summary>Renders the current selection and saves it as <paramref name="name"/> in <paramref name="folder"/>. Blocking.</summary>
     public SavedClip Save(ClipSelection selection, string? name, string folder, bool normalize, CancellationToken cancellationToken)
     {

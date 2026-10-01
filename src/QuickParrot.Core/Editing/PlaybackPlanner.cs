@@ -54,4 +54,12 @@ public static class PlaybackPlanner
 
     /// <summary>A manual stop marks <paramref name="frame"/>, replacing any earlier mark; a natural end leaves the mark alone.</summary>
     public static double StopMarker(double current, bool manualStop, double frame) => manualStop ? frame : current;
+
+    /// <summary>
+    /// After saving <paramref name="saved"/>: selects from its end to the capture's end, ready for the next bite —
+    /// unless that end is already within <paramref name="toleranceFrames"/> of the capture's end, in which case the
+    /// selection is left as it was saved.
+    /// </summary>
+    public static ClipSelection PostSaveSelection(ClipSelection saved, int totalFrames, int toleranceFrames) =>
+        totalFrames - saved.End < Math.Max(0, toleranceFrames) ? saved : new ClipSelection(saved.End, totalFrames);
 }

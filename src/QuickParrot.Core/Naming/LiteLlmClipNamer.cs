@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -173,19 +174,55 @@ public sealed class LiteLlmClipNamer : IClipNamer
         }
     }
 
+    // Some OpenAI-compatible reasoning models reject "temperature" outright (HTTP 400); when that's the reason,
+    // one retry without it is worth the round trip rather than failing the whole suggestion.
     private async Task<(string? Name, string? Error)> SuggestNameAsync(string transcript, CancellationToken ct)
     {
-        var payload = new
+        var (response, transportError) = await PostChatCompletionAsync(transcript, includeTemperature: true, ct).ConfigureAwait(false);
+        if (transportError is not null || response is null)
+            return (null, transportError);
+
+        using (response)
         {
-            model = _options.ChatModel,
-            temperature = 0.2,
-            max_tokens = MaxNameTokens,
-            messages = new object[]
+            if (response.StatusCode == HttpStatusCode.BadRequest)
             {
-                new { role = "system", content = SystemPrompt },
-                new { role = "user", content = $"Transcript:\n{transcript}" },
-            },
+                var body = await TryReadBodyAsync(response, ct).ConfigureAwait(false);
+                return body is not null && body.Contains("temperature", StringComparison.OrdinalIgnoreCase)
+                    ? await RetryWithoutTemperatureAsync(transcript, ct).ConfigureAwait(false)
+                    : (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            }
+
+            return !response.IsSuccessStatusCode
+                ? (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.")
+                : await ParseNameAsync(response, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<(string? Name, string? Error)> RetryWithoutTemperatureAsync(string transcript, CancellationToken ct)
+    {
+        var (response, transportError) = await PostChatCompletionAsync(transcript, includeTemperature: false, ct).ConfigureAwait(false);
+        if (transportError is not null || response is null)
+            return (null, transportError);
+
+        using (response)
+        {
+            return !response.IsSuccessStatusCode
+                ? (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.")
+                : await ParseNameAsync(response, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<(HttpResponseMessage? Response, string? TransportError)> PostChatCompletionAsync(
+        string transcript, bool includeTemperature, CancellationToken ct)
+    {
+        var messages = new object[]
+        {
+            new { role = "system", content = SystemPrompt },
+            new { role = "user", content = $"Transcript:\n{transcript}" },
         };
+        object payload = includeTemperature
+            ? new { model = _options.ChatModel, temperature = 0.2, max_completion_tokens = MaxNameTokens, messages }
+            : new { model = _options.ChatModel, max_completion_tokens = MaxNameTokens, messages };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildUrl("chat/completions"))
         {
@@ -193,45 +230,53 @@ public sealed class LiteLlmClipNamer : IClipNamer
         };
         AddAuth(request);
 
-        HttpResponseMessage response;
         try
         {
-            response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+            return (await _httpClient.SendAsync(request, ct).ConfigureAwait(false), null);
         }
         catch (HttpRequestException e)
         {
             return (null, $"Couldn't reach the naming service: {e.Message}");
         }
+    }
 
-        using (response)
+    private static async Task<string?> TryReadBodyAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
         {
-            if (!response.IsSuccessStatusCode)
-                return (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
 
-            string body;
-            try
-            {
-                body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            }
-            catch (IOException)
-            {
-                return (null, "Couldn't read the naming response.");
-            }
+    private static async Task<(string? Name, string? Error)> ParseNameAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        string body;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            return (null, "Couldn't read the naming response.");
+        }
 
-            try
-            {
-                using var doc = JsonDocument.Parse(body);
-                var content = doc.RootElement
-                    .GetProperty("choices")[0]
-                    .GetProperty("message")
-                    .GetProperty("content")
-                    .GetString();
-                return (CleanName(FirstNonEmptyLine(content)), null);
-            }
-            catch (Exception e) when (e is JsonException or InvalidOperationException or IndexOutOfRangeException or KeyNotFoundException)
-            {
-                return (null, "Naming service returned an unexpected response.");
-            }
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var content = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+            return (CleanName(FirstNonEmptyLine(content)), null);
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or IndexOutOfRangeException or KeyNotFoundException)
+        {
+            return (null, "Naming service returned an unexpected response.");
         }
     }
 
