@@ -20,18 +20,18 @@ public static class OutputDeviceSelector
     {
         var cable = SelectCable(devices, cableId);
         var monitor = SelectMonitor(devices, monitorId, defaultId);
-        var monitorIsCable = cable is not null && monitor is not null && SameId(cable.Id, monitor.Id);
+        var monitorIsCable = cable is not null && monitor is not null && Endpoints.SameId(cable.Id, monitor.Id);
         return new OutputDeviceSelection(cable, monitor, monitorIsCable);
     }
 
     /// <summary>An explicitly configured active device wins; otherwise VB-CABLE, then Muzychenko's cable.</summary>
     public static AudioDeviceInfo? SelectCable(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId) =>
-        FindActive(devices, configuredId)
+        Endpoints.FindActive(devices, configuredId)
         ?? devices.FirstOrDefault(d => d.IsActive && CableNames.IsVbCableRender(d.Name))
         ?? devices.FirstOrDefault(d => d.IsActive && CableNames.IsMuzychenko(d.Name));
 
     internal static AudioDeviceInfo? SelectMonitor(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId, string? defaultId) =>
-        FindActive(devices, configuredId) ?? FindActive(devices, defaultId);
+        Endpoints.FindActive(devices, configuredId) ?? Endpoints.FindActive(devices, defaultId);
 
     /// <summary>
     /// A real output to make the Windows default in place of the cable: the configured monitor, else the first active
@@ -41,13 +41,8 @@ public static class OutputDeviceSelector
         IReadOnlyList<AudioDeviceInfo> devices, AudioDeviceInfo? cable, string? monitorId)
     {
         var real = devices
-            .Where(d => d.IsActive && !CableNames.IsCableRender(d.Name) && (cable is null || !SameId(d.Id, cable.Id)))
+            .Where(d => d.IsActive && !CableNames.IsCableRender(d.Name) && (cable is null || !Endpoints.SameId(d.Id, cable.Id)))
             .ToList();
-        return FindActive(real, monitorId) ?? real.FirstOrDefault();
+        return Endpoints.FindActive(real, monitorId) ?? real.FirstOrDefault();
     }
-
-    private static AudioDeviceInfo? FindActive(IReadOnlyList<AudioDeviceInfo> devices, string? id) =>
-        id is null ? null : devices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));
-
-    private static bool SameId(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 }

@@ -28,6 +28,13 @@ public static class LibraryPathResolver
             .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
+    /// <summary>The folder containing <paramref name="relativePath"/>; "" for a top-level item (or the root itself).</summary>
+    public static string ParentOf(string relativePath)
+    {
+        var separator = relativePath.LastIndexOf('/');
+        return separator < 0 ? "" : relativePath[..separator];
+    }
+
     private static string TrimTrailingSeparators(string path) =>
         path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 }

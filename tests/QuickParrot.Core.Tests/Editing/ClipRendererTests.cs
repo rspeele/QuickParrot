@@ -14,10 +14,9 @@ public class ClipRendererTests
 
         var rendered = ClipRenderer.Render(source, new ClipSelection(4800, 9600), new ClipRenderOptions(false, new LoudnessOptions()));
 
-        Assert.Equal(4800, rendered.Audio.FrameCount);
-        Assert.Null(rendered.Normalization);
-        Assert.Equal((0f, 0f), (rendered.Audio.Samples.Span[0], rendered.Audio.Samples.Span[^1]));
-        Assert.Equal(source.Samples.Span[4800 * 2 + 1000], rendered.Audio.Samples.Span[1000]);
+        Assert.Equal(4800, rendered.FrameCount);
+        Assert.Equal((0f, 0f), (rendered.Samples.Span[0], rendered.Samples.Span[^1]));
+        Assert.Equal(source.Samples.Span[4800 * 2 + 1000], rendered.Samples.Span[1000]);
         Assert.Equal(copy, source.Samples.ToArray());
     }
 
@@ -31,8 +30,8 @@ public class ClipRendererTests
 
         var rendered = ClipRenderer.Render(Audio(surround, channels: 6), ClipSelection.All(mono.Length), new ClipRenderOptions(true, new LoudnessOptions()));
 
-        Assert.Equal(2, rendered.Audio.Channels);
-        Assert.Equal(-18, LoudnessMeter.IntegratedLufs(rendered.Audio), 0.1);
+        Assert.Equal(2, rendered.Channels);
+        Assert.Equal(-18, Lufs(rendered), 0.1);
     }
 }
 

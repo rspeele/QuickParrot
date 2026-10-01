@@ -33,7 +33,7 @@ public sealed class LibraryBrowser
         if (!CanGoUp)
             return;
 
-        CurrentPath = ParentOf(CurrentPath);
+        CurrentPath = LibraryPathResolver.ParentOf(CurrentPath);
         Refresh();
     }
 
@@ -43,16 +43,10 @@ public sealed class LibraryBrowser
         var entries = _source.GetEntries(CurrentPath);
         while (entries is null && CurrentPath.Length > 0)
         {
-            CurrentPath = ParentOf(CurrentPath);
+            CurrentPath = LibraryPathResolver.ParentOf(CurrentPath);
             entries = _source.GetEntries(CurrentPath);
         }
 
         Entries = entries ?? [];
-    }
-
-    private static string ParentOf(string path)
-    {
-        var separatorIndex = path.LastIndexOf('/');
-        return separatorIndex < 0 ? "" : path[..separatorIndex];
     }
 }

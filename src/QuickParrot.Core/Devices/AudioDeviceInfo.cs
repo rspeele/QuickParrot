@@ -8,7 +8,7 @@ public enum AudioDeviceState
     Unplugged,
 }
 
-public sealed record AudioDeviceInfo(string Id, string Name, AudioDeviceState State)
+public sealed record AudioDeviceInfo(string Id, string Name, AudioDeviceState State) : IAudioEndpoint
 {
     public bool IsActive => State == AudioDeviceState.Active;
 }

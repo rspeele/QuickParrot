@@ -20,7 +20,7 @@ public class LoudnessNormalizerTests
         Assert.InRange(result.MeasuredLufs, -44, -36);
         Assert.Equal(-18, result.OutputLufs, 0.2);
         Assert.Equal(-18, LoudnessMeter.IntegratedLufs(samples, 2, 48000), 0.2);
-        Assert.True(TruePeakMeter.ToDb(TruePeakMeter.PeakLinear(samples, 2)) <= -1);
+        Assert.True(TruePeakDb(samples) <= -1);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class LoudnessNormalizerTests
         var result = Normalize(samples);
 
         Assert.True(result.LimitedFrames > 0);
-        Assert.True(result.OutputTruePeakDbtp <= -1 + 1e-6, $"true peak {result.OutputTruePeakDbtp:0.00} dBTP");
+        Assert.True(TruePeakDb(samples) <= -1 + 1e-6, $"true peak {TruePeakDb(samples):0.00} dBTP");
         Assert.Equal(-18, result.OutputLufs, 0.5);
     }
 
@@ -62,7 +62,7 @@ public class LoudnessNormalizerTests
 
         var result = Normalize(samples, new LoudnessOptions(TargetLufs: -6));
 
-        Assert.True(result.OutputTruePeakDbtp <= -1 + 1e-6);
+        Assert.True(TruePeakDb(samples) <= -1 + 1e-6);
         Assert.True(samples.Max() < DbToLinear(-1));
     }
 
@@ -116,7 +116,7 @@ public class TruePeakMeterTests
         var samples = Sine(12000, 0, 0.1, channels: 1, phase: Math.PI / 4);
 
         Assert.Equal(DbToLinear(-3.01), samples.Max(), 0.001);
-        Assert.Equal(0, TruePeakMeter.ToDb(TruePeakMeter.PeakLinear(samples, 1)), 0.3);
+        Assert.Equal(0, TruePeakDb(samples, 1), 0.3);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class TruePeakMeterTests
     {
         var samples = Sine(997, -6, 0.1);
 
-        Assert.Equal(-6, TruePeakMeter.ToDb(TruePeakMeter.PeakLinear(samples, 2)), 0.05);
+        Assert.Equal(-6, TruePeakDb(samples), 0.05);
     }
 
     [Fact]

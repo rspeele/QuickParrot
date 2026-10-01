@@ -280,7 +280,7 @@ public class AudioSetupDiagnoserTests
     [Fact]
     public void UnknownLevels_AreNotReported()
     {
-        var snapshot = Healthy with { Levels = AudioSetupSnapshot.EmptyById<EndpointLevel>() };
+        var snapshot = Healthy with { Levels = ById<EndpointLevel>() };
 
         Assert.Empty(Diagnose(snapshot));
     }

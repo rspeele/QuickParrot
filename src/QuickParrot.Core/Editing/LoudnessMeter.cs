@@ -1,3 +1,5 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Editing;
 
 /// <summary>
@@ -11,9 +13,6 @@ public static class LoudnessMeter
 
     private const double LoudnessOffset = -0.691;
     private const int StepsPerBlock = 4;
-
-    public static double IntegratedLufs(EditableAudio audio) =>
-        IntegratedLufs(audio.Samples.Span, audio.Channels, audio.SampleRate);
 
     /// <summary>
     /// Integrated loudness in LUFS. Audio shorter than one 400 ms block is measured as a single block spanning all of it
@@ -71,7 +70,7 @@ public static class LoudnessMeter
     {
         var k = Math.Tan(Math.PI * 1681.974450955533 / sampleRate);
         const double q = 0.7071752369554196;
-        var vh = Math.Pow(10, 3.999843853973347 / 20);
+        var vh = Decibels.ToAmplitude(3.999843853973347);
         var vb = Math.Pow(vh, 0.4996667741545416);
         var a0 = 1 + k / q + k * k;
         var shelf = new Biquad(
@@ -89,7 +88,7 @@ public static class LoudnessMeter
     }
 
     public static double BlockLoudness(double weightedMeanSquare) =>
-        weightedMeanSquare > 0 ? LoudnessOffset + 10 * Math.Log10(weightedMeanSquare) : double.NegativeInfinity;
+        LoudnessOffset + Decibels.FromPower(weightedMeanSquare);
 
     private static double Gate(double loudness) => loudness > AbsoluteGateLufs ? loudness : double.NegativeInfinity;
 

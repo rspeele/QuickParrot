@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using QuickParrot.Core.Library;
 
 namespace QuickParrot.Core.Navigation;
@@ -6,8 +8,8 @@ namespace QuickParrot.Core.Navigation;
 // logic and its view-state building so they can never disagree.
 internal sealed record NavigationLayout(
     OverlayLayoutKind Kind,
-    IReadOnlyList<FolderEntry> WheelEntries,
-    IReadOnlyList<IReadOnlyList<FolderEntry>> GridColumns,
+    ImmutableArray<FolderEntry> WheelEntries,
+    ImmutableArray<ImmutableArray<FolderEntry>> GridColumns,
     bool Truncated);
 
 internal static class LayoutBuilder
@@ -18,15 +20,13 @@ internal static class LayoutBuilder
     public static NavigationLayout Build(IReadOnlyList<FolderEntry> entries)
     {
         if (entries.Count <= WheelMaxEntries)
-            return new NavigationLayout(OverlayLayoutKind.Wheel, entries, [], false);
+            return new NavigationLayout(OverlayLayoutKind.Wheel, [.. entries], [], false);
 
-        var truncated = entries.Count > OverlayCapacity.MaxEntries;
-        var limited = truncated ? entries.Take(OverlayCapacity.MaxEntries).ToList() : entries;
-
-        var columns = new List<IReadOnlyList<FolderEntry>>();
-        for (var i = 0; i < limited.Count; i += ColumnSize)
-            columns.Add(limited.Skip(i).Take(ColumnSize).ToList());
-
-        return new NavigationLayout(OverlayLayoutKind.Grid, [], columns, truncated);
+        var columns = entries
+            .Take(OverlayCapacity.MaxEntries)
+            .Chunk(ColumnSize)
+            .Select(ImmutableCollectionsMarshal.AsImmutableArray)
+            .ToImmutableArray();
+        return new NavigationLayout(OverlayLayoutKind.Grid, [], columns, entries.Count > OverlayCapacity.MaxEntries);
     }
 }

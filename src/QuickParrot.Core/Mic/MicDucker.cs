@@ -218,7 +218,7 @@ public sealed class MicDucker : IMicMuter
         try
         {
             var device = _devices.GetCaptureDevices()
-                .FirstOrDefault(d => string.Equals(d.Id, record.DeviceId, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(d => Endpoints.SameId(d.Id, record.DeviceId));
             if (device is null)
             {
                 Forget();

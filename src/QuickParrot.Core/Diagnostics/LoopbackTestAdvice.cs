@@ -1,4 +1,5 @@
 using System.Globalization;
+using QuickParrot.Core.Dsp;
 
 namespace QuickParrot.Core.Diagnostics;
 
@@ -31,7 +32,7 @@ public static class LoopbackTestAdvice
         if (result.Verdict == LoopbackTestVerdict.Failed)
             return [];
 
-        var peakDb = LoopbackTestSpectrum.AmplitudeToDb(result.Peak);
+        var peakDb = Decibels.FromAmplitude(result.Peak, LoopbackTestSpectrum.SilenceDb);
         return
         [
             result.TestSoundDetected ? $"Test sound: heard ({Db(result.TestSoundDb)})" : "Test sound: not heard",

@@ -1,4 +1,4 @@
-namespace QuickParrot.Core.Naming;
+namespace QuickParrot.Core.Dsp;
 
 /// <summary>
 /// Resamples mono audio with windowed-sinc (Lanczos) interpolation, small enough to keep in Core. When downsampling,

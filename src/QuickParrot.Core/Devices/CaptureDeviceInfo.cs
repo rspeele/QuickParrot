@@ -1,7 +1,7 @@
 namespace QuickParrot.Core.Devices;
 
 /// <param name="ListenEnabled">Windows' "Listen to this device" is on for this input.</param>
-public sealed record CaptureDeviceInfo(string Id, string Name, AudioDeviceState State, bool ListenEnabled)
+public sealed record CaptureDeviceInfo(string Id, string Name, AudioDeviceState State, bool ListenEnabled) : IAudioEndpoint
 {
     public bool IsActive => State == AudioDeviceState.Active;
 

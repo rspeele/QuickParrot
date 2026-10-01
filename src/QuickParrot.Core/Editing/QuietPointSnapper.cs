@@ -1,3 +1,5 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Editing;
 
 /// <summary>Nudges selection edges to the quietest nearby point, so cuts land in gaps rather than mid-waveform.</summary>
@@ -61,15 +63,6 @@ public static class QuietPointSnapper
     }
 
     // Frames outside the audio count as silence, so the very start and end are natural cut points.
-    private static double MonoAt(EditableAudio audio, int frame)
-    {
-        if (frame < 0 || frame >= audio.FrameCount)
-            return 0;
-
-        var sum = 0.0;
-        foreach (var sample in audio.Frames(frame, frame + 1))
-            sum += sample;
-
-        return sum / audio.Channels;
-    }
+    private static double MonoAt(EditableAudio audio, int frame) =>
+        frame < 0 || frame >= audio.FrameCount ? 0 : AudioDownmixer.Mean(audio.Frames(frame, frame + 1));
 }

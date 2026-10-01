@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Drawing;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Navigation;
@@ -13,7 +14,7 @@ public sealed class FavoritesGeometryTests
             2 => new FavoriteSlotView(2, "Gone", true, null),
             4 => new FavoriteSlotView(4, "Wilhelm", false, "chord key"),
             _ => new FavoriteSlotView(s, null, false, null),
-        }).ToList(),
+        }).ToImmutableArray(),
         target, lastPlayed, chord);
 
     private static OverlayLayout Compute(OverlayViewState state, float scale = 1, SmallFolderLayout small = SmallFolderLayout.List) =>

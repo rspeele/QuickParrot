@@ -86,7 +86,10 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
 
     /// <summary>Either Ctrl, Alt or Windows key.</summary>
     [JsonIgnore]
-    public bool IsSystemModifier => ScanCode is 0x1D or 0x38 || (IsExtended && ScanCode is 0x5B or 0x5C);
+    public bool IsSystemModifier => ScanCode is 0x1D or 0x38 || IsWindowsKey;
+
+    [JsonIgnore]
+    public bool IsWindowsKey => IsExtended && ScanCode is 0x5B or 0x5C;
 
     public override string ToString() => ScanKeyNames.GetDisplayName(this);
 }

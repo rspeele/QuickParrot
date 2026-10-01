@@ -10,7 +10,7 @@ internal static class ListGeometry
 
     public static OverlayLayout Compute(OverlayViewState state, float scale)
     {
-        var count = state.WheelEntries.Count;
+        var count = state.WheelEntries.Length;
         var contentWidth = Math.Max(HeaderGeometry.Width, PillGeometry.PillWidth);
         var headerHeight = HeaderGeometry.ContentHeight(state) + 2 * HeaderGeometry.Padding;
         var listHeight = count == 0 ? 0 : count * PillGeometry.PillHeight + (count - 1) * RowGap;

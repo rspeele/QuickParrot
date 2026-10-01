@@ -19,7 +19,7 @@ public class ChordNavigatorWheelTests
 
         Assert.NotNull(view);
         Assert.Equal(OverlayLayoutKind.Wheel, view!.Layout);
-        Assert.Equal(2, view.WheelEntries.Count);
+        Assert.Equal(2, view.WheelEntries.Length);
         Assert.Equal("Trump", view.WheelEntries[0].Name);
         Assert.True(view.WheelEntries[0].IsFolder);
         Assert.Equal("clip.wav", view.WheelEntries[1].Name);

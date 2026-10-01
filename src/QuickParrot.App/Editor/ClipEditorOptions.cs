@@ -13,8 +13,8 @@ public sealed record ClipEditorOptions
 
     public LoudnessOptions Loudness { get; init; } = new();
 
-    /// <summary>Optional AI namer: given the selected audio, returns a short name or null. Enables "Suggest name".</summary>
-    public Func<EditableAudio, CancellationToken, Task<string?>>? SuggestName { get; init; }
+    /// <summary>Optional AI namer: given the selected audio, a short name or why there's none. Enables "Suggest name".</summary>
+    public Func<EditableAudio, CancellationToken, Task<NameSuggestion>>? SuggestName { get; init; }
 
     /// <summary>Whether releasing a selection-edge drag plays a 1 s sample of that edge.</summary>
     public bool PlaySampleOnDrag { get; init; } = true;

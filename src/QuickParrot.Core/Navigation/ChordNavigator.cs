@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
@@ -92,7 +93,7 @@ public sealed class ChordNavigator
 
         if (layout.Kind == OverlayLayoutKind.Wheel)
         {
-            return index >= 0 && index < layout.WheelEntries.Count
+            return index >= 0 && index < layout.WheelEntries.Length
                 ? Select(session, layout.WheelEntries[index], shift)
                 : (session, NoActions);
         }
@@ -100,12 +101,12 @@ public sealed class ChordNavigator
         if (session.ZoomedColumn is int zoomedColumn)
         {
             var columnEntries = layout.GridColumns[zoomedColumn - 1];
-            return index >= 0 && index < columnEntries.Count
+            return index >= 0 && index < columnEntries.Length
                 ? Select(session, columnEntries[index], shift)
                 : (session, NoActions);
         }
 
-        return index >= 0 && index < layout.GridColumns.Count
+        return index >= 0 && index < layout.GridColumns.Length
             ? (session with { ZoomedColumn = digit }, NoActions)
             : (session, NoActions);
     }
@@ -182,7 +183,7 @@ public sealed class ChordNavigator
     private Session Relayout(Session session)
     {
         var layout = LayoutBuilder.Build(_source.GetEntries(session.CurrentPath) ?? []);
-        var zoomedColumn = session.ZoomedColumn > layout.GridColumns.Count
+        var zoomedColumn = session.ZoomedColumn > layout.GridColumns.Length
             ? null // column vanished on disk (or folder shrank to a wheel)
             : session.ZoomedColumn;
         return session with { Layout = layout, ZoomedColumn = zoomedColumn };
@@ -200,15 +201,15 @@ public sealed class ChordNavigator
 
         var columns = layout.GridColumns
             .Select((column, i) => new GridColumn(i + 1, NumberEntries(column)))
-            .ToList();
+            .ToImmutableArray();
 
         return new OverlayViewState(
             session.CurrentPath, OverlayLayoutKind.Grid, [], columns, session.ZoomedColumn, layout.Truncated,
             session.Favorites);
     }
 
-    private static IReadOnlyList<NumberedEntry> NumberEntries(IReadOnlyList<FolderEntry> entries) =>
-        entries.Select((e, i) => new NumberedEntry(i + 1, e.Name, e.IsFolder)).ToList();
+    private static ImmutableArray<NumberedEntry> NumberEntries(ImmutableArray<FolderEntry> entries) =>
+        entries.Select((e, i) => new NumberedEntry(i + 1, e.Name, e.IsFolder)).ToImmutableArray();
 
     private sealed record Session(string CurrentPath)
     {

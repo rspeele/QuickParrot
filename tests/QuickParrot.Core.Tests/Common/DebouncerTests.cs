@@ -1,16 +1,16 @@
 using Microsoft.Extensions.Time.Testing;
-using QuickParrot.Core.Library;
+using QuickParrot.Core.Common;
 
-namespace QuickParrot.Core.Tests.Library;
+namespace QuickParrot.Core.Tests.Common;
 
-public class LibraryChangeDebouncerTests
+public class DebouncerTests
 {
     [Fact]
     public void OneSignal_FiresAfterTheDelay()
     {
         var time = new FakeTimeProvider();
         var fires = 0;
-        using var debouncer = new LibraryChangeDebouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
+        using var debouncer = new Debouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
 
         debouncer.Signal();
         time.Advance(TimeSpan.FromMilliseconds(299));
@@ -25,7 +25,7 @@ public class LibraryChangeDebouncerTests
     {
         var time = new FakeTimeProvider();
         var fires = 0;
-        using var debouncer = new LibraryChangeDebouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
+        using var debouncer = new Debouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
 
         debouncer.Signal();
         time.Advance(TimeSpan.FromMilliseconds(200));
@@ -44,7 +44,7 @@ public class LibraryChangeDebouncerTests
     {
         var time = new FakeTimeProvider();
         var fires = 0;
-        using var debouncer = new LibraryChangeDebouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
+        using var debouncer = new Debouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
 
         debouncer.Signal();
         time.Advance(TimeSpan.FromMilliseconds(300));
@@ -60,7 +60,7 @@ public class LibraryChangeDebouncerTests
     {
         var time = new FakeTimeProvider();
         var fires = 0;
-        var debouncer = new LibraryChangeDebouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
+        var debouncer = new Debouncer(() => fires++, TimeSpan.FromMilliseconds(300), time);
 
         debouncer.Signal();
         debouncer.Dispose();

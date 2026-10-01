@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Navigation;
 
@@ -9,7 +10,7 @@ internal static class ViewStates
     {
         var entries = Enumerable.Range(1, count)
             .Select(n => new NumberedEntry(n, $"Entry {n}", n % 2 == 1))
-            .ToList();
+            .ToImmutableArray();
         return new OverlayViewState(folder, OverlayLayoutKind.Wheel, entries, [], null, false);
     }
 
@@ -17,7 +18,7 @@ internal static class ViewStates
     public static FavoritesPanel Favorites(int target) => new(
         Enumerable.Range(1, 12)
             .Select(s => new FavoriteSlotView(s, s <= 2 ? $"Clip {s}" : null, s == 2, s == 3 ? "chord key" : null))
-            .ToList(),
+            .ToImmutableArray(),
         target, "Clip 1", "B");
 
     public static OverlayViewState Grid(int count, string folder = "", int? zoomedColumn = null)
@@ -26,8 +27,8 @@ internal static class ViewStates
             .Chunk(9)
             .Select((chunk, c) => new GridColumn(
                 c + 1,
-                chunk.Select((i, row) => new NumberedEntry(row + 1, $"Entry {i + 1}", i % 3 == 0)).ToList()))
-            .ToList();
+                chunk.Select((i, row) => new NumberedEntry(row + 1, $"Entry {i + 1}", i % 3 == 0)).ToImmutableArray()))
+            .ToImmutableArray();
         return new OverlayViewState(folder, OverlayLayoutKind.Grid, [], columns, zoomedColumn, count > 81);
     }
 }

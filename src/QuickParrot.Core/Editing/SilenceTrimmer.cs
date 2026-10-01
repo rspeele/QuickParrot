@@ -1,3 +1,5 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Editing;
 
 /// <summary>Suggests a selection that drops leading and trailing near-silence, with a little padding kept.</summary>
@@ -29,7 +31,7 @@ public static class SilenceTrimmer
         }
 
         var loudest = rms.Max();
-        var threshold = Math.Max(loudest * DbToLinear(RelativeThresholdDb), DbToLinear(AbsoluteThresholdDbfs));
+        var threshold = Math.Max(loudest * Decibels.ToAmplitude(RelativeThresholdDb), Decibels.ToAmplitude(AbsoluteThresholdDbfs));
         var first = Array.FindIndex(rms, r => r >= threshold);
         if (first < 0)
             return ClipSelection.All(audio.FrameCount);
@@ -40,6 +42,4 @@ public static class SilenceTrimmer
         var end = Math.Min(audio.FrameCount, (last + 1) * window + pad);
         return new ClipSelection(start, end);
     }
-
-    private static double DbToLinear(double db) => Math.Pow(10, db / 20);
 }

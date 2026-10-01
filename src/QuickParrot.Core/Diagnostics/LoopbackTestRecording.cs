@@ -1,3 +1,4 @@
+using QuickParrot.Core.Dsp;
 using QuickParrot.Core.Replay;
 
 namespace QuickParrot.Core.Diagnostics;
@@ -9,6 +10,7 @@ public sealed class LoopbackTestRecording
 {
     private readonly object _lock = new();
     private readonly float[] _samples;
+    private readonly float[] _frame; // scratch for one frame's channels, used under the lock
     private readonly int _bytesPerSample;
     private int _count;
 
@@ -21,6 +23,7 @@ public sealed class LoopbackTestRecording
         Format = format;
         _bytesPerSample = SampleConverter.BytesPerSample(format);
         _samples = new float[(int)Math.Ceiling(maxDuration.TotalSeconds * sampleRate)];
+        _frame = new float[channels];
     }
 
     public int SampleRate { get; }
@@ -50,17 +53,14 @@ public sealed class LoopbackTestRecording
             frames = Math.Min(frames, _samples.Length - _count);
             for (var frame = 0; frame < frames; frame++)
             {
-                var sum = 0f;
-                if (!silent)
+                if (silent)
                 {
-                    for (var channel = 0; channel < Channels; channel++)
-                    {
-                        var at = frame * frameBytes + channel * _bytesPerSample;
-                        sum += SampleConverter.Read(interleaved.Slice(at, _bytesPerSample), Format);
-                    }
+                    _samples[_count++] = 0;
+                    continue;
                 }
 
-                _samples[_count++] = sum / Channels;
+                SampleConverter.ToFloat(interleaved.Slice(frame * frameBytes, frameBytes), Format, _frame);
+                _samples[_count++] = AudioDownmixer.Mean(_frame);
             }
         }
     }

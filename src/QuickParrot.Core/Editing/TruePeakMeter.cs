@@ -74,8 +74,6 @@ public static class TruePeakMeter
         return peaks;
     }
 
-    public static double ToDb(double linear) => linear > 0 ? 20 * Math.Log10(linear) : double.NegativeInfinity;
-
     private static double[][] BuildPhases()
     {
         var phases = new double[Oversampling - 1][];

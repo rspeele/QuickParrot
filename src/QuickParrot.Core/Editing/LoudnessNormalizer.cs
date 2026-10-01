@@ -1,3 +1,5 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Editing;
 
 /// <param name="TargetLufs">-18 is roughly ordinary speaking volume in voice chat (podcast-ish range) and leaves
@@ -9,7 +11,7 @@ public sealed record LoudnessOptions(double TargetLufs = -18, double CeilingDbtp
 /// <param name="MeasuredLufs">Loudness before any change (negative infinity for silence).</param>
 /// <param name="GainDb">The make-up gain applied before limiting.</param>
 public sealed record NormalizationResult(
-    double MeasuredLufs, double GainDb, double OutputLufs, double OutputTruePeakDbtp, int LimitedFrames);
+    double MeasuredLufs, double GainDb, double OutputLufs, int LimitedFrames);
 
 /// <summary>
 /// Gains audio to a loudness target, then holds 4×-oversampled peaks under a ceiling with a 5 ms lookahead limiter
@@ -34,13 +36,13 @@ public static class LoudnessNormalizer
     {
         var measured = LoudnessMeter.IntegratedLufs(interleaved, channels, sampleRate);
         if (!double.IsFinite(measured))
-            return new NormalizationResult(measured, 0, measured, TruePeakMeter.ToDb(TruePeakMeter.PeakLinear(interleaved, channels)), 0);
+            return new NormalizationResult(measured, 0, measured, 0);
 
         var original = interleaved.ToArray();
-        var ceiling = Math.Pow(10, options.CeilingDbtp / 20);
+        var ceiling = Decibels.ToAmplitude(options.CeilingDbtp);
         var gainDb = GainDbFor(measured, options);
         var maxGainDb = Math.Min(options.MaxGainDb, gainDb + MaxCatchUpDb);
-        var originalPeaks = TruePeakMeter.PerFramePeaks(original, channels, ceiling / Math.Pow(10, maxGainDb / 20));
+        var originalPeaks = TruePeakMeter.PerFramePeaks(original, channels, ceiling / Decibels.ToAmplitude(maxGainDb));
         NormalizationResult result;
         for (var pass = 1; ; pass++)
         {
@@ -57,19 +59,16 @@ public static class LoudnessNormalizer
     private static NormalizationResult Apply(
         Span<float> interleaved, int channels, int sampleRate, float[] originalPeaks, double ceiling, double measured, double gainDb)
     {
-        var gain = Math.Pow(10, gainDb / 20);
+        var gain = Decibels.ToAmplitude(gainDb);
         Scale(interleaved, (float)gain);
         var limited = Limit(interleaved, channels, sampleRate, ceiling, originalPeaks, gain);
 
         var peak = TruePeakMeter.PeakLinear(interleaved, channels);
         if (peak > ceiling)
-        {
             Scale(interleaved, (float)(ceiling / peak * 0.9999));
-            peak = TruePeakMeter.PeakLinear(interleaved, channels);
-        }
 
         var output = LoudnessMeter.IntegratedLufs(interleaved, channels, sampleRate);
-        return new NormalizationResult(measured, gainDb, output, TruePeakMeter.ToDb(peak), limited);
+        return new NormalizationResult(measured, gainDb, output, limited);
     }
 
     // Gain needed per frame (peaks scale with the make-up gain, so they're measured once), then the minimum over the

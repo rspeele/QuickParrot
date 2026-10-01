@@ -26,36 +26,21 @@ internal static class AudioSetups
         CommunicationsDucking = CommunicationsDucking.DoNothing,
     };
 
-    public static AudioSetupSnapshot WithListen(this AudioSetupSnapshot snapshot, string id, ListenSetting? setting)
-    {
-        var listen = ById(snapshot.Listen.Select(p => (p.Key, p.Value)).ToArray());
-        if (setting is null)
-            listen.Remove(id);
-        else
-            listen[id] = setting;
+    public static AudioSetupSnapshot WithListen(this AudioSetupSnapshot snapshot, string id, ListenSetting? setting) =>
+        snapshot with { Listen = With(snapshot.Listen, id, setting) };
 
-        return snapshot with { Listen = listen };
+    public static AudioSetupSnapshot WithLevel(this AudioSetupSnapshot snapshot, string id, EndpointLevel? level) =>
+        snapshot with { Levels = With(snapshot.Levels, id, level) };
+
+    private static IReadOnlyDictionary<string, T> With<T>(IReadOnlyDictionary<string, T> map, string id, T? value)
+        where T : class
+    {
+        var others = map.Where(p => !Endpoints.SameId(p.Key, id));
+        return AudioSetupSnapshot.ById(value is null ? others : others.Append(KeyValuePair.Create(id, value)));
     }
 
-    public static AudioSetupSnapshot WithLevel(this AudioSetupSnapshot snapshot, string id, EndpointLevel? level)
-    {
-        var levels = ById(snapshot.Levels.Select(p => (p.Key, p.Value)).ToArray());
-        if (level is null)
-            levels.Remove(id);
-        else
-            levels[id] = level;
-
-        return snapshot with { Levels = levels };
-    }
-
-    public static Dictionary<string, T> ById<T>(params (string Id, T Value)[] entries)
-    {
-        var map = AudioSetupSnapshot.EmptyById<T>();
-        foreach (var (id, value) in entries)
-            map[id] = value;
-
-        return map;
-    }
+    public static IReadOnlyDictionary<string, T> ById<T>(params (string Id, T Value)[] entries) =>
+        AudioSetupSnapshot.ById(entries.Select(e => KeyValuePair.Create(e.Id, e.Value)));
 
     public static IReadOnlyList<string> Ids(this IEnumerable<DiagnosticFinding> findings) => findings.Select(f => f.Id).ToList();
 }

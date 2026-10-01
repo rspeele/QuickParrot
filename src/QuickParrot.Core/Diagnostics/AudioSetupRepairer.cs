@@ -70,11 +70,8 @@ public sealed class AudioSetupRepairer(IAudioSystemWriter writer)
         if (fix.DeviceId is not { } deviceId || fix.Roles == DeviceRoles.None)
             return MissingDevice();
 
-        foreach (var role in new[] { DeviceRoles.Console, DeviceRoles.Multimedia, DeviceRoles.Communications })
-        {
-            if (fix.Roles.HasFlag(role))
-                writer.SetDefaultDevice(deviceId, role);
-        }
+        foreach (var role in DeviceRoleSet.Of(fix.Roles))
+            writer.SetDefaultDevice(deviceId, role);
 
         return Ok($"Changed the default {kind} device.");
     }

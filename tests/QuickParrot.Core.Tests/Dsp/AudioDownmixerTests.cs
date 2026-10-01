@@ -1,6 +1,6 @@
-using QuickParrot.Core.Naming;
+using QuickParrot.Core.Dsp;
 
-namespace QuickParrot.Core.Tests.Naming;
+namespace QuickParrot.Core.Tests.Dsp;
 
 public class AudioDownmixerTests
 {

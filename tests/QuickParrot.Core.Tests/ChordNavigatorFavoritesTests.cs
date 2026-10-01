@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
@@ -34,7 +35,7 @@ public class ChordNavigatorFavoritesTests
         _panelRequests.Add(target);
         var slots = Enumerable.Range(1, FavoriteSlots.Count)
             .Select(s => new FavoriteSlotView(s, s == 1 ? "airhorn" : null, false, null))
-            .ToList();
+            .ToImmutableArray();
         return new FavoritesPanel(slots, target, _lastPlayedName, "B");
     }
 

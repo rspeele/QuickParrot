@@ -1,15 +1,15 @@
-using QuickParrot.Core.Naming;
+using QuickParrot.Core.Grabs;
 
-namespace QuickParrot.Core.Tests.Naming;
+namespace QuickParrot.Core.Tests.Grabs;
 
-public class WavEncoderTests
+public class WavFilePcm16Tests
 {
     [Fact]
     public void Encodes_StandardFortyFourByteHeader_PlusTwoBytesPerSample()
     {
         float[] samples = [0f, 0.5f, -0.5f, 1f];
 
-        var wav = WavEncoder.EncodePcm16(samples, 16_000);
+        var wav = WavFile.EncodePcm16(samples, 16_000, 1);
 
         Assert.Equal(44 + samples.Length * 2, wav.Length);
     }
@@ -17,7 +17,7 @@ public class WavEncoderTests
     [Fact]
     public void Header_HasRiffWaveFmtAndDataChunkIds()
     {
-        var wav = WavEncoder.EncodePcm16([0f], 16_000);
+        var wav = WavFile.EncodePcm16([0f], 16_000, 1);
 
         Assert.Equal("RIFF", Ascii(wav, 0, 4));
         Assert.Equal("WAVE", Ascii(wav, 8, 4));
@@ -28,7 +28,7 @@ public class WavEncoderTests
     [Fact]
     public void Header_EncodesSampleRateChannelsAndBitDepth()
     {
-        var wav = WavEncoder.EncodePcm16([0f, 0f], 22_050);
+        var wav = WavFile.EncodePcm16([0f, 0f], 22_050, 1);
 
         Assert.Equal(1, BitConverter.ToInt16(wav, 22)); // mono
         Assert.Equal(22_050, BitConverter.ToInt32(wav, 24));
@@ -41,7 +41,7 @@ public class WavEncoderTests
     {
         float[] samples = new float[100];
 
-        var wav = WavEncoder.EncodePcm16(samples, 16_000);
+        var wav = WavFile.EncodePcm16(samples, 16_000, 1);
 
         Assert.Equal(36 + 200, BitConverter.ToInt32(wav, 4));
     }
@@ -54,9 +54,17 @@ public class WavEncoderTests
     [InlineData(-2f, -short.MaxValue)] // clamped
     public void SamplesAreEncodedAsClampedSixteenBitPcm(float sample, short expected)
     {
-        var wav = WavEncoder.EncodePcm16([sample], 16_000);
+        var wav = WavFile.EncodePcm16([sample], 16_000, 1);
 
         Assert.Equal(expected, BitConverter.ToInt16(wav, 44));
+    }
+
+    [Fact]
+    public void EncodedFile_ReadsBackAsPcm()
+    {
+        var wav = WavFile.EncodePcm16([0f, 0f, 0f, 0f, 0f], 8_000, 2);
+
+        Assert.Equal(new WavInfo(WavFile.PcmFormat, 2, 8_000, 16, 2 * 2 * 2), WavFile.TryReadInfo(new MemoryStream(wav)));
     }
 
     private static string Ascii(byte[] data, int offset, int length) =>

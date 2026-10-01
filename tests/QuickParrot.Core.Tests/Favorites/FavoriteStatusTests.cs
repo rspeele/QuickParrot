@@ -15,7 +15,7 @@ public class FavoriteStatusTests
 
         var views = FavoriteStatus.Describe(favorites, path => path == "Trump/wall.wav", ScanKey.DefaultChordKey, PushToTalkBinding.Default);
 
-        Assert.Equal(12, views.Count);
+        Assert.Equal(12, views.Length);
         Assert.Equal(new FavoriteSlotView(1, "wall", false, null), views[0]);
         Assert.Equal(new FavoriteSlotView(2, "gone", true, null), views[1]);
         Assert.Equal(new FavoriteSlotView(3, null, false, null), views[2]);

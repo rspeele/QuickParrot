@@ -1,22 +1,26 @@
 namespace QuickParrot.Core.Editing;
 
-/// <param name="Name">The sanitized suggestion, or null if the namer had none or failed.</param>
+/// <param name="Name">The suggested clip name, or null if there's none.</param>
+/// <param name="Error">Why there's no name (no speech, a network or service failure...), if there's a reason to give.</param>
 public sealed record NameSuggestion(string? Name, string? Error = null);
 
 /// <summary>Runs a (slow, possibly remote) clip namer on request, cancelling any suggestion still in flight.</summary>
 public sealed class NameSuggester : IDisposable
 {
-    private readonly Func<EditableAudio, CancellationToken, Task<string?>> _suggest;
+    private readonly Func<EditableAudio, CancellationToken, Task<NameSuggestion>> _suggest;
     private CancellationTokenSource? _pending;
 
-    public NameSuggester(Func<EditableAudio, CancellationToken, Task<string?>> suggest)
+    public NameSuggester(Func<EditableAudio, CancellationToken, Task<NameSuggestion>> suggest)
     {
         _suggest = suggest;
     }
 
     public bool IsBusy => _pending is not null;
 
-    /// <summary>Suggests immediately; completes with null if cancelled (e.g. by <see cref="Dispose"/>) before finishing.</summary>
+    /// <summary>
+    /// Suggests immediately, with the name sanitized; completes with null if cancelled (e.g. by <see cref="Dispose"/>)
+    /// before finishing.
+    /// </summary>
     public async Task<NameSuggestion?> SuggestNowAsync(EditableAudio selection)
     {
         Cancel();
@@ -24,9 +28,10 @@ public sealed class NameSuggester : IDisposable
         _pending = cts;
         try
         {
-            var name = await _suggest(selection, cts.Token);
+            var suggestion = await _suggest(selection, cts.Token);
             cts.Token.ThrowIfCancellationRequested();
-            return new NameSuggestion(string.IsNullOrWhiteSpace(name) ? null : ClipFileNames.Sanitize(name));
+            var name = suggestion.Name;
+            return suggestion with { Name = string.IsNullOrWhiteSpace(name) ? null : ClipFileNames.Sanitize(name) };
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {

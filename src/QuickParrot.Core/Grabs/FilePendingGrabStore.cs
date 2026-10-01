@@ -1,3 +1,5 @@
+using QuickParrot.Core.Common;
+
 namespace QuickParrot.Core.Grabs;
 
 /// <summary>
@@ -22,8 +24,7 @@ public sealed class FilePendingGrabStore : IPendingGrabStore
 
     public event Action? Changed;
 
-    public static string DefaultDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "QuickParrot", "Grabs");
+    public static string DefaultDirectory => AppDataPaths.Local("Grabs");
 
     private string Directory { get; }
 

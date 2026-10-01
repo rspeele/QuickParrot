@@ -1,3 +1,4 @@
+using QuickParrot.Core.Dsp;
 using static QuickParrot.Core.Diagnostics.LoopbackTestSpectrum;
 
 namespace QuickParrot.Core.Diagnostics;
@@ -20,7 +21,7 @@ internal static class LoopbackTestChimeDetector
 
     public readonly record struct Detection(bool Detected, double LevelDb, double? GainDb);
 
-    public static Detection Detect(float[] samples, int sampleRate, LoopbackTestSignal signal)
+    public static Detection Detect(ReadOnlySpan<float> samples, int sampleRate, LoopbackTestSignal signal)
     {
         var windowLength = (int)Math.Round(WindowSeconds * sampleRate);
         var hop = (int)Math.Round(HopSeconds * sampleRate);
@@ -55,16 +56,16 @@ internal static class LoopbackTestChimeDetector
             gains.Add(tones[slot.Pitch][frame].Amplitude / slot.ExpectedAmplitude);
         }
 
-        return new Detection(true, AmplitudeToDb(Percentile(levels, 0.5)), AmplitudeToDb(Percentile(gains, 0.5)));
+        return new Detection(true, Decibels.FromAmplitude(Percentile(levels, 0.5), SilenceDb), Decibels.FromAmplitude(Percentile(gains, 0.5), SilenceDb));
     }
 
     private static Tone[][] MeasureTones(
-        float[] samples, int sampleRate, IReadOnlyList<double> pitches, int windowLength, int hop, int frameCount)
+        ReadOnlySpan<float> samples, int sampleRate, IReadOnlyList<double> pitches, int windowLength, int hop, int frameCount)
     {
-        var window = Hann(windowLength);
+        var window = RaisedCosine.Hann(windowLength);
         var coherentGain = window.Sum();
-        var minAmplitude = Math.Pow(10, MinToneDb / 20);
-        var minRatio = Math.Pow(10, MinToneAboveNeighboursDb / 10);
+        var minAmplitude = Decibels.ToAmplitude(MinToneDb);
+        var minRatio = Decibels.ToPower(MinToneAboveNeighboursDb);
         var tones = pitches.Select(_ => new Tone[frameCount]).ToArray();
         var frame = new double[windowLength];
         var perPitch = NeighbourOffsetsHz.Length + 1;

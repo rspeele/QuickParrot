@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuickParrot.Core.Common;
 
 namespace QuickParrot.Core.Mic;
 
@@ -14,19 +15,11 @@ public sealed class JsonMicRestoreStore : IMicRestoreStore
         _path = path;
     }
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "QuickParrot", "mic-restore.json");
+    public static string DefaultPath => AppDataPaths.Roaming("mic-restore.json");
 
     public MicRestoreRecord? Load() => File.Exists(_path) ? Deserialize(File.ReadAllText(_path)) : null;
 
-    // Written to a temp file and moved into place, so a crash mid-write can't leave a truncated record.
-    public void Save(MicRestoreRecord record)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
-        var tempPath = _path + ".tmp";
-        File.WriteAllText(tempPath, Serialize(record));
-        File.Move(tempPath, _path, overwrite: true);
-    }
+    public void Save(MicRestoreRecord record) => AtomicFile.WriteAllText(_path, Serialize(record));
 
     public void Delete() => File.Delete(_path);
 

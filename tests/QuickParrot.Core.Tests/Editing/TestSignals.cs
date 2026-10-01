@@ -1,3 +1,4 @@
+using QuickParrot.Core.Dsp;
 using QuickParrot.Core.Editing;
 
 namespace QuickParrot.Core.Tests.Editing;
@@ -6,6 +7,12 @@ namespace QuickParrot.Core.Tests.Editing;
 internal static class TestSignals
 {
     public static double DbToLinear(double db) => Math.Pow(10, db / 20);
+
+    public static double Lufs(EditableAudio audio) =>
+        LoudnessMeter.IntegratedLufs(audio.Samples.Span, audio.Channels, audio.SampleRate);
+
+    public static double TruePeakDb(float[] samples, int channels = 2) =>
+        Decibels.FromAmplitude(TruePeakMeter.PeakLinear(samples, channels));
 
     /// <summary>A sine with the given peak level, identical on every channel.</summary>
     public static float[] Sine(double frequency, double peakDbfs, double seconds, int sampleRate = 48000, int channels = 2, double phase = 0)

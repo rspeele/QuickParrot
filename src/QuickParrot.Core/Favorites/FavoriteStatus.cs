@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using QuickParrot.Core.Keyboard;
 
 namespace QuickParrot.Core.Favorites;
@@ -26,7 +28,7 @@ public sealed record FavoriteSlotView(int Slot, string? Name, bool Missing, stri
 public static class FavoriteStatus
 {
     /// <param name="clipExists">Whether a relative path is a clip in the current library; null if there's no library.</param>
-    public static IReadOnlyList<FavoriteSlotView> Describe(
+    public static ImmutableArray<FavoriteSlotView> Describe(
         FavoriteSlots favorites, Func<string, bool>? clipExists, ScanKey chordKey, PushToTalkBinding pushToTalk)
     {
         var views = new FavoriteSlotView[FavoriteSlots.Count];
@@ -39,7 +41,7 @@ public static class FavoriteStatus
                 UnavailableReason(slot, chordKey, pushToTalk));
         }
 
-        return views;
+        return ImmutableCollectionsMarshal.AsImmutableArray(views);
     }
 
     /// <summary>

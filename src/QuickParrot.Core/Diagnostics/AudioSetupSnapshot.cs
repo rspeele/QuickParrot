@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using QuickParrot.Core.Devices;
 
 namespace QuickParrot.Core.Diagnostics;
@@ -30,6 +31,18 @@ public enum DeviceRoles
     Console = 1,
     Multimedia = 2,
     Communications = 4,
+}
+
+public static class DeviceRoleSet
+{
+    private static readonly DeviceRoles[] Singles = [DeviceRoles.Console, DeviceRoles.Multimedia, DeviceRoles.Communications];
+
+    /// <summary>Each single role in <paramref name="roles"/>.</summary>
+    public static IEnumerable<DeviceRoles> Of(DeviceRoles roles) => Singles.Where(role => roles.HasFlag(role));
+
+    /// <summary>The single roles that satisfy <paramref name="predicate"/>, combined.</summary>
+    public static DeviceRoles Matching(Func<DeviceRoles, bool> predicate) =>
+        Singles.Where(predicate).Aggregate(DeviceRoles.None, (all, role) => all | role);
 }
 
 /// <summary>An endpoint's master mute and volume (0 to 1).</summary>
@@ -94,10 +107,10 @@ public sealed record AudioSetupSnapshot
     public DefaultEndpoints? Defaults { get; init; }
 
     /// <summary>By capture device ID (case-insensitive); a missing entry means unknown.</summary>
-    public IReadOnlyDictionary<string, ListenSetting> Listen { get; init; } = EmptyById<ListenSetting>();
+    public IReadOnlyDictionary<string, ListenSetting> Listen { get; init; } = NoEntries<ListenSetting>.Value;
 
     /// <summary>By device ID (case-insensitive); a missing entry means unknown.</summary>
-    public IReadOnlyDictionary<string, EndpointLevel> Levels { get; init; } = EmptyById<EndpointLevel>();
+    public IReadOnlyDictionary<string, EndpointLevel> Levels { get; init; } = NoEntries<EndpointLevel>.Value;
 
     /// <summary>QuickParrot itself has the mic muted or turned down, e.g. mid-clip.</summary>
     public bool MicRestorePending { get; init; }
@@ -107,5 +120,12 @@ public sealed record AudioSetupSnapshot
 
     public ConfiguredDevices Configured { get; init; } = ConfiguredDevices.Auto;
 
-    public static Dictionary<string, T> EmptyById<T>() => new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>An immutable map by endpoint ID, as <see cref="Listen"/> and <see cref="Levels"/> expect; later duplicates win.</summary>
+    public static FrozenDictionary<string, T> ById<T>(IEnumerable<KeyValuePair<string, T>> entries) =>
+        entries.ToFrozenDictionary(Endpoints.IdComparer);
+
+    private static class NoEntries<T>
+    {
+        public static readonly FrozenDictionary<string, T> Value = ById<T>([]);
+    }
 }

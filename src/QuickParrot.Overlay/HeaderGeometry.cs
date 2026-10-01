@@ -16,7 +16,7 @@ internal static class HeaderGeometry
 
     public static float ContentHeight(OverlayViewState state) =>
         TitleHeight
-        + (state.WheelEntries.Count == 0 ? SubtitleHeight : 0)
+        + (state.WheelEntries.Length == 0 ? SubtitleHeight : 0)
         + (OverlayText.HintActionFor(state) is null ? 0 : HintHeight);
 
     public static (OverlayLabel Title, OverlayLabel? Subtitle, OverlayHint? Hint) Build(
@@ -36,7 +36,7 @@ internal static class HeaderGeometry
         var title = new OverlayLabel(
             OverlayText.TitleFor(state.FolderPath), Line(TitleHeight), TitleFont * scale, OverlayTextAlign.Center,
             OverlayFont.Semibold);
-        var subtitle = state.WheelEntries.Count == 0
+        var subtitle = state.WheelEntries.Length == 0
             ? new OverlayLabel(
                 OverlayText.EmptyLabel, Line(SubtitleHeight), SubtitleFont * scale, OverlayTextAlign.Center, OverlayFont.Regular)
             : null;

@@ -3,6 +3,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using QuickParrot.Core.Dsp;
+using QuickParrot.Core.Editing;
+using QuickParrot.Core.Grabs;
 
 namespace QuickParrot.Core.Naming;
 
@@ -44,7 +47,8 @@ public sealed class LiteLlmClipNamer
         _baseUri = ParseBaseUri(options.BaseUrl);
     }
 
-    public async Task<ClipNameSuggestion?> SuggestAsync(
+    /// <summary>Never throws for service, network or timeout failures; they come back as the suggestion's error.</summary>
+    public async Task<NameSuggestion> SuggestAsync(
         ReadOnlyMemory<float> interleaved, int sampleRate, int channels, CancellationToken cancellationToken)
     {
         if (sampleRate <= 0)
@@ -53,7 +57,7 @@ public sealed class LiteLlmClipNamer
             throw new ArgumentOutOfRangeException(nameof(channels));
 
         if (_baseUri is null)
-            return new ClipNameSuggestion("", null, InvalidBaseUrl);
+            return Failed(InvalidBaseUrl);
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(_overallTimeout);
@@ -66,29 +70,22 @@ public sealed class LiteLlmClipNamer
 
             var (transcript, transcribeError) = await TranscribeAsync(wav, timeoutCts.Token).ConfigureAwait(false);
             if (transcribeError is not null)
-                return new ClipNameSuggestion("", null, transcribeError);
+                return Failed(transcribeError);
 
-            if (string.IsNullOrWhiteSpace(transcript))
-                return new ClipNameSuggestion(transcript ?? "", null, "No speech was detected in the clip.");
-
-            var (name, nameError) = await SuggestNameAsync(transcript, timeoutCts.Token).ConfigureAwait(false);
-            if (nameError is not null)
-                return new ClipNameSuggestion(transcript, null, nameError);
-
-            return name is null
-                ? new ClipNameSuggestion(transcript, null, "The naming service didn't return a usable name.")
-                : new ClipNameSuggestion(transcript, name, null);
+            return string.IsNullOrWhiteSpace(transcript)
+                ? Failed("No speech was detected in the clip.")
+                : await SuggestNameAsync(transcript, timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             var message = cancellationToken.IsCancellationRequested
                 ? "Naming the clip was cancelled."
                 : "Naming the clip timed out.";
-            return new ClipNameSuggestion("", null, message);
+            return Failed(message);
         }
         catch (HttpRequestException e)
         {
-            return new ClipNameSuggestion("", null, $"Couldn't reach the naming service: {e.Message}");
+            return Failed($"Couldn't reach the naming service: {e.Message}");
         }
     }
 
@@ -148,17 +145,10 @@ public sealed class LiteLlmClipNamer
         using (response)
         {
             if (!response.IsSuccessStatusCode)
-                return (null, $"Transcription service returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+                return (null, Returned("Transcription", response));
 
-            string body;
-            try
-            {
-                body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            }
-            catch (IOException)
-            {
+            if (await TryReadBodyAsync(response, ct).ConfigureAwait(false) is not { } body)
                 return (null, "Couldn't read the transcription response.");
-            }
 
             try
             {
@@ -175,39 +165,26 @@ public sealed class LiteLlmClipNamer
 
     // Some OpenAI-compatible reasoning models reject "temperature" outright (HTTP 400); when that's the reason,
     // one retry without it is worth the round trip rather than failing the whole suggestion.
-    private async Task<(string? Name, string? Error)> SuggestNameAsync(string transcript, CancellationToken ct)
+    private async Task<NameSuggestion> SuggestNameAsync(string transcript, CancellationToken ct)
     {
-        var (response, transportError) = await PostChatCompletionAsync(transcript, includeTemperature: true, ct).ConfigureAwait(false);
-        if (transportError is not null || response is null)
-            return (null, transportError);
-
-        using (response)
+        for (var includeTemperature = true; ; includeTemperature = false)
         {
-            if (response.StatusCode == HttpStatusCode.BadRequest)
+            var (response, transportError) = await PostChatCompletionAsync(transcript, includeTemperature, ct).ConfigureAwait(false);
+            if (response is null)
+                return Failed(transportError!);
+
+            using (response)
             {
-                var body = await TryReadBodyAsync(response, ct).ConfigureAwait(false);
-                return body is not null && body.Contains("temperature", StringComparison.OrdinalIgnoreCase)
-                    ? await RetryWithoutTemperatureAsync(transcript, ct).ConfigureAwait(false)
-                    : (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+                if (response.IsSuccessStatusCode)
+                    return await ParseNameAsync(response, ct).ConfigureAwait(false);
+
+                if (includeTemperature && response.StatusCode == HttpStatusCode.BadRequest
+                    && await TryReadBodyAsync(response, ct).ConfigureAwait(false) is { } body
+                    && body.Contains("temperature", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                return Failed(Returned("Naming", response));
             }
-
-            return !response.IsSuccessStatusCode
-                ? (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.")
-                : await ParseNameAsync(response, ct).ConfigureAwait(false);
-        }
-    }
-
-    private async Task<(string? Name, string? Error)> RetryWithoutTemperatureAsync(string transcript, CancellationToken ct)
-    {
-        var (response, transportError) = await PostChatCompletionAsync(transcript, includeTemperature: false, ct).ConfigureAwait(false);
-        if (transportError is not null || response is null)
-            return (null, transportError);
-
-        using (response)
-        {
-            return !response.IsSuccessStatusCode
-                ? (null, $"Naming service returned {(int)response.StatusCode} {response.ReasonPhrase}.")
-                : await ParseNameAsync(response, ct).ConfigureAwait(false);
         }
     }
 
@@ -251,17 +228,10 @@ public sealed class LiteLlmClipNamer
         }
     }
 
-    private static async Task<(string? Name, string? Error)> ParseNameAsync(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<NameSuggestion> ParseNameAsync(HttpResponseMessage response, CancellationToken ct)
     {
-        string body;
-        try
-        {
-            body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        }
-        catch (IOException)
-        {
-            return (null, "Couldn't read the naming response.");
-        }
+        if (await TryReadBodyAsync(response, ct).ConfigureAwait(false) is not { } body)
+            return Failed("Couldn't read the naming response.");
 
         try
         {
@@ -271,20 +241,27 @@ public sealed class LiteLlmClipNamer
                 .GetProperty("message")
                 .GetProperty("content")
                 .GetString();
-            return (CleanName(FirstNonEmptyLine(content)), null);
+            return CleanName(FirstNonEmptyLine(content)) is { } name
+                ? new NameSuggestion(name)
+                : Failed("The naming service didn't return a usable name.");
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or IndexOutOfRangeException or KeyNotFoundException)
         {
-            return (null, "Naming service returned an unexpected response.");
+            return Failed("Naming service returned an unexpected response.");
         }
     }
+
+    private static NameSuggestion Failed(string error) => new(null, error);
+
+    private static string Returned(string service, HttpResponseMessage response) =>
+        $"{service} service returned {(int)response.StatusCode} {response.ReasonPhrase}.";
 
     private static byte[] EncodeForTranscription(ReadOnlyMemory<float> interleaved, int sampleRate, int channels)
     {
         var maxSamples = MaxTranscriptionSeconds * sampleRate * channels;
         var clipped = interleaved.Length <= maxSamples ? interleaved : interleaved[..maxSamples];
         var mono = AudioDownmixer.ToMono(clipped.Span, channels);
-        return WavEncoder.EncodePcm16(AudioResampler.Resample(mono, sampleRate, TargetSampleRate), TargetSampleRate);
+        return WavFile.EncodePcm16(AudioResampler.Resample(mono, sampleRate, TargetSampleRate), TargetSampleRate, channels: 1);
     }
 
     // A reasoning model may think out loud before the name; only its first non-blank line is ever usable.

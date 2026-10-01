@@ -46,9 +46,9 @@ public class ChordNavigatorGridTests
         nav.Handle(new ChordPressed());
         var view = nav.ViewState!;
 
-        Assert.Equal(3, view.GridColumns.Count);
-        Assert.Equal(9, view.GridColumns[0].Entries.Count);
-        Assert.Equal(9, view.GridColumns[1].Entries.Count);
+        Assert.Equal(3, view.GridColumns.Length);
+        Assert.Equal(9, view.GridColumns[0].Entries.Length);
+        Assert.Equal(9, view.GridColumns[1].Entries.Length);
         Assert.Single(view.GridColumns[2].Entries);
         Assert.Equal(paths[0], view.GridColumns[0].Entries[0].Name);
         Assert.Equal(paths[9], view.GridColumns[1].Entries[0].Name);
@@ -65,8 +65,8 @@ public class ChordNavigatorGridTests
         nav.Handle(new ChordPressed());
         var view = nav.ViewState!;
 
-        Assert.Equal(81, view.GridColumns.Sum(c => c.Entries.Count));
-        Assert.Equal(9, view.GridColumns.Count);
+        Assert.Equal(81, view.GridColumns.Sum(c => c.Entries.Length));
+        Assert.Equal(9, view.GridColumns.Length);
         Assert.True(view.Truncated);
     }
 

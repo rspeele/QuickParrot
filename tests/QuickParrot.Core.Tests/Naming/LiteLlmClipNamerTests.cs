@@ -103,9 +103,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("get down mister president", result!.Transcript);
         Assert.Equal("Get Down, Mr. President", result.Name);
-        Assert.Null(result.ErrorMessage);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -117,8 +116,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.NotNull(result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.NotNull(result.Error);
         Assert.Single(handler.Requests);
     }
 
@@ -131,8 +130,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.Contains("401", result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.Contains("401", result.Error);
     }
 
     [Fact]
@@ -146,9 +145,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.Contains("500", result.ErrorMessage);
-        Assert.Equal("hello", result.Transcript);
+        Assert.Null(result.Name);
+        Assert.StartsWith("Naming service returned 500", result.Error);
     }
 
     [Fact]
@@ -176,8 +174,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.Equal(2, chatAttempts);
-        Assert.Equal("Retried Name", result!.Name);
-        Assert.Null(result.ErrorMessage);
+        Assert.Equal("Retried Name", result.Name);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -197,8 +195,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.Equal(1, chatAttempts);
-        Assert.Null(result!.Name);
-        Assert.Contains("400", result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.Contains("400", result.Error);
     }
 
     [Fact]
@@ -210,8 +208,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.NotNull(result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.NotNull(result.Error);
     }
 
     [Fact]
@@ -225,8 +223,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.NotNull(result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.NotNull(result.Error);
     }
 
     [Theory]
@@ -244,7 +242,7 @@ public class LiteLlmClipNamerTests
 
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
-        Assert.Equal(expectedName, result!.Name);
+        Assert.Equal(expectedName, result.Name);
     }
 
     [Fact]
@@ -257,7 +255,7 @@ public class LiteLlmClipNamerTests
 
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
-        Assert.Equal("Holy Cow", result!.Name);
+        Assert.Equal("Holy Cow", result.Name);
     }
 
     [Fact]
@@ -319,8 +317,8 @@ public class LiteLlmClipNamerTests
 
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
-        Assert.Null(result!.Name);
-        Assert.Contains("unexpected response", result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.Contains("unexpected response", result.Error);
     }
 
     [Theory]
@@ -336,7 +334,7 @@ public class LiteLlmClipNamerTests
         var test = await namer.TestConnectionAsync(CancellationToken.None);
 
         Assert.Empty(handler.Requests);
-        Assert.Contains("base URL", suggestion!.ErrorMessage);
+        Assert.Contains("base URL", suggestion.Error);
         Assert.False(test.Success);
         Assert.Contains("base URL", test.Message);
     }
@@ -356,8 +354,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, cts.Token);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.Contains("cancelled", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(result.Name);
+        Assert.Contains("cancelled", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -373,8 +371,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.Contains("timed out", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(result.Name);
+        Assert.Contains("timed out", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -386,8 +384,8 @@ public class LiteLlmClipNamerTests
         var result = await namer.SuggestAsync(SampleAudio(), 48_000, 1, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Null(result!.Name);
-        Assert.Contains("Couldn't reach", result.ErrorMessage);
+        Assert.Null(result.Name);
+        Assert.Contains("Couldn't reach", result.Error);
     }
 
     [Fact]

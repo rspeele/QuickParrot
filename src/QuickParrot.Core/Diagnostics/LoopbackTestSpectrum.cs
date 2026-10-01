@@ -1,18 +1,11 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Diagnostics;
 
 /// <summary>Small spectral helpers for the setup test's analysis. Arrays rather than spans keep debug builds fast.</summary>
 internal static class LoopbackTestSpectrum
 {
     public const double SilenceDb = -120;
-
-    public static double[] Hann(int length)
-    {
-        var window = new double[length];
-        for (var i = 0; i < length; i++)
-            window[i] = 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / length);
-
-        return window;
-    }
 
     // Sidelobes below -92 dB, so a loud tone can't leak into bins a few steps away.
     public static double[] BlackmanHarris(int length)
@@ -141,13 +134,9 @@ internal static class LoopbackTestSpectrum
         return result;
     }
 
-    /// <summary>Level of a sine with this amplitude, in dB relative to a full-scale sine.</summary>
-    public static double AmplitudeToDb(double amplitude) =>
-        amplitude > 0 ? Math.Max(SilenceDb, 20 * Math.Log10(amplitude)) : SilenceDb;
-
     /// <summary>Mean-square power in dB relative to a full-scale sine (mean square 0.5).</summary>
     public static double MeanSquareToDb(double meanSquare) =>
-        meanSquare > 0 ? Math.Max(SilenceDb, 10 * Math.Log10(meanSquare / 0.5)) : SilenceDb;
+        Decibels.FromPower(meanSquare / 0.5, SilenceDb);
 
     public static double Percentile(IReadOnlyList<double> values, double fraction)
     {

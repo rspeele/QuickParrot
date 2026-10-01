@@ -69,6 +69,23 @@ public class AudioDiagnosticsTests
     }
 
     [Fact]
+    public async Task CheckInFlight_WhenDisposed_DoesNotRaiseUpdated()
+    {
+        var diagnostics = Create();
+        var raised = false;
+        diagnostics.Updated += _ => raised = true;
+        using var release = new ManualResetEventSlim();
+        _reader.Gate = release;
+
+        var check = diagnostics.CheckNowAsync();
+        diagnostics.Dispose();
+        release.Set();
+        await check.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(raised);
+    }
+
+    [Fact]
     public async Task Repair_RechecksBeforeReturning()
     {
         using var diagnostics = Create();
@@ -99,11 +116,14 @@ public class AudioDiagnosticsTests
 
         public bool Throw { get; set; }
 
+        public ManualResetEventSlim? Gate { get; set; }
+
         public int Reads => Volatile.Read(ref _reads);
 
         public AudioSetupSnapshot Read()
         {
             Interlocked.Increment(ref _reads);
+            Gate?.Wait(TimeSpan.FromSeconds(5));
             return Throw ? throw new InvalidOperationException("boom") : Snapshot;
         }
     }

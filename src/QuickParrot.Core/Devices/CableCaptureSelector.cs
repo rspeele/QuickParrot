@@ -13,13 +13,11 @@ public static class CableCaptureSelector
         if (cableRender is not null)
         {
             var partner = CableNames.CapturePartnerOf(cableRender.Name);
-            if (active.FirstOrDefault(d => SameName(d.Name, partner) || SameName(d.Name, cableRender.Name)) is { } paired)
+            if (active.FirstOrDefault(d => Endpoints.SameName(d.Name, partner) || Endpoints.SameName(d.Name, cableRender.Name)) is { } paired)
                 return paired;
         }
 
         return active.FirstOrDefault(d => CableNames.IsVbCableCapture(d.Name))
             ?? active.FirstOrDefault(d => CableNames.IsMuzychenko(d.Name));
     }
-
-    private static bool SameName(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 }

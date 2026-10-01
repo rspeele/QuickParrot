@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuickParrot.Core.Common;
 
 namespace QuickParrot.Core.Settings;
 
@@ -18,8 +19,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         _path = path;
     }
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "QuickParrot", "settings.json");
+    public static string DefaultPath => AppDataPaths.Roaming("settings.json");
 
     public string BackupPath => _path + ".bad";
 
@@ -48,14 +48,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         return new SettingsLoadResult(new AppSettings(), SetAsideCorruptFile());
     }
 
-    // Written to a temp file and moved into place, so a crash mid-write can't leave a truncated file.
-    public void Save(AppSettings settings)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
-        var tempPath = _path + ".tmp";
-        File.WriteAllText(tempPath, Serialize(settings));
-        File.Move(tempPath, _path, overwrite: true);
-    }
+    public void Save(AppSettings settings) => AtomicFile.WriteAllText(_path, Serialize(settings));
 
     public static string Serialize(AppSettings settings) => JsonSerializer.Serialize(settings, JsonOptions);
 

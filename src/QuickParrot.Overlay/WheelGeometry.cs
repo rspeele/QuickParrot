@@ -14,10 +14,10 @@ internal static class WheelGeometry
             (int)MathF.Ceiling(2 * (RadiusY + PillGeometry.PillHeight / 2 + PillGeometry.Margin) * scale));
         var center = new PointF(canvas.Width / 2f, canvas.Height / 2f);
 
-        var items = new List<OverlayItem>(state.WheelEntries.Count);
-        for (var i = 0; i < state.WheelEntries.Count; i++)
+        var items = new List<OverlayItem>(state.WheelEntries.Length);
+        for (var i = 0; i < state.WheelEntries.Length; i++)
         {
-            var angle = 2 * MathF.PI * i / state.WheelEntries.Count;
+            var angle = 2 * MathF.PI * i / state.WheelEntries.Length;
             var pillCenter = new PointF(
                 center.X + RadiusX * scale * MathF.Sin(angle),
                 center.Y - RadiusY * scale * MathF.Cos(angle));

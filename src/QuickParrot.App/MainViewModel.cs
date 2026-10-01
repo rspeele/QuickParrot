@@ -803,7 +803,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Null when LiteLLM naming isn't configured; otherwise resolves settings fresh on every call, so a
     /// mid-session settings change takes effect without reopening the editor.</summary>
-    private Func<EditableAudio, CancellationToken, Task<string?>>? BuildSuggestName()
+    private Func<EditableAudio, CancellationToken, Task<NameSuggestion>>? BuildSuggestName()
     {
         var (options, _) = LiteLlmOptionsResolver.Resolve(_engine.Settings, _protector);
         if (options is null)
@@ -815,14 +815,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (warning is not null)
                 Status = warning;
             if (resolved is null)
-                return null;
+                return new NameSuggestion(null);
 
             var namer = new LiteLlmClipNamer(_httpClient, resolved);
-            var suggestion = await namer.SuggestAsync(audio.Samples, audio.SampleRate, audio.Channels, ct);
-            if (suggestion?.Name is { } name)
-                return name;
-
-            throw new InvalidOperationException(suggestion?.ErrorMessage ?? "No name suggested.");
+            return await namer.SuggestAsync(audio.Samples, audio.SampleRate, audio.Channels, ct);
         };
     }
 

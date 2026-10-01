@@ -64,12 +64,7 @@ public sealed class FileSystemFolderSource : IFolderSource
 
         var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var combined = Path.GetFullPath(Path.Combine([_root, .. segments]));
-
-        var rootWithSeparator = _root.EndsWith(Path.DirectorySeparatorChar) ? _root : _root + Path.DirectorySeparatorChar;
-        var isWithinRoot = combined.Equals(_root, StringComparison.OrdinalIgnoreCase)
-            || combined.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
-
-        return isWithinRoot ? combined : null;
+        return LibraryPathResolver.RelativePathWithin(_root, combined) is null ? null : combined;
     }
 
     private static string Combine(string relativePath, string name) =>

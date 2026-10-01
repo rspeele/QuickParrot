@@ -34,7 +34,7 @@ internal static class GridGeometry
 
     public static OverlayLayout Compute(OverlayViewState state, float scale)
     {
-        var columnCount = Math.Max(1, state.GridColumns.Count);
+        var columnCount = Math.Max(1, state.GridColumns.Length);
         var gridWidth = columnCount * ColumnWidth + (columnCount - 1) * ColumnGap;
         var contentWidth = Math.Max(MinContentWidth, gridWidth);
         var gridLeft = Padding + (contentWidth - gridWidth) / 2;
@@ -96,7 +96,7 @@ internal static class GridGeometry
                 OverlayTextAlign.Far);
         var note = state.Truncated
             ? new OverlayLabel(
-                $"Only the first {state.GridColumns.Sum(c => c.Entries.Count)} entries are shown",
+                $"Only the first {state.GridColumns.Sum(c => c.Entries.Length)} entries are shown",
                 S(Padding, cellsTop + cellsHeight, contentWidth, NoteHeight, scale),
                 NoteFont * scale,
                 OverlayTextAlign.Center,

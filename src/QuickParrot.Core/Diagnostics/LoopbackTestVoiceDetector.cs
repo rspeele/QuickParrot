@@ -20,7 +20,7 @@ internal static class LoopbackTestVoiceDetector
 
     public readonly record struct Detection(bool Detected, double VoiceSeconds, double LevelDb, double BackgroundDb);
 
-    public static Detection Detect(float[] samples, int sampleRate, IReadOnlyList<double> excludedHz)
+    public static Detection Detect(ReadOnlySpan<float> samples, int sampleRate, IReadOnlyList<double> excludedHz)
     {
         var length = NextPowerOfTwo((int)(FrameSeconds * sampleRate));
         var bins = BandBins(length, sampleRate, excludedHz);

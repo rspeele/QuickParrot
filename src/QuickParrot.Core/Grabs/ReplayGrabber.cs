@@ -26,7 +26,7 @@ public sealed class ReplayGrabber(IReplaySource replay, IPendingGrabStore store)
                 return GrabResult.Failed(EmptyMessage);
 
             if (snapshot.IsSilent)
-                return GrabResult.Failed($"Nothing was playing in the last {FormatSeconds(snapshot.Duration)}.");
+                return GrabResult.Failed($"Nothing was playing in the last {PendingGrabDisplay.Seconds(snapshot.Duration)}.");
 
             snapshot = snapshot.DownmixedToStereo();
             return GrabResult.Saved(store.Save(snapshot.Samples.Span, snapshot.SampleRate, snapshot.Channels, grabbedAt));
@@ -38,7 +38,5 @@ public sealed class ReplayGrabber(IReplaySource replay, IPendingGrabStore store)
     }
 
     /// <summary>The overlay confirmation, e.g. "Grabbed last 30 s".</summary>
-    public static string SavedMessage(PendingGrab grab) => $"Grabbed last {FormatSeconds(grab.Duration)}";
-
-    private static string FormatSeconds(TimeSpan duration) => $"{Math.Max(1, (int)Math.Round(duration.TotalSeconds))} s";
+    public static string SavedMessage(PendingGrab grab) => $"Grabbed last {PendingGrabDisplay.Seconds(grab.Duration)}";
 }

@@ -15,12 +15,13 @@ public readonly record struct WavInfo(int FormatTag, int Channels, int SampleRat
 /// <summary>32-bit float samples read back from a WAV file, with the format they were recorded in.</summary>
 public sealed record WavAudio(ReadOnlyMemory<float> Samples, int SampleRate, int Channels);
 
-/// <summary>Minimal 32-bit float WAV writing, and reading.</summary>
+/// <summary>Minimal 32-bit float and 16-bit PCM WAV writing, and float reading.</summary>
 public static class WavFile
 {
+    public const int PcmFormat = 1;
     public const int IeeeFloatFormat = 3;
-    private const int FmtChunkSize = 18; // non-PCM formats carry a (zero) cbSize field
-    private const int HeaderBytes = 12 + 8 + FmtChunkSize + 12 + 8;
+    private const int PcmHeaderBytes = 12 + 8 + 16 + 8;
+    private const int FloatHeaderBytes = 12 + 8 + 18 + 12 + 8; // non-PCM formats add cbSize and a fact chunk
     private const int MaxChunksScanned = 64;
 
     // A sane upper bound on what ReadFloat32 will allocate for: 10 minutes of 8-channel 192 kHz float32 audio.
@@ -29,35 +30,9 @@ public static class WavFile
 
     public static void WriteFloat32(Stream stream, ReadOnlySpan<float> samples, int sampleRate, int channels)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
-        var frames = samples.Length / channels;
-        var dataBytes = (long)frames * channels * sizeof(float);
-        if (dataBytes > uint.MaxValue - HeaderBytes)
-            throw new ArgumentException("Too much audio for a WAV file.", nameof(samples));
-
-        Span<byte> header = stackalloc byte[HeaderBytes];
-        var w = new HeaderWriter(header);
-        w.Tag("RIFF");
-        w.U32((uint)(HeaderBytes - 8 + dataBytes));
-        w.Tag("WAVE");
-        w.Tag("fmt ");
-        w.U32(FmtChunkSize);
-        w.U16(IeeeFloatFormat);
-        w.U16((ushort)channels);
-        w.U32((uint)sampleRate);
-        w.U32((uint)(sampleRate * channels * sizeof(float)));
-        w.U16((ushort)(channels * sizeof(float)));
-        w.U16(32);
-        w.U16(0);
-        w.Tag("fact");
-        w.U32(4);
-        w.U32((uint)frames);
-        w.Tag("data");
-        w.U32((uint)dataBytes);
+        Span<byte> header = stackalloc byte[FloatHeaderBytes];
+        var data = WriteHeader(header, IeeeFloatFormat, samples, sampleRate, channels, sizeof(float));
         stream.Write(header);
-
-        var data = samples[..(frames * channels)];
         if (BitConverter.IsLittleEndian)
         {
             stream.Write(MemoryMarshal.AsBytes(data));
@@ -70,6 +45,58 @@ public static class WavFile
             BinaryPrimitives.WriteSingleLittleEndian(sample, value);
             stream.Write(sample);
         }
+    }
+
+    /// <summary>A whole 16-bit PCM WAV file in memory, with samples clamped to ±1.</summary>
+    public static byte[] EncodePcm16(ReadOnlySpan<float> samples, int sampleRate, int channels)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
+        var bytes = new byte[PcmHeaderBytes + (long)(samples.Length / channels * channels) * sizeof(short)];
+        var data = WriteHeader(bytes.AsSpan(0, PcmHeaderBytes), PcmFormat, samples, sampleRate, channels, sizeof(short));
+        for (var i = 0; i < data.Length; i++)
+        {
+            var value = (short)(Math.Clamp(data[i], -1f, 1f) * short.MaxValue);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(PcmHeaderBytes + i * sizeof(short)), value);
+        }
+
+        return bytes;
+    }
+
+    // Returns the whole frames of samples that the header describes.
+    private static ReadOnlySpan<float> WriteHeader(
+        Span<byte> header, int formatTag, ReadOnlySpan<float> samples, int sampleRate, int channels, int bytesPerSample)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
+        var frames = samples.Length / channels;
+        var dataBytes = (long)frames * channels * bytesPerSample;
+        if (dataBytes > uint.MaxValue - header.Length)
+            throw new ArgumentException("Too much audio for a WAV file.", nameof(samples));
+
+        var pcm = formatTag == PcmFormat;
+        var w = new HeaderWriter(header);
+        w.Tag("RIFF");
+        w.U32((uint)(header.Length - 8 + dataBytes));
+        w.Tag("WAVE");
+        w.Tag("fmt ");
+        w.U32(pcm ? 16u : 18u);
+        w.U16((ushort)formatTag);
+        w.U16((ushort)channels);
+        w.U32((uint)sampleRate);
+        w.U32((uint)(sampleRate * channels * bytesPerSample));
+        w.U16((ushort)(channels * bytesPerSample));
+        w.U16((ushort)(8 * bytesPerSample));
+        if (!pcm)
+        {
+            w.U16(0);
+            w.Tag("fact");
+            w.U32(4);
+            w.U32((uint)frames);
+        }
+
+        w.Tag("data");
+        w.U32((uint)dataBytes);
+        return samples[..(frames * channels)];
     }
 
     /// <summary>Reads the format and data size, or null if this isn't a WAV file it understands.</summary>

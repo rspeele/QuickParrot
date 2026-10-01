@@ -13,19 +13,16 @@ public static class MicDeviceSelector
     public static MicSelection Select(
         IReadOnlyList<CaptureDeviceInfo> devices, string? configuredId, string? defaultId, string? communicationsId)
     {
-        if (FindActive(devices, configuredId) is { } configured)
+        if (Endpoints.FindActive(devices, configuredId) is { } configured)
             return new MicSelection(configured, false);
 
         var candidates = devices.Where(d => d.IsActive && !d.IsCable).ToList();
         var listening = candidates.Where(d => d.ListenEnabled).ToList();
-        var device = FindActive(listening, defaultId)
-            ?? FindActive(listening, communicationsId)
+        var device = Endpoints.FindActive(listening, defaultId)
+            ?? Endpoints.FindActive(listening, communicationsId)
             ?? listening.FirstOrDefault()
-            ?? FindActive(candidates, defaultId)
-            ?? FindActive(candidates, communicationsId);
+            ?? Endpoints.FindActive(candidates, defaultId)
+            ?? Endpoints.FindActive(candidates, communicationsId);
         return new MicSelection(device, configuredId is not null);
     }
-
-    private static CaptureDeviceInfo? FindActive(IEnumerable<CaptureDeviceInfo> devices, string? id) =>
-        id is null ? null : devices.FirstOrDefault(d => d.IsActive && string.Equals(d.Id, id, StringComparison.OrdinalIgnoreCase));
 }

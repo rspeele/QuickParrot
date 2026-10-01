@@ -1,3 +1,5 @@
+using QuickParrot.Core.Common;
+
 namespace QuickParrot.Core.Diagnostics;
 
 public interface IAudioSetupReader
@@ -30,34 +32,22 @@ public sealed class AudioDiagnostics : IDisposable
 
     private readonly IAudioSetupReader _reader;
     private readonly AudioSetupRepairer _repairer;
-    private readonly TimeProvider _time;
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly Lock _timerLock = new();
-    private ITimer? _timer;
-    private bool _disposed;
+    private readonly Debouncer _requests;
+    private volatile bool _disposed;
 
     public AudioDiagnostics(IAudioSetupReader reader, AudioSetupRepairer repairer, TimeProvider time)
     {
         _reader = reader;
         _repairer = repairer;
-        _time = time;
+        _requests = new Debouncer(() => _ = CheckNowAsync(), Debounce, time);
     }
 
-    /// <summary>Raised on a background thread after every check.</summary>
+    /// <summary>Raised on a background thread after every check, until disposed.</summary>
     public event Action<DiagnosticsReport>? Updated;
 
     /// <summary>Checks once things have been quiet for <see cref="Debounce"/>.</summary>
-    public void RequestCheck()
-    {
-        lock (_timerLock)
-        {
-            if (_disposed)
-                return;
-
-            _timer ??= _time.CreateTimer(_ => _ = CheckNowAsync(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-            _timer.Change(Debounce, Timeout.InfiniteTimeSpan);
-        }
-    }
+    public void RequestCheck() => _requests.Signal();
 
     public Task<DiagnosticsReport> CheckNowAsync() => Task.Run(async () =>
     {
@@ -90,12 +80,8 @@ public sealed class AudioDiagnostics : IDisposable
 
     public void Dispose()
     {
-        lock (_timerLock)
-        {
-            _disposed = true;
-            _timer?.Dispose();
-            _timer = null;
-        }
+        _disposed = true;
+        _requests.Dispose();
     }
 
     private DiagnosticsReport Check()
@@ -113,7 +99,8 @@ public sealed class AudioDiagnostics : IDisposable
         var report = new DiagnosticsReport(AudioSetupDiagnoser.Diagnose(snapshot));
         try
         {
-            Updated?.Invoke(report);
+            if (!_disposed)
+                Updated?.Invoke(report);
         }
         catch (Exception)
         {

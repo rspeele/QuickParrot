@@ -1,20 +1,23 @@
 using System.IO;
+using QuickParrot.Core.Common;
 using QuickParrot.Core.Library;
 
 namespace QuickParrot.App.Library;
 
 /// <summary>
 /// Watches a library root recursively for folder/file creates, deletes and renames, debouncing bursts (see
-/// <see cref="LibraryChangeDebouncer"/>) into one <see cref="Changed"/> event. Raised on a background thread.
+/// <see cref="Debouncer"/>) into one <see cref="Changed"/> event. Raised on a background thread.
 /// </summary>
 public sealed class LibraryWatcher : IDisposable
 {
-    private readonly LibraryChangeDebouncer _debouncer;
+    private static readonly TimeSpan DefaultDelay = TimeSpan.FromMilliseconds(300);
+
+    private readonly Debouncer _debouncer;
     private readonly FileSystemWatcher? _watcher;
 
     public LibraryWatcher(string root, TimeProvider time, TimeSpan? delay = null)
     {
-        _debouncer = new LibraryChangeDebouncer(() => Changed?.Invoke(), delay ?? LibraryChangeDebouncer.DefaultDelay, time);
+        _debouncer = new Debouncer(() => Changed?.Invoke(), delay ?? DefaultDelay, time);
         FileSystemWatcher? watcher = null;
         try
         {

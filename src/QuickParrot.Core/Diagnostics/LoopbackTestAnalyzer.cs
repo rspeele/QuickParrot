@@ -17,9 +17,8 @@ public static class LoopbackTestAnalyzer
         foreach (var sample in samples)
             peak = Math.Max(peak, Math.Abs(sample));
 
-        var recording = samples.ToArray();
-        var chime = LoopbackTestChimeDetector.Detect(recording, sampleRate, signal);
-        var voice = LoopbackTestVoiceDetector.Detect(recording, sampleRate, signal.Frequencies);
+        var chime = LoopbackTestChimeDetector.Detect(samples, sampleRate, signal);
+        var voice = LoopbackTestVoiceDetector.Detect(samples, sampleRate, signal.Frequencies);
         var verdict = (chime.Detected, voice.Detected) switch
         {
             (true, true) => LoopbackTestVerdict.Passed,

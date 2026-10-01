@@ -1,3 +1,5 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Diagnostics;
 
 /// <summary>One tone of the test chime, timed from the start of the chime.</summary>
@@ -56,8 +58,8 @@ public sealed class LoopbackTestSignal
             return 0;
 
         var remaining = note.DurationSeconds - t;
-        var attack = t < AttackSeconds ? RaisedCosine(t / AttackSeconds) : 1;
-        var release = remaining < ReleaseSeconds ? RaisedCosine(remaining / ReleaseSeconds) : 1;
+        var attack = t < AttackSeconds ? RaisedCosine.At(t / AttackSeconds) : 1;
+        var release = remaining < ReleaseSeconds ? RaisedCosine.At(remaining / ReleaseSeconds) : 1;
         return PeakAmplitude * Math.Exp(-t / DecaySeconds) * attack * release;
     }
 
@@ -80,6 +82,4 @@ public sealed class LoopbackTestSignal
 
         return samples;
     }
-
-    private static double RaisedCosine(double fraction) => 0.5 - 0.5 * Math.Cos(Math.PI * fraction);
 }

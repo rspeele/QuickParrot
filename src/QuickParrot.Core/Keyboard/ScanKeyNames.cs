@@ -20,9 +20,8 @@ public static class ScanKeyNames
         void AddExtended(int scanCode, string name) => names[new ScanKey(scanCode, true)] = name;
 
         Add(0x01, "Escape");
-        for (var digit = 1; digit <= 9; digit++)
-            Add(digit + 1, digit.ToString());
-        Add(0x0B, "0");
+        for (var scanCode = 0x02; scanCode <= 0x0B; scanCode++)
+            Add(scanCode, ScanKey.DigitOf(scanCode, false).ToString());
         Add(0x0C, "-");
         Add(0x0D, "=");
         Add(0x0E, "Backspace");
@@ -61,8 +60,11 @@ public static class ScanKeyNames
             Add(0x64 + f - 13, $"F{f}");
         Add(0x76, "F24");
 
-        foreach (var (scanCode, digit) in new[] { (0x4F, 1), (0x50, 2), (0x51, 3), (0x4B, 4), (0x4C, 5), (0x4D, 6), (0x47, 7), (0x48, 8), (0x49, 9), (0x52, 0) })
-            Add(scanCode, $"Numpad {digit}");
+        for (var scanCode = 0x47; scanCode <= 0x52; scanCode++)
+        {
+            if (ScanKey.DigitOf(scanCode, false) is var digit and >= 0)
+                Add(scanCode, $"Numpad {digit}");
+        }
 
         AddExtended(0x10, "Previous Track");
         AddExtended(0x19, "Next Track");

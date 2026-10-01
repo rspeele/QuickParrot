@@ -77,7 +77,7 @@ internal static class FavoritesGeometry
             OverlayTextAlign.Center, OverlayFont.Regular);
         y += (InstructionsHeight + SlotsTop) * scale;
 
-        var slots = new List<FavoriteSlotItem>(favorites.Slots.Count);
+        var slots = new List<FavoriteSlotItem>(favorites.Slots.Length);
         foreach (var slot in favorites.Slots)
         {
             var slotX = x + (slot.Slot - 1) * (SlotWidth + SlotGap) * scale;

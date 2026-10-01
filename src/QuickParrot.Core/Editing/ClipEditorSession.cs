@@ -1,3 +1,5 @@
+using QuickParrot.Core.Dsp;
+
 namespace QuickParrot.Core.Editing;
 
 /// <summary>
@@ -64,7 +66,7 @@ public sealed class ClipEditorSession
     }
 
     public float PreviewGain(double measuredLufs, bool normalize) =>
-        normalize ? (float)Math.Pow(10, LoudnessNormalizer.GainDbFor(measuredLufs, Loudness) / 20) : 1f;
+        normalize ? (float)Decibels.ToAmplitude(LoudnessNormalizer.GainDbFor(measuredLufs, Loudness)) : 1f;
 
     public EditableAudio SelectionAudio() => Audio.Slice(Selection.Start, Selection.End);
 
@@ -80,7 +82,7 @@ public sealed class ClipEditorSession
 
         var rendered = ClipRenderer.Render(Audio, selection, new ClipRenderOptions(normalize, Loudness));
         cancellationToken.ThrowIfCancellationRequested();
-        return _encoder.Save(rendered.Audio, folder, ClipFileNames.Sanitize(name), cancellationToken);
+        return _encoder.Save(rendered, folder, ClipFileNames.Sanitize(name), cancellationToken);
     }
 
     private sealed record MeasuredLoudness(ClipSelection Selection, double Lufs);

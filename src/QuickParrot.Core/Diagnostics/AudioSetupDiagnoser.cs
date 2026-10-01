@@ -10,8 +10,6 @@ public static class AudioSetupDiagnoser
 {
     public const float LowVolumeThreshold = 0.10f;
 
-    private static readonly DeviceRoles[] EachRole = [DeviceRoles.Console, DeviceRoles.Multimedia, DeviceRoles.Communications];
-
     public static class Ids
     {
         public const string DevicesUnreadable = "devices-unreadable";
@@ -88,7 +86,7 @@ public static class AudioSetupDiagnoser
         var candidates = snapshot.CaptureDevices.Where(d => d.IsActive && !d.IsCable).ToList();
         return device
             ?? candidates.FirstOrDefault(d => cable is not null && snapshot.Listen.TryGetValue(d.Id, out var listen)
-                && listen.TargetId is { } target && SameId(target, cable.Id))
+                && Endpoints.SameId(listen.TargetId, cable.Id))
             ?? candidates.FirstOrDefault();
     }
 
@@ -130,10 +128,10 @@ public static class AudioSetupDiagnoser
         }
 
         var target = string.IsNullOrEmpty(listen.TargetId) ? snapshot.Defaults?.RenderConsole : listen.TargetId;
-        if (target is null || SameId(target, cable.Id))
+        if (target is null || Endpoints.SameId(target, cable.Id))
             return;
 
-        var targetName = snapshot.RenderDevices.FirstOrDefault(d => SameId(d.Id, target))?.Name ?? "another device";
+        var targetName = snapshot.RenderDevices.FirstOrDefault(d => Endpoints.SameId(d.Id, target))?.Name ?? "another device";
         var via = string.IsNullOrEmpty(listen.TargetId) ? $"your default playback device ({targetName})" : targetName;
         findings.Add(new DiagnosticFinding(Ids.ListenWrongTarget, DiagnosticSeverity.Error, "Your voice is going to the wrong place",
             $"\"Listen to this device\" is on for {mic.Name}, but it plays to {via} instead of {cable.Name}, so your game " +
@@ -145,7 +143,7 @@ public static class AudioSetupDiagnoser
         if (snapshot.Defaults is not { } defaults)
             return;
 
-        var roles = RolesWhere(role => defaults.Render(role) is { } id && SameId(id, cable.Id));
+        var roles = DeviceRoleSet.Matching(role => Endpoints.SameId(defaults.Render(role), cable.Id));
         if (roles == DeviceRoles.None)
             return;
 
@@ -228,7 +226,7 @@ public static class AudioSetupDiagnoser
         if (snapshot.Defaults is not { } defaults)
             return;
 
-        var roles = RolesWhere(role => defaults.Capture(role) is { } id && !SameId(id, cableCapture.Id));
+        var roles = DeviceRoleSet.Matching(role => defaults.Capture(role) is { } id && !Endpoints.SameId(id, cableCapture.Id));
         if (roles == DeviceRoles.None)
             return;
 
@@ -248,16 +246,16 @@ public static class AudioSetupDiagnoser
         if (snapshot.Defaults is not { } defaults)
             return;
 
-        var console = FindActiveCapture(snapshot, defaults.CaptureConsole);
-        var comms = FindActiveCapture(snapshot, defaults.CaptureCommunications);
-        if (console is null || comms is null || SameId(console.Id, comms.Id))
+        var console = Endpoints.FindActive(snapshot.CaptureDevices, defaults.CaptureConsole);
+        var comms = Endpoints.FindActive(snapshot.CaptureDevices, defaults.CaptureCommunications);
+        if (console is null || comms is null || Endpoints.SameId(console.Id, comms.Id))
             return;
 
-        var commsIsCable = cableCapture is not null && SameId(comms.Id, cableCapture.Id);
+        var commsIsCable = cableCapture is not null && Endpoints.SameId(comms.Id, cableCapture.Id);
         if (commsIsCable)
             return;
 
-        var consoleIsCable = cableCapture is not null && SameId(console.Id, cableCapture.Id);
+        var consoleIsCable = cableCapture is not null && Endpoints.SameId(console.Id, cableCapture.Id);
         var explanation = consoleIsCable
             ? $"Most apps use {console.Name} (the one chosen in Windows Settings), which is how QuickParrot reaches your game with " +
               $"soundboard clips, but voice chat and some games use {comms.Name} instead, so they currently won't hear those clips."
@@ -277,12 +275,12 @@ public static class AudioSetupDiagnoser
         if (snapshot.Defaults is not { } defaults)
             return;
 
-        if (cable is not null && (IsId(defaults.RenderConsole, cable.Id) || IsId(defaults.RenderCommunications, cable.Id)))
+        if (cable is not null && (Endpoints.SameId(defaults.RenderConsole, cable.Id) || Endpoints.SameId(defaults.RenderCommunications, cable.Id)))
             return;
 
-        var console = FindActiveRender(snapshot, defaults.RenderConsole);
-        var comms = FindActiveRender(snapshot, defaults.RenderCommunications);
-        if (console is null || comms is null || SameId(console.Id, comms.Id))
+        var console = Endpoints.FindActive(snapshot.RenderDevices, defaults.RenderConsole);
+        var comms = Endpoints.FindActive(snapshot.RenderDevices, defaults.RenderCommunications);
+        if (console is null || comms is null || Endpoints.SameId(console.Id, comms.Id))
             return;
 
         findings.Add(new DiagnosticFinding(Ids.CommunicationsPlaybackMismatch, DiagnosticSeverity.Advisory,
@@ -292,17 +290,4 @@ public static class AudioSetupDiagnoser
             new DiagnosticFix(FixKind.SetDefaultPlayback, $"Also use {console.Name} for voice chat", console.Id,
                 Roles: DeviceRoles.Communications)));
     }
-
-    private static AudioDeviceInfo? FindActiveRender(AudioSetupSnapshot snapshot, string? id) =>
-        id is null ? null : snapshot.RenderDevices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));
-
-    private static CaptureDeviceInfo? FindActiveCapture(AudioSetupSnapshot snapshot, string? id) =>
-        id is null ? null : snapshot.CaptureDevices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));
-
-    private static bool IsId(string? candidate, string id) => candidate is not null && SameId(candidate, id);
-
-    private static DeviceRoles RolesWhere(Func<DeviceRoles, bool> predicate) =>
-        EachRole.Where(predicate).Aggregate(DeviceRoles.None, (all, role) => all | role);
-
-    private static bool SameId(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 }

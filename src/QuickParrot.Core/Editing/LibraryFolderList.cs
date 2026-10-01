@@ -33,8 +33,7 @@ public static class LibraryFolderList
             if (path.Length == 0)
                 return folders[0];
 
-            var separator = path.LastIndexOf('/');
-            path = separator < 0 ? "" : path[..separator];
+            path = LibraryPathResolver.ParentOf(path);
         }
     }
 

@@ -19,8 +19,8 @@ public sealed class WindowsAudioSetupReader(Func<ConfiguredDevices> configured, 
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            var listen = AudioSetupSnapshot.EmptyById<ListenSetting>();
-            var levels = AudioSetupSnapshot.EmptyById<EndpointLevel>();
+            var listen = new Dictionary<string, ListenSetting>(Endpoints.IdComparer);
+            var levels = new Dictionary<string, EndpointLevel>(Endpoints.IdComparer);
             var render = ReadDevices(enumerator, DataFlow.Render, levels, null);
             var capture = ReadDevices(enumerator, DataFlow.Capture, levels, listen)
                 .Select(d => new CaptureDeviceInfo(d.Id, d.Name, d.State, listen.GetValueOrDefault(d.Id)?.Enabled == true))
@@ -31,8 +31,8 @@ public sealed class WindowsAudioSetupReader(Func<ConfiguredDevices> configured, 
                 RenderDevices = render,
                 CaptureDevices = capture,
                 Defaults = ReadDefaults(enumerator),
-                Listen = listen,
-                Levels = levels,
+                Listen = AudioSetupSnapshot.ById(listen),
+                Levels = AudioSetupSnapshot.ById(levels),
                 MicRestorePending = pending,
                 CommunicationsDucking = ducking,
                 Configured = settings,
