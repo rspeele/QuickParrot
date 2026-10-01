@@ -49,26 +49,30 @@ public partial class MainWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Choose your sound library folder" };
         if (dialog.ShowDialog(this) == true)
-            _viewModel.ChooseLibrary(dialog.FolderName);
+            _viewModel.Library.Choose(dialog.FolderName);
     }
 
-    private void Up_Click(object sender, RoutedEventArgs e) => _viewModel.GoUp();
+    private void Up_Click(object sender, RoutedEventArgs e) => _viewModel.Library.GoUp();
 
-    private void OpenInExplorer_Click(object sender, RoutedEventArgs e) => _viewModel.OpenCurrentFolderInExplorer();
+    private void OpenInExplorer_Click(object sender, RoutedEventArgs e) => _viewModel.Library.OpenCurrentFolderInExplorer();
 
-    private void Stop_Click(object sender, RoutedEventArgs e) => _viewModel.Stop();
+    private void Stop_Click(object sender, RoutedEventArgs e) => _viewModel.Library.Stop();
 
-    private void Refresh_Click(object sender, RoutedEventArgs e) => _viewModel.RefreshDevices();
+    private void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.Devices.Refresh();
+        _viewModel.Library.Refresh();
+    }
 
     private void Entries_MouseDoubleClick(object sender, MouseButtonEventArgs e) =>
-        _viewModel.Open(EntryList.SelectedItem as LibraryItem);
+        _viewModel.Library.Open(EntryList.SelectedItem as LibraryItem);
 
     private void Entries_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
-            _viewModel.Open(EntryList.SelectedItem as LibraryItem);
+            _viewModel.Library.Open(EntryList.SelectedItem as LibraryItem);
         else if (e.Key == Key.Back)
-            _viewModel.GoUp();
+            _viewModel.Library.GoUp();
     }
 
     // Only files can be favorites, so the menu doesn't open on folders or empty space.
@@ -89,11 +93,8 @@ public partial class MainWindow : Window
 
     private async void OpenGrab_Click(object sender, RoutedEventArgs e) => await OpenSelectedGrabAsync();
 
-    private void DeleteGrab_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel.PendingGrabs.Delete(PendingGrabsList.SelectedItem as PendingGrabItem) is { } error)
-            _viewModel.Status = error;
-    }
+    private void DeleteGrab_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.PendingGrabs.Delete(PendingGrabsList.SelectedItem as PendingGrabItem);
 
     private async void PendingGrabs_MouseDoubleClick(object sender, MouseButtonEventArgs e) => await OpenSelectedGrabAsync();
 
@@ -119,7 +120,7 @@ public partial class MainWindow : Window
     {
         _apiKeyDirty = false;
         ApiKeyBox.Clear();
-        _viewModel.SetLiteLlmApiKey("");
+        _viewModel.LiteLlm.SetApiKey("");
     }
 
     private void CommitApiKeyIfDirty()
@@ -128,14 +129,14 @@ public partial class MainWindow : Window
             return;
 
         _apiKeyDirty = false;
-        _viewModel.SetLiteLlmApiKey(ApiKeyBox.Password);
+        _viewModel.LiteLlm.SetApiKey(ApiKeyBox.Password);
     }
 
-    private async void TestLiteLlmConnection_Click(object sender, RoutedEventArgs e) => await _viewModel.TestLiteLlmConnectionAsync();
+    private async void TestLiteLlmConnection_Click(object sender, RoutedEventArgs e) => await _viewModel.LiteLlm.TestConnectionAsync();
 
-    private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangeChordKeyAsync();
+    private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangeChordKeyAsync();
 
-    private async void ChangePushToTalkKey_Click(object sender, RoutedEventArgs e) => await _viewModel.ChangePushToTalkKeyAsync();
+    private async void ChangePushToTalkKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangePushToTalkKeyAsync();
 
     private async void Recheck_Click(object sender, RoutedEventArgs e) => await _viewModel.Diagnostics.RecheckAsync();
 
@@ -146,10 +147,10 @@ public partial class MainWindow : Window
         await _viewModel.Diagnostics.Test.RunOrCancelAsync();
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) =>
-        _viewModel.CancelKeyCapture();
+        _viewModel.Hotkeys.CancelKeyCapture();
 
     // Otherwise a capture left armed would eat the next key pressed in the game and rebind the chord to it.
-    private void MainWindow_Deactivated(object? sender, EventArgs e) => _viewModel.CancelKeyCapture();
+    private void MainWindow_Deactivated(object? sender, EventArgs e) => _viewModel.Hotkeys.CancelKeyCapture();
 
     // Mute/volume changes don't raise SetupChanged, so a fix made in Windows itself only clears promptly here.
     private void MainWindow_Activated(object? sender, EventArgs e) => _viewModel.Diagnostics.RequestCheck();

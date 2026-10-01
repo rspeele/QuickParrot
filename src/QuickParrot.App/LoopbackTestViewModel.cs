@@ -2,6 +2,7 @@ using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
+using QuickParrot.Core.Settings;
 
 namespace QuickParrot.App;
 
@@ -17,6 +18,7 @@ public sealed class LoopbackTestViewModel : ObservableObject
     private readonly IAudioDeviceCatalog _devices;
     private readonly ICaptureDeviceCatalog _captureDevices;
     private readonly QuickParrotEngine _engine;
+    private readonly SettingsMirror _settings;
     private readonly AudioDiagnostics _diagnostics;
     private CancellationTokenSource? _cts;
     private bool _isRunning;
@@ -30,12 +32,14 @@ public sealed class LoopbackTestViewModel : ObservableObject
         IAudioDeviceCatalog devices,
         ICaptureDeviceCatalog captureDevices,
         QuickParrotEngine engine,
+        SettingsMirror settings,
         AudioDiagnostics diagnostics)
     {
         _tester = tester;
         _devices = devices;
         _captureDevices = captureDevices;
         _engine = engine;
+        _settings = settings;
         _diagnostics = diagnostics;
         _setupReady = ResolveSetup().IsReady;
     }
@@ -140,5 +144,5 @@ public sealed class LoopbackTestViewModel : ObservableObject
 
     private LoopbackTestSetup ResolveSetup() => LoopbackTestSetup.Resolve(
         _devices.GetRenderDevices(), _captureDevices.GetCaptureDevices(),
-        _engine.Settings.CableDeviceId, _engine.Settings.MonitorDeviceId, _devices.GetDefaultRenderDeviceId());
+        _settings.Current.CableDeviceId, _settings.Current.MonitorDeviceId, _devices.GetDefaultRenderDeviceId());
 }

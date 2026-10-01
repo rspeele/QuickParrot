@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
+using QuickParrot.App.Library;
 using QuickParrot.Audio;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
@@ -34,8 +35,8 @@ public partial class App : System.Windows.Application
     private EditorPreview? _editorPreview;
     private HttpClient? _httpClient;
     private DpapiProtector? _dpapiProtector;
-    private MainViewModel? _viewModel;
-    private (bool Enabled, string? MonitorDeviceId)? _lastReplayCaptureConfig;
+    private LibraryViewModel? _library;
+    private Action<AppSettings>? _applySettings;
     private int _crashCleanupStarted;
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
@@ -72,16 +73,12 @@ public partial class App : System.Windows.Application
 
         // Created before the engine so hotkeys are live as early as possible; the lambda reaches the engine
         // once it exists below.
-        _hook = new LowLevelKeyboardHook(loaded.Settings.ChordKey, chordEvent => _engine?.Post(chordEvent))
-        {
-            Enabled = loaded.Settings.HotkeysEnabled,
-        };
-        _hook.PushToTalkBinding = loaded.Settings.PushToTalkBinding;
-        _hook.SetChordlessFavoriteSlots(
-            FavoriteStatus.ChordlessMask(loaded.Settings.Favorites, loaded.Settings.FavoritesWithoutChord));
+        var hook = new LowLevelKeyboardHook(loaded.Settings.ChordKey, chordEvent => _engine?.Post(chordEvent));
+        _hook = hook;
+        ApplyHookSettings(hook, loaded.Settings);
         try
         {
-            _hook.Start();
+            hook.Start();
         }
         catch (Win32Exception ex)
         {
@@ -96,96 +93,134 @@ public partial class App : System.Windows.Application
         _replayBuffer = new ReplayBuffer(TimeSpan.FromSeconds(loaded.Settings.ReplayBufferSeconds));
         _grabStore = new FilePendingGrabStore(FilePendingGrabStore.DefaultDirectory);
 
-        _engine = new QuickParrotEngine(
+        var engine = new QuickParrotEngine(
             _player,
-            _hook.PushToTalk,
+            hook.PushToTalk,
             micDucker,
             store,
             loaded.Settings,
             TimeProvider.System,
-            root => new FileSystemFolderSource(root),
+            OpenFolderSource,
             _replayBuffer,
             _grabStore);
-        _engine.Start();
-        _devices.DevicesChanged += _engine.RetryMicRestore;
+        _engine = engine;
 
-        _replayCapture = new LoopbackReplayCapture(_replayBuffer);
-        _lastReplayCaptureConfig = (loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
-        _replayCapture.Configure(loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
-        var hook = _hook;
-        _engine.SettingsChanged += settings =>
+        var replayCapture = new LoopbackReplayCapture(_replayBuffer);
+        _replayCapture = replayCapture;
+        replayCapture.Configure(loaded.Settings.ReplayBufferEnabled, loaded.Settings.MonitorDeviceId);
+
+        var diagnostics = new AudioDiagnostics(
+            new WindowsAudioSetupReader(() => engine.Settings.ToConfiguredDevices(), () => micDucker.HasPendingRestore),
+            new AudioSetupRepairer(new WindowsAudioSystemWriter(Environment.ProcessPath ?? "")),
+            TimeProvider.System);
+        _diagnostics = diagnostics;
+
+        var settings = new SettingsMirror(engine.Settings, engine.UpdateSettings, PostToUi);
+        var applied = engine.Settings;
+        // The one place settings reach the hook, replay capture and diagnostics. Raised on the engine thread, and
+        // subscribed before it starts so no change is missed.
+        _applySettings = updated =>
         {
-            hook.SetChordlessFavoriteSlots(FavoriteStatus.ChordlessMask(settings.Favorites, settings.FavoritesWithoutChord));
-            (bool Enabled, string? MonitorDeviceId) config = (settings.ReplayBufferEnabled, settings.MonitorDeviceId);
-            if (config == _lastReplayCaptureConfig)
-                return;
-
-            _lastReplayCaptureConfig = config;
-            _replayCapture?.Configure(config.Enabled, config.MonitorDeviceId);
+            ApplyHookSettings(hook, updated);
+            if ((updated.ReplayBufferEnabled, updated.MonitorDeviceId) != (applied.ReplayBufferEnabled, applied.MonitorDeviceId))
+                replayCapture.Configure(updated.ReplayBufferEnabled, updated.MonitorDeviceId);
+            if (updated.ToConfiguredDevices() != applied.ToConfiguredDevices())
+                diagnostics.RequestCheck();
+            applied = updated;
+            PostToUi(() => settings.Receive(updated));
         };
+        engine.SettingsChanged += _applySettings;
 
-        _overlay = new OverlayHost();
+        var overlay = new OverlayHost();
+        _overlay = overlay;
         try
         {
-            _overlay.Start();
+            overlay.Start();
         }
         catch (Exception ex)
         {
             warnings.Add($"Couldn't start the overlay: {ex.Message}");
         }
 
-        _engine.ViewStateChanged += _overlay.Show;
-
-        var engine = _engine;
-        _diagnostics = new AudioDiagnostics(
-            new WindowsAudioSetupReader(() => engine.Settings.ToConfiguredDevices(), () => micDucker.HasPendingRestore),
-            new AudioSetupRepairer(new WindowsAudioSystemWriter(Environment.ProcessPath ?? "")),
-            TimeProvider.System);
-        _devices.SetupChanged += _diagnostics.RequestCheck;
+        engine.ViewStateChanged += overlay.Show;
+        engine.Start();
+        _devices.DevicesChanged += engine.RetryMicRestore;
+        _devices.SetupChanged += diagnostics.RequestCheck;
 
         _clipEncoder = new ClipEncoder();
         _editorPreview = new EditorPreview(_devices, () => engine.Settings.ToOutputSettings());
         _httpClient = new HttpClient();
         _dpapiProtector = new DpapiProtector();
 
-        var loopbackTest = new LoopbackTestViewModel(new LoopbackTester(), _devices, _devices, _engine, _diagnostics);
-        var diagnosticsViewModel = new DiagnosticsViewModel(_diagnostics, loopbackTest);
+        var status = new StatusViewModel();
+        if (warnings.Count > 0)
+            status.Report(string.Join(" ", warnings));
+
+        // All raised on their own threads.
+        overlay.ErrorOccurred += message => PostToUi(() => status.Report(message));
+        hook.ErrorOccurred += message => PostToUi(() => status.Report(message));
+        micDucker.Warning += message => PostToUi(() => status.Report(message));
+        replayCapture.ErrorOccurred += message => PostToUi(() => status.Report(message));
+        engine.ErrorOccurred += message => PostToUi(() => status.Report(message));
+        engine.FavoritesNotice += notice => PostToUi(() => status.Report(notice.Message));
+
+        // All safe to call from any thread; the status line update for a failed grab rides along on ErrorOccurred.
+        engine.GrabSaved += grab => overlay.ShowToast(ReplayGrabber.SavedMessage(grab), TimeSpan.FromSeconds(1.5));
+        engine.GrabFailed += message => overlay.ShowToast(message, TimeSpan.FromSeconds(1.5), isError: true);
+        engine.FavoritesNotice += notice => overlay.ShowToast(notice.Message, TimeSpan.FromSeconds(1.5), notice.IsError);
+
+        var loopbackTest = new LoopbackTestViewModel(new LoopbackTester(), _devices, _devices, engine, settings, diagnostics);
+        var diagnosticsViewModel = new DiagnosticsViewModel(diagnostics, loopbackTest, PostToUi);
         // One-way: the setup test's readiness depends on the devices diagnostics already watches, but it never
         // references DiagnosticsViewModel back.
         diagnosticsViewModel.ReportChanged += _ => loopbackTest.Refresh();
+        diagnosticsViewModel.ReportChanged += status.ShowDiagnostics;
 
+        _library = new LibraryViewModel(settings, engine, status, OpenFolderSource, WatchLibrary, OpenInExplorer, PostToUi);
         var viewModel = new MainViewModel(
-            _engine,
-            _devices,
-            _devices,
-            _hook,
-            _grabStore,
-            _editorPreview,
-            _clipEncoder,
-            _httpClient,
-            _dpapiProtector,
+            settings,
+            status,
+            _library,
+            new PendingGrabsViewModel(_grabStore, engine, settings, status, PostToUi),
+            new FavoritesViewModel(engine, settings, OpenFolderSource),
+            new SettingsViewModel(settings),
+            new DeviceSettingsViewModel(settings, _devices, _devices),
+            new HotkeysViewModel(settings, status, hook.CaptureNextKeyAsync),
+            new LiteLlmSettingsViewModel(settings, status, _httpClient, _dpapiProtector),
             diagnosticsViewModel,
-            warnings.Count == 0 ? null : string.Join(" ", warnings));
-        _viewModel = viewModel;
-
-        // All raise these on their own thread, so they must be marshalled onto the UI thread.
-        _overlay.ErrorOccurred += message =>
-            Dispatcher.BeginInvoke(() => viewModel.Status = message);
-        _hook.ErrorOccurred += message =>
-            Dispatcher.BeginInvoke(() => viewModel.Status = message);
-        micDucker.Warning += message =>
-            Dispatcher.BeginInvoke(() => viewModel.Status = message);
-        _replayCapture.ErrorOccurred += message =>
-            Dispatcher.BeginInvoke(() => viewModel.Status = message);
-
-        // Both are safe to call from any thread; the status line update for a failed grab rides along on ErrorOccurred.
-        _engine.GrabSaved += grab => _overlay.ShowToast(ReplayGrabber.SavedMessage(grab), TimeSpan.FromSeconds(1.5));
-        _engine.GrabFailed += message => _overlay.ShowToast(message, TimeSpan.FromSeconds(1.5), isError: true);
-        _engine.FavoritesNotice += notice => _overlay.ShowToast(notice.Message, TimeSpan.FromSeconds(1.5), notice.IsError);
+            new GrabEditorServices(_grabStore, _editorPreview, _clipEncoder, _httpClient, _dpapiProtector));
 
         MainWindow = new MainWindow(viewModel);
         MainWindow.Show();
-        _ = _diagnostics.CheckNowAsync();
+        _ = diagnostics.CheckNowAsync();
+    }
+
+    // Runs actions on the UI thread in the order posted, which SettingsMirror relies on.
+    private void PostToUi(Action action) => Dispatcher.BeginInvoke(action);
+
+    private static IFolderSource OpenFolderSource(string root) => new FileSystemFolderSource(root);
+
+    private static IDisposable WatchLibrary(string root, Action changed)
+    {
+        var watcher = new LibraryWatcher(root, TimeProvider.System);
+        watcher.Changed += changed;
+        return watcher;
+    }
+
+    // Shell-opening the folder itself sidesteps explorer.exe's own argument parsing (commas, "D:\" roots).
+    private static void OpenInExplorer(string path) =>
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+
+    // Thread-safe, and settings are already sanitized, so none of these throw.
+    private static void ApplyHookSettings(LowLevelKeyboardHook hook, AppSettings settings)
+    {
+        if (hook.ChordKey != settings.ChordKey)
+            hook.ChordKey = settings.ChordKey;
+        if (hook.PushToTalkBinding != settings.PushToTalkBinding)
+            hook.PushToTalkBinding = settings.PushToTalkBinding;
+        if (hook.Enabled != settings.HotkeysEnabled)
+            hook.Enabled = settings.HotkeysEnabled;
+        hook.SetChordlessFavoriteSlots(FavoriteStatus.ChordlessMask(settings.Favorites, settings.FavoritesWithoutChord));
     }
 
     // Runs on a fresh thread with a deadline, since the crashed state may have the engine or hook threads stuck.
@@ -220,7 +255,10 @@ public partial class App : System.Windows.Application
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
         // Order matters: hook disabled, engine (releases push-to-talk, restores the mic), hook, overlay, then the
-        // audio users (replay capture, editor preview, player) before the devices themselves.
+        // audio users (replay capture, editor preview, player) before the devices themselves. Settings stop
+        // reaching the hook first, so a change the engine applies while shutting down can't re-enable it.
+        if (_engine is not null && _applySettings is not null)
+            _engine.SettingsChanged -= _applySettings;
         if (_hook is not null)
             _hook.Enabled = false;
         if (_devices is not null && _engine is not null)
@@ -228,7 +266,7 @@ public partial class App : System.Windows.Application
         if (_devices is not null && _diagnostics is not null)
             _devices.SetupChanged -= _diagnostics.RequestCheck;
         _diagnostics?.Dispose();
-        _viewModel?.Dispose();
+        _library?.Dispose();
         _engine?.Dispose();
         _hook?.Dispose();
         if (_engine is not null && _overlay is not null)

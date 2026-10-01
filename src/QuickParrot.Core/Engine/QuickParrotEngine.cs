@@ -122,22 +122,34 @@ public sealed class QuickParrotEngine : IDisposable
     /// <summary>Call when capture devices change, e.g. a mic that couldn't be restored is plugged back in.</summary>
     public void RetryMicRestore() => Post(_micMuter.RetryRestore);
 
+    /// <summary>Runs <paramref name="change"/> exactly once on the worker thread, then raises <see cref="SettingsChanged"/>
+    /// (with the unchanged settings if applying failed), which <c>SettingsMirror</c> relies on.</summary>
     public void UpdateSettings(Func<AppSettings, AppSettings> change) => Post(() =>
     {
         var old = _settings;
-        var updated = change(old).Sanitized();
-        if (updated.LibraryRoot != old.LibraryRoot && updated.NavigatorPersistentPath == old.NavigatorPersistentPath)
-            updated = updated with { NavigatorPersistentPath = "" };
+        var committed = false;
+        try
+        {
+            var updated = change(old).Sanitized();
+            if (updated.LibraryRoot != old.LibraryRoot && updated.NavigatorPersistentPath == old.NavigatorPersistentPath)
+                updated = (updated with { LibraryRoot = old.LibraryRoot }).WithLibraryRoot(updated.LibraryRoot);
 
-        ApplySettings(old, updated);
-        CommitSettings(updated);
+            ApplySettings(old, updated);
+            committed = true;
+            CommitSettings(updated);
+        }
+        catch when (!committed)
+        {
+            SettingsChanged?.Invoke(_settings);
+            throw;
+        }
     });
 
     /// <summary>
     /// Completes once everything queued before this call has run. Work those items queue in turn (like a
     /// finished prepare) may still be pending.
     /// </summary>
-    public Task FlushAsync()
+    internal Task FlushAsync()
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!TryPost(() => done.SetResult()))

@@ -210,4 +210,60 @@ public class AppSettingsTests
             directory.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void WithChordKey_RejectsThePushToTalkKey_LeavingSettingsUnchanged()
+    {
+        var settings = new AppSettings();
+
+        var (result, error) = settings.WithChordKey(PushToTalkBinding.Default.Key!.Value);
+
+        Assert.NotNull(error);
+        Assert.Same(settings, result);
+    }
+
+    [Fact]
+    public void WithChordKey_AcceptsAValidKey()
+    {
+        var key = new ScanKey(0x21, false); // F
+
+        var (result, error) = new AppSettings().WithChordKey(key);
+
+        Assert.Null(error);
+        Assert.Equal(key, result.ChordKey);
+    }
+
+    [Fact]
+    public void WithPushToTalkBinding_RejectsTheChordKey_LeavingSettingsUnchanged()
+    {
+        var settings = new AppSettings();
+
+        var (result, error) = settings.WithPushToTalkBinding(PushToTalkBinding.FromKey(settings.ChordKey));
+
+        Assert.NotNull(error);
+        Assert.Same(settings, result);
+    }
+
+    [Fact]
+    public void WithPushToTalkBinding_AcceptsAMouseButton()
+    {
+        var binding = PushToTalkBinding.FromMouse(PushToTalkMouseButton.X1);
+
+        var (result, error) = new AppSettings().WithPushToTalkBinding(binding);
+
+        Assert.Null(error);
+        Assert.Equal(binding, result.PushToTalkBinding);
+    }
+
+    [Fact]
+    public void WithLibraryRoot_NewRoot_StartsNavigationFromTheTop()
+    {
+        var settings = new AppSettings { LibraryRoot = "a", NavigatorPersistentPath = "Movies" };
+
+        var moved = settings.WithLibraryRoot("b");
+
+        Assert.Equal("b", moved.LibraryRoot);
+        Assert.Equal("", moved.NavigatorPersistentPath);
+        Assert.Same(settings, settings.WithLibraryRoot("a"));
+    }
 }

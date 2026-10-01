@@ -129,13 +129,11 @@ public class AudioDiagnosticsTests
     }
 }
 
-public class DiagnosticsStatusLineTests
+public class DiagnosticsReportStatusLineTests
 {
     private static readonly DiagnosticFinding Error = new("e", DiagnosticSeverity.Error, "E", "");
     private static readonly DiagnosticFinding Warning = new("w", DiagnosticSeverity.Warning, "W", "");
     private static readonly DiagnosticFinding Advisory = new("a", DiagnosticSeverity.Advisory, "A", "");
-
-    private readonly DiagnosticsStatusLine _line = new();
 
     [Fact]
     public void Report_CountsErrorsAndWarningsOnly()
@@ -143,51 +141,5 @@ public class DiagnosticsStatusLineTests
         Assert.Null(new DiagnosticsReport([Advisory]).StatusLine);
         Assert.Equal("Audio setup: 1 problem — see Diagnostics", new DiagnosticsReport([Warning, Advisory]).StatusLine);
         Assert.Equal("Audio setup: 2 problems — see Diagnostics", new DiagnosticsReport([Error, Warning]).StatusLine);
-    }
-
-    [Fact]
-    public void NewSummary_ReplacesAnEmptyStatus()
-    {
-        Assert.Equal("Audio setup: 1 problem — see Diagnostics", _line.Update("", new DiagnosticsReport([Error])));
-    }
-
-    [Fact]
-    public void NewSummary_IsAppendedToOtherMessages()
-    {
-        Assert.Equal(
-            "Couldn't enable hotkeys. | Audio setup: 1 problem — see Diagnostics",
-            _line.Update("Couldn't enable hotkeys.", new DiagnosticsReport([Error])));
-    }
-
-    [Fact]
-    public void UnchangedSummary_LeavesTheStatusAlone()
-    {
-        _line.Update("", new DiagnosticsReport([Error]));
-
-        Assert.Null(_line.Update("Playing clip", new DiagnosticsReport([Warning])));
-    }
-
-    [Fact]
-    public void ChangedSummary_ReplacesTheOldOne()
-    {
-        var shown = _line.Update("Hotkeys off.", new DiagnosticsReport([Error]))!;
-
-        Assert.Equal("Hotkeys off. | Audio setup: 2 problems — see Diagnostics", _line.Update(shown, new DiagnosticsReport([Error, Warning])));
-    }
-
-    [Fact]
-    public void FixedProblems_RemoveTheSummary()
-    {
-        var shown = _line.Update("Hotkeys off.", new DiagnosticsReport([Error]))!;
-
-        Assert.Equal("Hotkeys off.", _line.Update(shown, new DiagnosticsReport([Advisory])));
-    }
-
-    [Fact]
-    public void FixedProblems_LeaveUnrelatedMessagesAlone()
-    {
-        _line.Update("", new DiagnosticsReport([Error]));
-
-        Assert.Null(_line.Update("Playing clip", new DiagnosticsReport([])));
     }
 }

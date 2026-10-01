@@ -8,26 +8,26 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </Window.Resources>
     <DockPanel Margin="8">
-        <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status.Display}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
 
         <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged">
             <TabItem Header="Library">
                 <DockPanel Margin="8">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                         <Button DockPanel.Dock="Left" Content="Choose library…" Padding="8,2" Click="ChooseLibrary_Click" />
-                        <TextBlock Text="{Binding LibraryRoot}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Library.RootDisplay}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
 
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
-                        <Button DockPanel.Dock="Left" Content="Up" Padding="8,2" IsEnabled="{Binding CanGoUp}" Click="Up_Click" />
+                        <Button DockPanel.Dock="Left" Content="Up" Padding="8,2" IsEnabled="{Binding Library.CanGoUp}" Click="Up_Click" />
                         <Button DockPanel.Dock="Right" Content="Stop" Padding="12,2" Click="Stop_Click" />
                         <Button DockPanel.Dock="Right" Content="Open in Explorer" Padding="8,2" Margin="0,0,6,0"
-                                IsEnabled="{Binding CanOpenInExplorer}" Click="OpenInExplorer_Click" />
-                        <TextBlock Text="{Binding CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                IsEnabled="{Binding Library.CanOpenInExplorer}" Click="OpenInExplorer_Click" />
+                        <TextBlock Text="{Binding Library.CurrentPath}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
 
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding LibraryWarning}" Margin="0,0,0,4" TextWrapping="Wrap"
-                               Foreground="OrangeRed" Visibility="{Binding HasLibraryWarning, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding Library.Warning}" Margin="0,0,0,4" TextWrapping="Wrap"
+                               Foreground="OrangeRed" Visibility="{Binding Library.HasWarning, Converter={StaticResource BoolToVisibility}}" />
 
                     <GroupBox DockPanel.Dock="Bottom" Margin="0,8,0,0">
                         <GroupBox.Header>
@@ -77,7 +77,7 @@
                         </ScrollViewer>
                     </GroupBox>
 
-                    <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" DisplayMemberPath="Display"
+                    <ListBox x:Name="EntryList" ItemsSource="{Binding Library.Entries}" DisplayMemberPath="Display"
                              MouseDoubleClick="Entries_MouseDoubleClick" KeyDown="Entries_KeyDown"
                              ContextMenuOpening="Entries_ContextMenuOpening">
                         <ListBox.ContextMenu>
@@ -115,21 +115,21 @@
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Text="Cable:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                                <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding CableChoices}"
-                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCableId}" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding Devices.CableChoices}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding Devices.SelectedCableId}" />
                                 <Slider Grid.Row="0" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
-                                        Value="{Binding CableVolume}" ToolTip="Cable volume" />
+                                        Value="{Binding Devices.CableVolume}" ToolTip="Cable volume" />
 
                                 <TextBlock Grid.Row="1" Text="Monitor:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding MonitorChoices}"
-                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMonitorId}" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,4" ItemsSource="{Binding Devices.MonitorChoices}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding Devices.SelectedMonitorId}" />
                                 <Slider Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,0,8,4"
-                                        Value="{Binding MonitorVolume}" ToolTip="Monitor volume" />
+                                        Value="{Binding Devices.MonitorVolume}" ToolTip="Monitor volume" />
 
                                 <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="3" Content="Refresh" Padding="8,2" Margin="0,0,0,4"
                                         Click="Refresh_Click" />
 
-                                <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding DeviceStatus}" TextWrapping="Wrap" Foreground="Gray" />
+                                <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding Devices.DeviceStatus}" TextWrapping="Wrap" Foreground="Gray" />
                             </Grid>
                         </GroupBox>
 
@@ -137,17 +137,17 @@
                             <StackPanel Margin="8">
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock DockPanel.Dock="Left" Text="Chord key:" VerticalAlignment="Center" />
-                                    <TextBlock DockPanel.Dock="Left" Text="{Binding ChordKeyDisplay}" Margin="4,0,12,0"
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Hotkeys.ChordKeyDisplay}" Margin="4,0,12,0"
                                                VerticalAlignment="Center" FontWeight="Bold" />
                                     <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Margin="0,0,16,0" Click="ChangeChordKey_Click" />
-                                    <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding HotkeysEnabled}"
+                                    <CheckBox Content="Hotkeys enabled" VerticalAlignment="Center" IsChecked="{Binding Settings.HotkeysEnabled}"
                                               ToolTip="Turn off and on again to reinstall the keyboard hook if hotkeys stop responding." />
                                 </DockPanel>
 
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
                                     <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
-                                              ItemsSource="{Binding SmallFolderLayoutChoices}" SelectedItem="{Binding SmallFolderLayout}" />
+                                              ItemsSource="{Binding Settings.SmallFolderLayoutChoices}" SelectedItem="{Binding Settings.SmallFolderLayout}" />
                                 </DockPanel>
 
                                 <CheckBox Content="Play favorites with plain F-keys (no chord) in fullscreen games"
@@ -160,18 +160,18 @@
                         <GroupBox Header="Push-to-talk" Margin="0,0,0,8">
                             <StackPanel Margin="8">
                                 <CheckBox Content="Hold push-to-talk while clips play" Margin="0,0,0,8"
-                                          IsChecked="{Binding PushToTalkEnabled}" />
+                                          IsChecked="{Binding Settings.PushToTalkEnabled}" />
 
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock DockPanel.Dock="Left" Text="Binding:" VerticalAlignment="Center" />
-                                    <TextBlock DockPanel.Dock="Left" Text="{Binding PushToTalkBindingDisplay}" Margin="4,0,12,0"
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Hotkeys.PushToTalkBindingDisplay}" Margin="4,0,12,0"
                                                VerticalAlignment="Center" FontWeight="Bold" />
                                     <Button DockPanel.Dock="Left" Content="Set key…" Padding="8,2" Margin="0,0,12,0"
                                             Click="ChangePushToTalkKey_Click" />
                                     <TextBlock DockPanel.Dock="Left" Text="or mouse:" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                    <ComboBox DockPanel.Dock="Left" Width="120" ItemsSource="{Binding PushToTalkMouseButtonChoices}"
+                                    <ComboBox DockPanel.Dock="Left" Width="120" ItemsSource="{Binding Hotkeys.PushToTalkMouseButtonChoices}"
                                               DisplayMemberPath="Label" SelectedValuePath="Button"
-                                              SelectedValue="{Binding SelectedPushToTalkMouseButton}" />
+                                              SelectedValue="{Binding Hotkeys.SelectedPushToTalkMouseButton}" />
                                 </DockPanel>
 
                                 <Grid>
@@ -187,13 +187,13 @@
 
                                     <TextBlock Grid.Row="0" Text="Pre-roll (ms):" VerticalAlignment="Center" Margin="0,0,8,4" />
                                     <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="5000" Margin="0,0,8,4"
-                                            VerticalAlignment="Center" Value="{Binding PreRollMilliseconds}" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding PreRollMilliseconds}" VerticalAlignment="Center" Margin="0,0,0,4" />
+                                            VerticalAlignment="Center" Value="{Binding Settings.PreRollMilliseconds}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Settings.PreRollMilliseconds}" VerticalAlignment="Center" Margin="0,0,0,4" />
 
                                     <TextBlock Grid.Row="1" Text="Post-roll (ms):" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="5000" Margin="0,0,8,0"
-                                            VerticalAlignment="Center" Value="{Binding PostRollMilliseconds}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding PostRollMilliseconds}" VerticalAlignment="Center" />
+                                            VerticalAlignment="Center" Value="{Binding Settings.PostRollMilliseconds}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Settings.PostRollMilliseconds}" VerticalAlignment="Center" />
                                 </Grid>
                             </StackPanel>
                         </GroupBox>
@@ -213,25 +213,25 @@
 
                                 <TextBlock Grid.Row="0" Text="Mode:" VerticalAlignment="Center" Margin="0,0,8,4" />
                                 <ComboBox Grid.Row="0" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,0,8,4"
-                                          ItemsSource="{Binding MicDuckModeChoices}" DisplayMemberPath="Label" SelectedValuePath="Mode"
-                                          SelectedValue="{Binding MicDuckMode}" />
+                                          ItemsSource="{Binding Settings.MicDuckModeChoices}" DisplayMemberPath="Label" SelectedValuePath="Mode"
+                                          SelectedValue="{Binding Settings.MicDuckMode}" />
 
                                 <TextBlock Grid.Row="1" Text="Turn down to:" VerticalAlignment="Center" Margin="0,0,8,4" />
                                 <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100" Margin="0,0,8,4" VerticalAlignment="Center"
-                                        IsEnabled="{Binding IsMicAttenuationEnabled}" Value="{Binding MicAttenuationPercent}" />
+                                        IsEnabled="{Binding Settings.IsMicAttenuationEnabled}" Value="{Binding Settings.MicAttenuationPercent}" />
                                 <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,0,4" VerticalAlignment="Center"
-                                           Text="{Binding MicAttenuationPercent, StringFormat={}{0}%}" />
+                                           Text="{Binding Settings.MicAttenuationPercent, StringFormat={}{0}%}" />
 
                                 <TextBlock Grid.Row="2" Text="Microphone:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding MicDeviceChoices}"
-                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedMicDeviceId}" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding Devices.MicDeviceChoices}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding Devices.SelectedMicDeviceId}" />
                             </Grid>
                         </GroupBox>
 
                         <GroupBox Header="Instant replay" Margin="0,0,0,8">
                             <StackPanel Margin="8">
                                 <CheckBox Content="Keep a replay buffer for instant-replay grabs" Margin="0,0,0,8"
-                                          IsChecked="{Binding ReplayBufferEnabled}" />
+                                          IsChecked="{Binding Settings.ReplayBufferEnabled}" />
 
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -242,8 +242,8 @@
                                     <TextBlock Text="Buffer length (s):" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <Slider Grid.Column="1" Minimum="5" Maximum="120" VerticalAlignment="Center"
                                             TickFrequency="5" IsSnapToTickEnabled="True"
-                                            IsEnabled="{Binding ReplayBufferEnabled}" Value="{Binding ReplayBufferSeconds, Delay=300}" />
-                                    <TextBlock Grid.Column="2" Text="{Binding ReplayBufferSeconds}" VerticalAlignment="Center" />
+                                            IsEnabled="{Binding Settings.ReplayBufferEnabled}" Value="{Binding Settings.ReplayBufferSeconds, Delay=300}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Settings.ReplayBufferSeconds}" VerticalAlignment="Center" />
                                 </Grid>
 
                                 <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
@@ -251,7 +251,7 @@
 
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Left" Text="Grab hotkey:" VerticalAlignment="Center" />
-                                    <TextBlock DockPanel.Dock="Left" Text="{Binding GrabHotkeyDisplay}" Margin="4,0,0,0"
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Hotkeys.GrabHotkeyDisplay}" Margin="4,0,0,0"
                                                VerticalAlignment="Center" FontWeight="Bold" />
                                 </DockPanel>
                             </StackPanel>
@@ -273,11 +273,11 @@
 
                                 <TextBlock Grid.Row="0" Text="Base URL:" VerticalAlignment="Center" Margin="0,0,8,4" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4"
-                                         Text="{Binding LiteLlmBaseUrl, UpdateSourceTrigger=LostFocus}" />
+                                         Text="{Binding LiteLlm.BaseUrl, UpdateSourceTrigger=LostFocus}" />
 
                                 <TextBlock Grid.Row="1" Text="API key:" VerticalAlignment="Center" Margin="0,0,8,4" />
                                 <DockPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,4">
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding LiteLlmApiKeyPlaceholder}" Foreground="Gray"
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding LiteLlm.ApiKeyPlaceholder}" Foreground="Gray"
                                                Margin="8,0,0,0" VerticalAlignment="Center" />
                                     <Button DockPanel.Dock="Right" Content="Clear key" Padding="6,1" Margin="8,0,0,0"
                                             Click="ClearApiKey_Click" />
@@ -287,16 +287,16 @@
 
                                 <TextBlock Grid.Row="2" Text="Transcription model:" VerticalAlignment="Center" Margin="0,0,8,4" />
                                 <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,4"
-                                         Text="{Binding LiteLlmTranscriptionModel, UpdateSourceTrigger=LostFocus}" />
+                                         Text="{Binding LiteLlm.TranscriptionModel, UpdateSourceTrigger=LostFocus}" />
 
                                 <TextBlock Grid.Row="3" Text="Chat model:" VerticalAlignment="Center" Margin="0,0,8,4" />
                                 <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,4"
-                                         Text="{Binding LiteLlmChatModel, UpdateSourceTrigger=LostFocus}" />
+                                         Text="{Binding LiteLlm.ChatModel, UpdateSourceTrigger=LostFocus}" />
 
                                 <DockPanel Grid.Row="4" Grid.Column="1">
-                                    <Button DockPanel.Dock="Left" Content="{Binding LiteLlmTestConnectionLabel}" Padding="8,2"
-                                            IsEnabled="{Binding CanTestLiteLlmConnection}" Click="TestLiteLlmConnection_Click" />
-                                    <TextBlock Text="{Binding LiteLlmConnectionTestResult}" Margin="8,0,0,0"
+                                    <Button DockPanel.Dock="Left" Content="{Binding LiteLlm.TestConnectionLabel}" Padding="8,2"
+                                            IsEnabled="{Binding LiteLlm.CanTestConnection}" Click="TestLiteLlmConnection_Click" />
+                                    <TextBlock Text="{Binding LiteLlm.ConnectionTestResult}" Margin="8,0,0,0"
                                                VerticalAlignment="Center" TextWrapping="Wrap" />
                                 </DockPanel>
                             </Grid>

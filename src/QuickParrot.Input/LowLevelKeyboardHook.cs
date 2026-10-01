@@ -9,7 +9,7 @@ namespace QuickParrot.Input;
 /// A global keyboard hook thread running <see cref="ChordKeyFilter"/> and <see cref="PushToTalk"/> (even with hotkeys
 /// off). The chord event handler runs there and must never block. Keys aimed at more-elevated windows go unseen.
 /// </summary>
-public sealed unsafe class LowLevelKeyboardHook : IDisposable, IChordKeyHook
+public sealed unsafe class LowLevelKeyboardHook : IDisposable
 {
     private const string WindowClassName = "QuickParrot.KeyboardHook";
 

@@ -20,17 +20,15 @@ public sealed record FindingItem(DiagnosticFinding Finding)
 public sealed class DiagnosticsViewModel : ObservableObject
 {
     private readonly AudioDiagnostics _diagnostics;
-    private readonly SynchronizationContext _ui;
     private IReadOnlyList<FindingItem> _findings = [];
     private DiagnosticsReport? _report;
     private bool _isBusy;
     private string _repairMessage = "";
 
-    public DiagnosticsViewModel(AudioDiagnostics diagnostics, LoopbackTestViewModel test)
+    public DiagnosticsViewModel(AudioDiagnostics diagnostics, LoopbackTestViewModel test, Action<Action> postToUi)
     {
         _diagnostics = diagnostics;
-        _ui = SynchronizationContext.Current ?? new SynchronizationContext();
-        _diagnostics.Updated += report => _ui.Post(_ => Apply(report), null);
+        _diagnostics.Updated += report => postToUi(() => Apply(report));
         Test = test;
     }
 

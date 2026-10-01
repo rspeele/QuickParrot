@@ -25,21 +25,17 @@ public sealed record FavoriteRow(FavoriteSlotView View)
 public sealed class FavoritesViewModel : ObservableObject
 {
     private readonly QuickParrotEngine _engine;
-    private readonly Action<string> _setStatus;
-    private readonly SynchronizationContext _ui;
+    private readonly SettingsMirror _settings;
+    private readonly Func<string, IFolderSource> _openSource;
     private IReadOnlyList<FavoriteRow> _rows = [];
-    private object? _shownFor;
-    private bool _playWithoutChord;
 
-    public FavoritesViewModel(QuickParrotEngine engine, Action<string> setStatus)
+    public FavoritesViewModel(QuickParrotEngine engine, SettingsMirror settings, Func<string, IFolderSource> openSource)
     {
         _engine = engine;
-        _setStatus = setStatus;
-        _ui = SynchronizationContext.Current ?? new SynchronizationContext();
-        _playWithoutChord = engine.Settings.FavoritesWithoutChord;
-        _engine.SettingsChanged += settings => _ui.Post(_ => Refresh(settings), null);
-        _engine.FavoritesNotice += notice => _ui.Post(_ => _setStatus(notice.Message), null);
-        Refresh(engine.Settings, force: true);
+        _settings = settings;
+        _openSource = openSource;
+        _settings.Changed += OnSettingsChanged;
+        Refresh();
     }
 
     public IReadOnlyList<FavoriteRow> Rows
@@ -50,12 +46,8 @@ public sealed class FavoritesViewModel : ObservableObject
 
     public bool PlayWithoutChord
     {
-        get => _playWithoutChord;
-        set
-        {
-            if (SetField(ref _playWithoutChord, value))
-                _engine.UpdateSettings(s => s with { FavoritesWithoutChord = value });
-        }
+        get => _settings.Current.FavoritesWithoutChord;
+        set => _settings.Update(s => s with { FavoritesWithoutChord = value });
     }
 
     public void Play(FavoriteRow? row)
@@ -78,20 +70,24 @@ public sealed class FavoritesViewModel : ObservableObject
     }
 
     /// <summary>Re-checks which favorites are missing, e.g. after files changed in the library.</summary>
-    public void Refresh() => Refresh(_engine.Settings, force: true);
-
-    // Skips the file checks when an unrelated setting (like a volume slider) changed.
-    private void Refresh(AppSettings settings, bool force = false)
+    public void Refresh()
     {
-        var relevant = (settings.Favorites, settings.LibraryRoot, settings.ChordKey, settings.PushToTalkBinding);
-        if (!force && Equals(relevant, _shownFor))
-            return;
-
-        _shownFor = relevant;
-        var library = string.IsNullOrEmpty(settings.LibraryRoot) ? null : new FileSystemFolderSource(settings.LibraryRoot);
+        var settings = _settings.Current;
+        var library = string.IsNullOrEmpty(settings.LibraryRoot) ? null : _openSource(settings.LibraryRoot);
         Rows = FavoriteStatus.Describe(
                 settings.Favorites, library is null ? null : library.ClipExists, settings.ChordKey, settings.PushToTalkBinding)
             .Select(view => new FavoriteRow(view))
             .ToList();
+    }
+
+    // Skips the file checks when an unrelated setting (like a volume slider) changed.
+    private void OnSettingsChanged(AppSettings old, AppSettings now)
+    {
+        if (old.FavoritesWithoutChord != now.FavoritesWithoutChord)
+            OnPropertyChanged(nameof(PlayWithoutChord));
+
+        if (!(old.Favorites, old.LibraryRoot, old.ChordKey, old.PushToTalkBinding)
+            .Equals((now.Favorites, now.LibraryRoot, now.ChordKey, now.PushToTalkBinding)))
+            Refresh();
     }
 }

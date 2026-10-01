@@ -144,6 +144,20 @@ public sealed class QuickParrotEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task FailedSettingsChange_StillPublishesTheUnchangedSettings()
+    {
+        var published = new List<AppSettings>();
+        _engine.SettingsChanged += published.Add;
+        var before = _engine.Settings;
+
+        _engine.UpdateSettings(_ => throw new InvalidOperationException("boom"));
+        await _engine.FlushAsync();
+
+        Assert.Same(before, Assert.Single(published));
+        Assert.Contains(_errors, e => e.Contains("boom"));
+    }
+
+    [Fact]
     public async Task ChordSession_RaisesViewStateChangedOnWorker()
     {
         _library.AddFile("", "wall.wav");

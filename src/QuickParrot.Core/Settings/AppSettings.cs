@@ -89,6 +89,18 @@ public sealed record AppSettings
 
     public ConfiguredDevices ToConfiguredDevices() => new(CableDeviceId, MonitorDeviceId, MicDeviceId);
 
+    /// <summary>These settings on <paramref name="root"/>; a different root starts navigation from its top.</summary>
+    public AppSettings WithLibraryRoot(string? root) =>
+        root == LibraryRoot ? this : this with { LibraryRoot = root, NavigatorPersistentPath = "" };
+
+    /// <summary>These settings with <paramref name="key"/> as the chord key, or unchanged with the reason it can't be.</summary>
+    public (AppSettings Settings, string? Error) WithChordKey(ScanKey key) =>
+        PushToTalkBinding.ValidateChordKey(key) is { } error ? (this, error) : (this with { ChordKey = key }, null);
+
+    /// <summary>These settings with <paramref name="binding"/> for push-to-talk, or unchanged with the reason it can't be.</summary>
+    public (AppSettings Settings, string? Error) WithPushToTalkBinding(PushToTalkBinding binding) =>
+        binding.Validate(ChordKey) is { } error ? (this, error) : (this with { PushToTalkBinding = binding }, null);
+
     /// <summary>Clamps out-of-range values, e.g. from a hand-edited settings file.</summary>
     public AppSettings Sanitized() => this with
     {
