@@ -25,7 +25,7 @@ public sealed class ReplayBufferTests
         Packet(10, 10, 2f);
         Packet(20, 10, 3f);
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 2f), .. Fill(10, 3f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 2f), .. Fill(10, 3f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class ReplayBufferTests
         Packet(0, 10, 1f);
         Packet(110, 10, 2f);
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(100, 0f), .. Fill(10, 2f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(100, 0f), .. Fill(10, 2f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ReplayBufferTests
     {
         Packet(500, 10, 1f);
 
-        Assert.Equal([.. Fill(500, 0f), .. Fill(10, 1f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(500, 0f), .. Fill(10, 1f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class ReplayBufferTests
         Packet(10 + 20, 10, 2f);
         Packet(20 + 15, 10, 3f); // a little early relative to the re-anchored timeline
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 2f), .. Fill(10, 3f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 2f), .. Fill(10, 3f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ReplayBufferTests
         Packet(0, 10, 1f);
         Packet(15, 10, 2f, ReplayPacketFlags.Discontinuity);
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(5, 0f), .. Fill(10, 2f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(5, 0f), .. Fill(10, 2f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class ReplayBufferTests
         Packet(20, 10, 3f);
         _now = T0 + 30 * Ms;
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 2f), .. Fill(10, 3f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 2f), .. Fill(10, 3f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ReplayBufferTests
         Packet(0, 10, 1f);
         Packet(10, 10, 0.5f, ReplayPacketFlags.Silent);
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 0f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(10, 0f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class ReplayBufferTests
         Packet(0, 10, 1f);
         _now = T0 + 10 * Ms + 1000 * Ms;
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(1000, 0f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(1000, 0f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class ReplayBufferTests
         Snap(5000);
         Packet(2000, 10, 2f);
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(1990, 0f), .. Fill(10, 2f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(1990, 0f), .. Fill(10, 2f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class ReplayBufferTests
         Packet(0, 10, 1f);
         Packet(10, 10, 2f);
 
-        Assert.Equal([1f, 1f, .. Fill(10, 2f)], Snap(12).Samples);
+        Assert.Equal([1f, 1f, .. Fill(10, 2f)], Snap(12).Samples.ToArray());
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class ReplayBufferTests
         for (var i = 0; i < 15; i++)
             Ramp(i * 100, 100);
 
-        var samples = Snap(10_000).Samples;
+        var samples = Snap(10_000).Samples.ToArray();
 
         Assert.Equal(Enumerable.Range(500, 1000).Select(i => (float)i), samples);
     }
@@ -140,7 +140,7 @@ public sealed class ReplayBufferTests
         _buffer.Capacity = TimeSpan.FromSeconds(1);
         Ramp(0, 2500);
 
-        Assert.Equal(Enumerable.Range(1500, 1000).Select(i => (float)i), Snap(10_000).Samples);
+        Assert.Equal(Enumerable.Range(1500, 1000).Select(i => (float)i), Snap(10_000).Samples.ToArray());
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public sealed class ReplayBufferTests
         Packet(0, 10, 1f);
         Packet(60_000, 10, 2f);
 
-        Assert.Equal([.. Fill(4990, 0f), .. Fill(10, 2f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(4990, 0f), .. Fill(10, 2f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -158,11 +158,11 @@ public sealed class ReplayBufferTests
         Ramp(0, 3000);
 
         _buffer.Capacity = TimeSpan.FromSeconds(1);
-        Assert.Equal(Enumerable.Range(2000, 1000).Select(i => (float)i), Snap(10_000).Samples);
+        Assert.Equal(Enumerable.Range(2000, 1000).Select(i => (float)i), Snap(10_000).Samples.ToArray());
 
         _buffer.Capacity = TimeSpan.FromSeconds(3);
         Ramp(3000, 500);
-        Assert.Equal(Enumerable.Range(2000, 1500).Select(i => (float)i), Snap(10_000).Samples);
+        Assert.Equal(Enumerable.Range(2000, 1500).Select(i => (float)i), Snap(10_000).Samples.ToArray());
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class ReplayBufferTests
         _buffer.Begin(Rate, 1);
         Packet(100, 10, 2f);
 
-        Assert.Equal([.. Fill(10, 1f), .. Fill(90, 0f), .. Fill(10, 2f)], Snap(5000).Samples);
+        Assert.Equal([.. Fill(10, 1f), .. Fill(90, 0f), .. Fill(10, 2f)], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class ReplayBufferTests
         var snapshot = Snap(5000);
 
         Assert.Equal((2 * Rate, 2), (snapshot.SampleRate, snapshot.Channels));
-        Assert.Equal([0.5f, -0.5f, 0.25f, -0.25f], snapshot.Samples);
+        Assert.Equal([0.5f, -0.5f, 0.25f, -0.25f], snapshot.Samples.ToArray());
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public sealed class ReplayBufferTests
         _buffer.Begin(Rate, 2);
         _buffer.Write([1f, 2f, 3f], _now);
 
-        Assert.Equal([1f, 2f], Snap(5000).Samples);
+        Assert.Equal([1f, 2f], Snap(5000).Samples.ToArray());
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public sealed class ReplayBufferTests
         var checkedSnapshots = 0;
         while (!writer.IsCompleted)
         {
-            var samples = buffer.Snapshot(TimeSpan.FromSeconds(1)).Samples;
+            var samples = buffer.Snapshot(TimeSpan.FromSeconds(1)).Samples.ToArray();
             for (var i = 1; i < samples.Length; i++)
                 Assert.Equal((samples[i - 1] + 1) % 1_000_000, samples[i]);
 

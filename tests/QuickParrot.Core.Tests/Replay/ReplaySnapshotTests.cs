@@ -18,14 +18,14 @@ public sealed class ReplaySnapshotTests
     [Fact]
     public void IsSilent_IgnoresNoiseFloor()
     {
-        Assert.True(new ReplaySnapshot([0f, 1e-6f, -1e-6f], 1000, 1).IsSilent);
-        Assert.False(new ReplaySnapshot([0f, 0.01f, 0f], 1000, 1).IsSilent);
+        Assert.True(new ReplaySnapshot(new float[] { 0f, 1e-6f, -1e-6f }, 1000, 1).IsSilent);
+        Assert.False(new ReplaySnapshot(new float[] { 0f, 0.01f, 0f }, 1000, 1).IsSilent);
     }
 
     [Fact]
     public void DownmixedToStereo_LeavesStereoAlone()
     {
-        var stereo = new ReplaySnapshot([0.1f, 0.2f], 1000, 2);
+        var stereo = new ReplaySnapshot(new float[] { 0.1f, 0.2f }, 1000, 2);
 
         Assert.Same(stereo, stereo.DownmixedToStereo());
     }
@@ -34,15 +34,15 @@ public sealed class ReplaySnapshotTests
     public void DownmixedToStereo_FoldsSurroundIntoFrontPair()
     {
         // 5.1 in WAVE order: FL, FR, FC, LFE, BL, BR.
-        var surround = new ReplaySnapshot([0.5f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0.25f], 1000, 6);
+        var surround = new ReplaySnapshot(new float[] { 0.5f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0.25f }, 1000, 6);
 
         var stereo = surround.DownmixedToStereo();
 
         Assert.Equal((2, 2, 1000), (stereo.Channels, stereo.Frames, stereo.SampleRate));
-        Assert.Equal(0.5f, stereo.Samples[0], 3);
-        Assert.Equal(0f, stereo.Samples[1], 3);
-        Assert.Equal(0f, stereo.Samples[2], 3);
-        Assert.True(stereo.Samples[3] > 0.1f);
+        Assert.Equal(0.5f, stereo.Samples.Span[0], 3);
+        Assert.Equal(0f, stereo.Samples.Span[1], 3);
+        Assert.Equal(0f, stereo.Samples.Span[2], 3);
+        Assert.True(stereo.Samples.Span[3] > 0.1f);
     }
 
     [Fact]

@@ -41,7 +41,7 @@ public sealed class EditorPreview(IAudioDeviceCatalog devices, Func<OutputSettin
             return;
         }
 
-        output.Stopped += error => OnStopped(output, error);
+        output.Stopped.OnCompleted(error => OnStopped(output, error));
         Volatile.Write(ref _current, output);
         output.Play();
     }

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using QuickParrot.Core.Diagnostics;
@@ -26,25 +25,11 @@ internal sealed class LoopbackTesterCapture : IDisposable
         _recorder.RecordingStopped += (_, e) => _stopped.TrySetResult(e.Exception);
     }
 
-    public static LoopbackTesterCapture Start(string deviceId, TimeSpan maxDuration)
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        var device = enumerator.GetDevice(deviceId);
-        WasapiRecorder? recorder = null;
-        try
-        {
-            recorder = new WasapiRecorderBuilder().WithDevice(device).WithSharedMode().WithEventSync().Build();
-            var capture = new LoopbackTesterCapture(device, recorder, maxDuration);
-            recorder.StartRecording();
-            return capture;
-        }
-        catch
-        {
-            recorder?.Dispose();
-            device.Dispose();
-            throw;
-        }
-    }
+    public static LoopbackTesterCapture Start(string deviceId, TimeSpan maxDuration) =>
+        WasapiRecording.Start(
+            deviceId,
+            builder => builder.WithEventSync(),
+            (device, recorder) => new LoopbackTesterCapture(device, recorder, maxDuration));
 
     /// <summary>Stops recording and returns what was captured, or why capturing failed.</summary>
     public async Task<(float[] Samples, int SampleRate, string? Error)> StopAsync()
@@ -65,21 +50,7 @@ internal sealed class LoopbackTesterCapture : IDisposable
         return (recording?.ToArray() ?? [], recording?.SampleRate ?? 0, error);
     }
 
-    public void Dispose()
-    {
-        try
-        {
-            _recorder.Dispose();
-        }
-        catch (Exception e)
-        {
-            Debug.WriteLine($"QuickParrot: disposing test capture failed: {e.Message}");
-        }
-        finally
-        {
-            _device.Dispose();
-        }
-    }
+    public void Dispose() => WasapiRecording.Release(_recorder, _device, "test capture");
 
     // Runs on the capture thread, so it must not throw.
     private void OnDataAvailable(ReadOnlySpan<byte> buffer, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)

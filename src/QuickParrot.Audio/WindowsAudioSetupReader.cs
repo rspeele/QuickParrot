@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using NAudio.CoreAudioApi;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
@@ -10,8 +11,6 @@ namespace QuickParrot.Audio;
 /// </summary>
 public sealed class WindowsAudioSetupReader(Func<ConfiguredDevices> configured, Func<bool> micRestorePending) : IAudioSetupReader
 {
-    private const DeviceState ListedStates = DeviceState.Active | DeviceState.Disabled | DeviceState.Unplugged;
-
     public AudioSetupSnapshot Read()
     {
         var settings = Safely(configured, ConfiguredDevices.Auto);
@@ -51,49 +50,20 @@ public sealed class WindowsAudioSetupReader(Func<ConfiguredDevices> configured, 
         }
     }
 
-    private static List<AudioDeviceInfo> ReadDevices(
-        MMDeviceEnumerator enumerator, DataFlow flow, Dictionary<string, EndpointLevel> levels, Dictionary<string, ListenSetting>? listen)
-    {
-        var devices = new List<AudioDeviceInfo>();
-        foreach (var device in enumerator.EnumerateAudioEndPoints(flow, ListedStates))
+    private static ImmutableArray<AudioDeviceInfo> ReadDevices(
+        MMDeviceEnumerator enumerator, DataFlow flow, Dictionary<string, EndpointLevel> levels, Dictionary<string, ListenSetting>? listen) =>
+        EndpointReader.Describe(enumerator, flow, EndpointReader.ListedStates, (device, info) =>
         {
-            using (device)
+            if (info.IsActive)
             {
-                if (TryDescribe(device) is not { } info)
-                    continue;
-
-                devices.Add(info);
-                if (!info.IsActive)
-                    continue;
-
                 if (TryReadLevel(device) is { } level)
                     levels[info.Id] = level;
-                if (listen is not null && TryReadListen(device) is { } setting)
+                if (listen is not null && EndpointReader.TryReadListen(device) is { } setting)
                     listen[info.Id] = setting;
             }
-        }
 
-        return devices;
-    }
-
-    private static AudioDeviceInfo? TryDescribe(MMDevice device)
-    {
-        try
-        {
-            var state = device.State switch
-            {
-                DeviceState.Active => AudioDeviceState.Active,
-                DeviceState.Disabled => AudioDeviceState.Disabled,
-                DeviceState.Unplugged => AudioDeviceState.Unplugged,
-                _ => AudioDeviceState.NotPresent,
-            };
-            return new AudioDeviceInfo(device.ID, device.FriendlyName, state);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
+            return info;
+        });
 
     private static EndpointLevel? TryReadLevel(MMDevice device)
     {
@@ -108,47 +78,22 @@ public sealed class WindowsAudioSetupReader(Func<ConfiguredDevices> configured, 
         }
     }
 
-    // MMDevice.Properties opens the store read-only.
-    private static ListenSetting? TryReadListen(MMDevice device)
-    {
-        try
-        {
-            var properties = device.Properties;
-            var enabled = properties.Contains(ListenProperties.Enabled) ? properties[ListenProperties.Enabled].Value : null;
-            var target = properties.Contains(ListenProperties.Target) ? properties[ListenProperties.Target].Value : null;
-            return ListenSetting.FromProperties(enabled, target);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     private static DefaultEndpoints? ReadDefaults(MMDeviceEnumerator enumerator)
     {
         try
         {
             return new DefaultEndpoints(
-                DefaultId(enumerator, DataFlow.Render, Role.Console),
-                DefaultId(enumerator, DataFlow.Render, Role.Multimedia),
-                DefaultId(enumerator, DataFlow.Render, Role.Communications),
-                DefaultId(enumerator, DataFlow.Capture, Role.Console),
-                DefaultId(enumerator, DataFlow.Capture, Role.Multimedia),
-                DefaultId(enumerator, DataFlow.Capture, Role.Communications));
+                EndpointReader.DefaultId(enumerator, DataFlow.Render, Role.Console),
+                EndpointReader.DefaultId(enumerator, DataFlow.Render, Role.Multimedia),
+                EndpointReader.DefaultId(enumerator, DataFlow.Render, Role.Communications),
+                EndpointReader.DefaultId(enumerator, DataFlow.Capture, Role.Console),
+                EndpointReader.DefaultId(enumerator, DataFlow.Capture, Role.Multimedia),
+                EndpointReader.DefaultId(enumerator, DataFlow.Capture, Role.Communications));
         }
         catch (Exception)
         {
             return null;
         }
-    }
-
-    private static string? DefaultId(MMDeviceEnumerator enumerator, DataFlow flow, Role role)
-    {
-        if (!enumerator.TryGetDefaultAudioEndpoint(flow, role, out var device))
-            return null;
-
-        using (device)
-            return device.ID;
     }
 
     private static T Safely<T>(Func<T> read, T fallback)

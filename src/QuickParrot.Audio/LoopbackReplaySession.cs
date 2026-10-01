@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -52,57 +51,28 @@ internal sealed class LoopbackReplaySession : IDisposable
     /// <summary>Completes with the first failure to store captured audio; recording carries on regardless.</summary>
     public Task<Exception> DataFailed => _dataFailed.Task;
 
-    public static LoopbackReplaySession Start(string deviceId, ReplayBuffer buffer)
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        var device = enumerator.GetDevice(deviceId);
-        WasapiRecorder? recorder = null;
-        try
-        {
-            recorder = new WasapiRecorderBuilder()
-                .WithDevice(device)
-                .WithLoopbackCapture()
-                .WithSharedMode()
-                .WithPollingSync()
-                .WithBufferLength(BufferMilliseconds)
-                .Build();
+    public static LoopbackReplaySession Start(string deviceId, ReplayBuffer buffer) =>
+        WasapiRecording.Start(
+            deviceId,
+            builder => builder.WithLoopbackCapture().WithPollingSync().WithBufferLength(BufferMilliseconds),
+            (device, recorder) =>
+            {
+                var waveFormat = recorder.WaveFormat;
+                var format = CaptureFormats.ToSampleFormat(waveFormat)
+                    ?? throw new NotSupportedException($"the output uses an unsupported format ({waveFormat}).");
 
-            var waveFormat = recorder.WaveFormat;
-            var format = CaptureFormats.ToSampleFormat(waveFormat)
-                ?? throw new NotSupportedException($"the output uses an unsupported format ({waveFormat}).");
-
-            // Keeps the replay buffer's memory use bounded regardless of how many channels the device captures
-            // (e.g. a virtual 7.1 headset): everything past stereo is folded down before it ever reaches the ring.
-            var mixer = waveFormat.Channels > 2 ? new ChannelMixer(waveFormat.Channels, 2) : null;
-            buffer.Begin(waveFormat.SampleRate, mixer?.OutputChannels ?? waveFormat.Channels);
-            var session = new LoopbackReplaySession(deviceId, device, recorder, buffer, format, mixer);
-            recorder.StartRecording();
-            return session;
-        }
-        catch
-        {
-            recorder?.Dispose();
-            device.Dispose();
-            throw;
-        }
-    }
+                // Keeps the replay buffer's memory use bounded regardless of how many channels the device captures
+                // (e.g. a virtual 7.1 headset): everything past stereo is folded down before it ever reaches the ring.
+                var mixer = waveFormat.Channels > 2 ? new ChannelMixer(waveFormat.Channels, 2) : null;
+                buffer.Begin(waveFormat.SampleRate, mixer?.OutputChannels ?? waveFormat.Channels);
+                return new LoopbackReplaySession(deviceId, device, recorder, buffer, format, mixer);
+            });
 
     /// <summary>Stops recording and waits for the capture thread to exit (at most one polling interval).</summary>
     public void Dispose()
     {
         _disposing = true;
-        try
-        {
-            _recorder.Dispose();
-        }
-        catch (Exception e)
-        {
-            Debug.WriteLine($"QuickParrot: disposing replay capture failed: {e.Message}");
-        }
-        finally
-        {
-            _device.Dispose();
-        }
+        WasapiRecording.Release(_recorder, _device, "replay capture");
     }
 
     // Runs on the capture thread, so it must not throw or allocate (past the scratch buffers' one-time growth).

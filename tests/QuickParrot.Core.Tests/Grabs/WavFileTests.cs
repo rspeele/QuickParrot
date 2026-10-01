@@ -94,7 +94,7 @@ public sealed class WavFileTests
 
         var audio = WavFile.ReadFloat32(stream);
 
-        Assert.Equal([0.5f, -0.5f, 0.25f, -0.25f], audio.Samples);
+        Assert.Equal([0.5f, -0.5f, 0.25f, -0.25f], audio.Samples.ToArray());
         Assert.Equal(48_000, audio.SampleRate);
         Assert.Equal(2, audio.Channels);
     }

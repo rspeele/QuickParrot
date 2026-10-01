@@ -10,15 +10,15 @@ public class ClipRendererTests
     public void Render_SlicesFadesAndKeepsTheSource()
     {
         var source = Audio(Sine(1000, -20, 1));
-        var copy = (float[])source.Samples.Clone();
+        var copy = source.Samples.ToArray();
 
         var rendered = ClipRenderer.Render(source, new ClipSelection(4800, 9600), new ClipRenderOptions(false, new LoudnessOptions()));
 
         Assert.Equal(4800, rendered.Audio.FrameCount);
         Assert.Null(rendered.Normalization);
-        Assert.Equal((0f, 0f), (rendered.Audio.Samples[0], rendered.Audio.Samples[^1]));
-        Assert.Equal(source.Samples[4800 * 2 + 1000], rendered.Audio.Samples[1000]);
-        Assert.Equal(copy, source.Samples);
+        Assert.Equal((0f, 0f), (rendered.Audio.Samples.Span[0], rendered.Audio.Samples.Span[^1]));
+        Assert.Equal(source.Samples.Span[4800 * 2 + 1000], rendered.Audio.Samples.Span[1000]);
+        Assert.Equal(copy, source.Samples.ToArray());
     }
 
     [Fact]

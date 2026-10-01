@@ -3,6 +3,7 @@ using NAudio.MediaFoundation;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using QuickParrot.Core.Editing;
+using QuickParrot.Core.Library;
 
 namespace QuickParrot.Audio;
 
@@ -20,7 +21,7 @@ public sealed class ClipEncoder : IClipEncoder
     public SavedClip Save(EditableAudio audio, string folder, string fileStem, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(folder);
-        var tempPath = Path.Combine(folder, $".{Guid.NewGuid():N}.tmp"); // not an audio extension, so the library ignores it
+        var tempPath = Path.Combine(folder, ClipTempFile.NewName());
         try
         {
             string extension;
@@ -60,23 +61,18 @@ public sealed class ClipEncoder : IClipEncoder
         encoder.Encode(stream, pcm, TranscodeContainerTypes.MFTranscodeContainerType_MP3);
     }
 
-    private static ISampleProvider Mp3Input(EditableAudio audio)
-    {
-        ISampleProvider source = new EditableAudioSampleProvider(audio, 0, audio.FrameCount);
-        if (audio.Channels > 2)
-            source = new ChannelMapSampleProvider(source, 2);
-        if (!Mp3SampleRates.Contains(audio.SampleRate))
-            source = new WdlResamplingSampleProvider(source, 48000);
-
-        return source;
-    }
+    private static ISampleProvider Mp3Input(EditableAudio audio) =>
+        SampleChains.Convert(
+            BufferSampleProvider.Of(audio, 0, audio.FrameCount),
+            Math.Min(audio.Channels, 2),
+            Mp3SampleRates.Contains(audio.SampleRate) ? audio.SampleRate : 48000);
 
     private static void EncodeWav(EditableAudio audio, string path)
     {
         TryDelete(path);
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite);
         using var writer = new WaveFileWriter(stream, new WaveFormat(audio.SampleRate, 16, audio.Channels));
-        var pcm = new SampleToWaveProvider16(new EditableAudioSampleProvider(audio, 0, audio.FrameCount));
+        var pcm = new SampleToWaveProvider16(BufferSampleProvider.Of(audio, 0, audio.FrameCount));
         var buffer = new byte[pcm.WaveFormat.AverageBytesPerSecond];
         int read;
         while ((read = pcm.Read(buffer)) > 0)

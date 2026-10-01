@@ -67,9 +67,8 @@ public static class QuietPointSnapper
             return 0;
 
         var sum = 0.0;
-        var offset = frame * audio.Channels;
-        for (var c = 0; c < audio.Channels; c++)
-            sum += audio.Samples[offset + c];
+        foreach (var sample in audio.Frames(frame, frame + 1))
+            sum += sample;
 
         return sum / audio.Channels;
     }

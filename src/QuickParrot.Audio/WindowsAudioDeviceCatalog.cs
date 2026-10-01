@@ -1,15 +1,15 @@
+using System.Collections.Immutable;
 using NAudio.CoreAudioApi;
 using QuickParrot.Core.Devices;
 
 namespace QuickParrot.Audio;
 
 /// <summary>
-/// Lists render and capture endpoints, caching the lists until Windows reports a device change. Thread-safe.
+/// Lists render and capture endpoints, caching the (immutable) lists until Windows reports a device change.
+/// Thread-safe.
 /// </summary>
 public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDeviceCatalog, IDisposable
 {
-    private const DeviceState ListedStates = DeviceState.Active | DeviceState.Disabled | DeviceState.Unplugged;
-
     private readonly MMDeviceEnumerator _notificationEnumerator;
     private readonly MMDeviceNotificationClient _notifications;
     private Snapshot? _snapshot;
@@ -89,7 +89,11 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
         if (Volatile.Read(ref _snapshot) is { } cached && cached.Version == version)
             return cached;
 
-        var fresh = new Snapshot(version, EnumerateRenderDevices(), ReadDefaultDeviceId(DataFlow.Render, Role.Multimedia));
+        using var enumerator = new MMDeviceEnumerator();
+        var fresh = new Snapshot(
+            version,
+            EndpointReader.Describe(enumerator, DataFlow.Render, EndpointReader.ListedStates, (_, info) => info),
+            EndpointReader.DefaultId(enumerator, DataFlow.Render, Role.Multimedia));
         Volatile.Write(ref _snapshot, fresh);
         return fresh;
     }
@@ -100,92 +104,24 @@ public sealed class WindowsAudioDeviceCatalog : IAudioDeviceCatalog, ICaptureDev
         if (Volatile.Read(ref _captureSnapshot) is { } cached && cached.Version == version)
             return cached;
 
+        using var enumerator = new MMDeviceEnumerator();
         var fresh = new CaptureSnapshot(
             version,
-            EnumerateCaptureDevices(),
-            ReadDefaultDeviceId(DataFlow.Capture, Role.Multimedia),
-            ReadDefaultDeviceId(DataFlow.Capture, Role.Communications));
+            EnumerateCaptureDevices(enumerator),
+            EndpointReader.DefaultId(enumerator, DataFlow.Capture, Role.Multimedia),
+            EndpointReader.DefaultId(enumerator, DataFlow.Capture, Role.Communications));
         Volatile.Write(ref _captureSnapshot, fresh);
         return fresh;
     }
 
-    private static List<AudioDeviceInfo> EnumerateRenderDevices()
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        var devices = new List<AudioDeviceInfo>();
-        foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, ListedStates))
-        {
-            using (device)
-            {
-                if (TryDescribe(device) is { } info)
-                    devices.Add(info);
-            }
-        }
-
-        return devices;
-    }
-
-    private static List<CaptureDeviceInfo> EnumerateCaptureDevices()
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        var devices = new List<CaptureDeviceInfo>();
-        // Not-present included: a pulled USB mic is not-present, and its restore record must survive until it's back.
-        foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.All))
-        {
-            using (device)
-            {
-                if (TryDescribe(device) is { } info)
-                    devices.Add(new CaptureDeviceInfo(info.Id, info.Name, info.State, ReadListenEnabled(device)));
-            }
-        }
-
-        return devices;
-    }
-
-    // The property store is opened read-only.
-    private static bool ReadListenEnabled(MMDevice device)
-    {
-        try
-        {
-            var properties = device.Properties;
-            return properties.Contains(ListenProperties.Enabled) && properties[ListenProperties.Enabled].Value is true;
-        }
-        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException)
-        {
-            return false;
-        }
-    }
-
-    private static string? ReadDefaultDeviceId(DataFlow flow, Role role)
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        if (!enumerator.TryGetDefaultAudioEndpoint(flow, role, out var device))
-            return null;
-
-        using (device)
-            return device.ID;
-    }
-
-    // A device can vanish mid-enumeration, making its property store throw.
-    private static AudioDeviceInfo? TryDescribe(MMDevice device)
-    {
-        try
-        {
-            return new AudioDeviceInfo(device.ID, device.FriendlyName, ToState(device.State));
-        }
-        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    private static AudioDeviceState ToState(DeviceState state) => state switch
-    {
-        DeviceState.Active => AudioDeviceState.Active,
-        DeviceState.Disabled => AudioDeviceState.Disabled,
-        DeviceState.Unplugged => AudioDeviceState.Unplugged,
-        _ => AudioDeviceState.NotPresent,
-    };
+    // Not-present included: a pulled USB mic is not-present, and its restore record must survive until it's back.
+    private static ImmutableArray<CaptureDeviceInfo> EnumerateCaptureDevices(MMDeviceEnumerator enumerator) =>
+        EndpointReader.Describe(
+            enumerator,
+            DataFlow.Capture,
+            DeviceState.All,
+            (device, info) => new CaptureDeviceInfo(
+                info.Id, info.Name, info.State, EndpointReader.ReadListenEnabled(device)));
 
     private sealed record Snapshot(int Version, IReadOnlyList<AudioDeviceInfo> Devices, string? DefaultId);
 

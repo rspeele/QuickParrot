@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
-using NAudio.CoreAudioApi;
 using QuickParrot.Core.Diagnostics;
 
 namespace QuickParrot.Audio;
@@ -24,21 +22,7 @@ public sealed class WindowsAudioSystemWriter(string helperExePath) : IAudioSyste
             _ => throw new ArgumentOutOfRangeException(nameof(role)),
         });
 
-    // Goes through the audio service, like the Sound control panel, so it may work without elevation.
-    public void SetListen(string micId, string targetId)
-    {
-        var target = NativePropVariant.FromString(targetId);
-        try
-        {
-            PolicyConfig.SetPropertyValue(micId, ListenProperties.ToNative(ListenProperties.Target), target);
-        }
-        finally
-        {
-            Marshal.FreeCoTaskMem(target.Pointer);
-        }
-
-        PolicyConfig.SetPropertyValue(micId, ListenProperties.ToNative(ListenProperties.Enabled), NativePropVariant.FromBool(true));
-    }
+    public void SetListen(string micId, string targetId) => ListenWriter.ViaAudioService(micId, targetId);
 
     public async Task<ElevatedRunResult> SetListenElevatedAsync(string micId, string targetId, TimeSpan timeout)
     {
@@ -84,18 +68,7 @@ public sealed class WindowsAudioSystemWriter(string helperExePath) : IAudioSyste
         }
     }
 
-    public void SetLevel(string deviceId, bool muted, float? volume)
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        using var device = enumerator.GetDevice(deviceId);
-        if (device.State != DeviceState.Active)
-            throw new InvalidOperationException($"{device.FriendlyName} isn't connected.");
-
-        var endpoint = device.AudioEndpointVolume;
-        endpoint.Mute = muted;
-        if (volume is { } level)
-            endpoint.MasterVolumeLevelScalar = Math.Clamp(level, 0f, 1f);
-    }
+    public void SetLevel(string deviceId, bool muted, float? volume) => EndpointVolumes.Set(deviceId, muted, volume);
 
     public void SetCommunicationsDucking(CommunicationsDucking value) => CommunicationsDuckingRegistry.Write(value);
 

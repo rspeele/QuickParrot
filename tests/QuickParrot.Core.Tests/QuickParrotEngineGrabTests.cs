@@ -31,7 +31,7 @@ public sealed class QuickParrotEngineGrabTests : IDisposable
     [Fact]
     public async Task ChordEnter_SavesTheReplayBuffer()
     {
-        _replay.Next = new ReplaySnapshot([0.5f, -0.5f], 1000, 1);
+        _replay.Next = new ReplaySnapshot(new float[] { 0.5f, -0.5f }, 1000, 1);
 
         _engine.Post(new ChordPressed());
         _engine.Post(new GrabPressed());
@@ -45,7 +45,7 @@ public sealed class QuickParrotEngineGrabTests : IDisposable
     [Fact]
     public async Task Grab_FromTheApp_SavesTheReplayBuffer()
     {
-        _replay.Next = new ReplaySnapshot([0.5f, -0.5f], 1000, 1);
+        _replay.Next = new ReplaySnapshot(new float[] { 0.5f, -0.5f }, 1000, 1);
 
         _engine.Grab();
 
@@ -101,7 +101,7 @@ public sealed class QuickParrotEngineGrabTests : IDisposable
     [Fact]
     public async Task ChordEnter_WithoutALibrary_StillGrabs()
     {
-        _replay.Next = new ReplaySnapshot([0.5f, -0.5f], 1000, 1);
+        _replay.Next = new ReplaySnapshot(new float[] { 0.5f, -0.5f }, 1000, 1);
         _engine.UpdateSettings(s => s with { LibraryRoot = null });
 
         _engine.Post(new ChordPressed());

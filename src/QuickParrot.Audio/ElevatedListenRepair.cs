@@ -1,6 +1,4 @@
-using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
-using NAudio.CoreAudioApi.Interfaces;
 using QuickParrot.Core.Diagnostics;
 
 namespace QuickParrot.Audio;
@@ -28,11 +26,11 @@ public static class ElevatedListenRepair
             // Goes through the audio service first, like the Sound control panel, since it's more likely to apply live.
             try
             {
-                new WindowsAudioSystemWriter("").SetListen(request.MicId, request.TargetId);
+                ListenWriter.ViaAudioService(request.MicId, request.TargetId);
             }
             catch (Exception)
             {
-                WriteToPropertyStore(mic, request.TargetId);
+                ListenWriter.ViaPropertyStore(mic, request.TargetId);
             }
 
             return (int)RepairExitCode.Success;
@@ -41,24 +39,5 @@ public static class ElevatedListenRepair
         {
             return (int)RepairExitCode.Failed;
         }
-    }
-
-    // Target first, so Listen never briefly plays the mic somewhere else.
-    private static void WriteToPropertyStore(MMDevice mic, string targetId)
-    {
-        mic.GetPropertyInformation(StorageAccessMode.ReadWrite);
-        var store = mic.Properties;
-        var target = new PropVariant { vt = (short)VarEnum.VT_LPWSTR, pointerValue = Marshal.StringToCoTaskMemUni(targetId) };
-        try
-        {
-            store.SetValue(ListenProperties.Target, target);
-        }
-        finally
-        {
-            Marshal.FreeCoTaskMem(target.pointerValue);
-        }
-
-        store.SetValue(ListenProperties.Enabled, new PropVariant { vt = (short)VarEnum.VT_BOOL, boolVal = -1 });
-        store.Commit();
     }
 }

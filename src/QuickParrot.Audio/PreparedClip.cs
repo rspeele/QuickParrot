@@ -49,9 +49,9 @@ internal sealed class PreparedClip : IPreparedClip
     public void Start(long playId, Action<ClipFinished> onFinished)
     {
         var primary = (_cable ?? _monitor)!;
-        primary.Stopped += error => onFinished(new ClipFinished(playId, error));
+        primary.Stopped.OnCompleted(error => onFinished(new ClipFinished(playId, error)));
         if (_monitor is not null && _monitor != primary)
-            _monitor.Stopped += LogMonitorFailure;
+            _monitor.Stopped.OnCompleted(LogMonitorFailure);
 
         _cable?.Play();
         _monitor?.Play();

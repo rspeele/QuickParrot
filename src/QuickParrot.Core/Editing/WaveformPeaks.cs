@@ -106,7 +106,7 @@ public sealed class WaveformPeaks
         var buckets = Math.Max(1, (audio.FrameCount + BaseBucketFrames - 1) / BaseBucketFrames);
         var min = new float[buckets];
         var max = new float[buckets];
-        var samples = audio.Samples;
+        var samples = audio.Samples.Span;
         var samplesPerBucket = BaseBucketFrames * audio.Channels;
         for (var b = 0; b < buckets; b++)
         {

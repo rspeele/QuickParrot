@@ -1,11 +1,13 @@
 namespace QuickParrot.Core.Editing;
 
-/// <summary>Interleaved float audio for the trim editor, plus labels describing where it came from.</summary>
+/// <summary>
+/// Interleaved float audio for the trim editor, plus labels describing where it came from. The samples are shared,
+/// not copied: whoever builds one must not change the buffer afterwards.
+/// </summary>
 public sealed class EditableAudio
 {
-    public EditableAudio(float[] samples, int sampleRate, int channels, string? suggestedTitle = null, string? sourceLabel = null)
+    public EditableAudio(ReadOnlyMemory<float> samples, int sampleRate, int channels, string? suggestedTitle = null, string? sourceLabel = null)
     {
-        ArgumentNullException.ThrowIfNull(samples);
         ArgumentOutOfRangeException.ThrowIfLessThan(sampleRate, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(channels, 1);
         if (samples.Length % channels != 0)
@@ -18,7 +20,7 @@ public sealed class EditableAudio
         SourceLabel = sourceLabel;
     }
 
-    public float[] Samples { get; }
+    public ReadOnlyMemory<float> Samples { get; }
 
     public int SampleRate { get; }
 
@@ -41,12 +43,16 @@ public sealed class EditableAudio
     public ReadOnlySpan<float> Frames(int startFrame, int endFrame)
     {
         CheckRange(startFrame, endFrame);
-        return Samples.AsSpan(startFrame * Channels, (endFrame - startFrame) * Channels);
+        return Samples.Span.Slice(startFrame * Channels, (endFrame - startFrame) * Channels);
     }
 
-    /// <summary>Copies frames [start, end) into new audio with the same format and labels.</summary>
-    public EditableAudio Slice(int startFrame, int endFrame) =>
-        new(Frames(startFrame, endFrame).ToArray(), SampleRate, Channels, SuggestedTitle, SourceLabel);
+    /// <summary>Frames [start, end) as audio with the same format and labels, sharing this audio's buffer.</summary>
+    public EditableAudio Slice(int startFrame, int endFrame)
+    {
+        CheckRange(startFrame, endFrame);
+        var samples = Samples.Slice(startFrame * Channels, (endFrame - startFrame) * Channels);
+        return new EditableAudio(samples, SampleRate, Channels, SuggestedTitle, SourceLabel);
+    }
 
     private void CheckRange(int startFrame, int endFrame)
     {

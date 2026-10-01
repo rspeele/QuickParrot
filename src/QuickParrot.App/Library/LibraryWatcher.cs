@@ -48,14 +48,14 @@ public sealed class LibraryWatcher : IDisposable
 
     private void OnEvent(object sender, FileSystemEventArgs e)
     {
-        if (!LibraryChangeFilter.IsIgnorableTempFile(Path.GetFileName(e.Name)))
+        if (!ClipTempFile.IsMatch(Path.GetFileName(e.Name)))
             _debouncer.Signal();
     }
 
     private void OnRenamed(object sender, RenamedEventArgs e)
     {
-        var fromTemp = LibraryChangeFilter.IsIgnorableTempFile(Path.GetFileName(e.OldName));
-        var toTemp = LibraryChangeFilter.IsIgnorableTempFile(Path.GetFileName(e.Name));
+        var fromTemp = ClipTempFile.IsMatch(Path.GetFileName(e.OldName));
+        var toTemp = ClipTempFile.IsMatch(Path.GetFileName(e.Name));
         if (!fromTemp || !toTemp)
             _debouncer.Signal();
     }

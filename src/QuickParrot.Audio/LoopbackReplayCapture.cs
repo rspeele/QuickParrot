@@ -10,8 +10,6 @@ namespace QuickParrot.Audio;
 /// </summary>
 public sealed class LoopbackReplayCapture : IDisposable
 {
-    private const long HealthySessionMilliseconds = 5000;
-
     private readonly ReplayBuffer _buffer;
     private readonly object _gate = new(); // guards the requested state and reconcile scheduling
     private readonly object _captureLock = new(); // serializes starting and stopping sessions
@@ -133,28 +131,30 @@ public sealed class LoopbackReplayCapture : IDisposable
         if (Volatile.Read(ref _disposed))
             return;
 
-        if (!enabled)
-        {
-            StopSession();
-            _buffer.Clear();
-            ClearLastError();
-            return;
-        }
-
-        var target = ResolveTarget(monitorId);
-        if (_session is { Stopped.IsCompleted: false } running && running.DeviceId == target)
+        var target = enabled ? ResolveTarget(monitorId) : null;
+        var running = _session is { Stopped.IsCompleted: false } session ? session.DeviceId : null;
+        var step = ReplayCapturePolicy.Decide(enabled, target, running, failedId);
+        if (step == ReplayCaptureStep.Keep)
             return;
 
         StopSession();
-        if (target is null)
+        switch (step)
         {
-            Report("The replay buffer has no output device to record.");
-            return;
+            case ReplayCaptureStep.Disable:
+                _buffer.Clear();
+                ClearLastError();
+                break;
+            case ReplayCaptureStep.NoDevice:
+                Report("The replay buffer has no output device to record.");
+                break;
+            case ReplayCaptureStep.Start:
+                StartSession(target!);
+                break;
         }
+    }
 
-        if (target == failedId)
-            return;
-
+    private void StartSession(string target)
+    {
         try
         {
             var session = LoopbackReplaySession.Start(target, _buffer);
@@ -173,26 +173,22 @@ public sealed class LoopbackReplayCapture : IDisposable
 
     private void Watch(LoopbackReplaySession session)
     {
-        session.DataFailed.ContinueWith(
-            failed =>
-            {
-                if (IsCurrent(session))
-                    Report($"The replay buffer couldn't store audio: {failed.Result.Message}");
-            },
-            TaskScheduler.Default);
-        session.Stopped.ContinueWith(stopped => OnSessionStopped(session, stopped.Result), TaskScheduler.Default);
+        session.DataFailed.OnCompleted(error =>
+        {
+            if (IsCurrent(session))
+                Report($"The replay buffer couldn't store audio: {error.Message}");
+        });
+        session.Stopped.OnCompleted(error => OnSessionStopped(session, error));
     }
 
     private bool IsCurrent(LoopbackReplaySession session) => ReferenceEquals(Volatile.Read(ref _session), session);
 
-    // A session that had been running a while (e.g. stopped by a device format change) gets one quiet retry.
     private void OnSessionStopped(LoopbackReplaySession session, Exception? error)
     {
         if (!IsCurrent(session))
             return; // already replaced or disposed
 
-        var ranMilliseconds = Environment.TickCount64 - session.StartedAtMilliseconds;
-        if (ranMilliseconds < HealthySessionMilliseconds)
+        if (ReplayCapturePolicy.StoppedTooSoon(Environment.TickCount64 - session.StartedAtMilliseconds))
         {
             lock (_gate)
                 _failedDeviceId = session.DeviceId;

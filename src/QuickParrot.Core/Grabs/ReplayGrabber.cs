@@ -29,7 +29,7 @@ public sealed class ReplayGrabber(IReplaySource replay, IPendingGrabStore store)
                 return GrabResult.Failed($"Nothing was playing in the last {FormatSeconds(snapshot.Duration)}.");
 
             snapshot = snapshot.DownmixedToStereo();
-            return GrabResult.Saved(store.Save(snapshot.Samples, snapshot.SampleRate, snapshot.Channels, grabbedAt));
+            return GrabResult.Saved(store.Save(snapshot.Samples.Span, snapshot.SampleRate, snapshot.Channels, grabbedAt));
         }
         catch (Exception e)
         {

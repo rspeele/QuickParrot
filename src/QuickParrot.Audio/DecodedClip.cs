@@ -8,7 +8,7 @@ internal sealed class DecodedClip
     // Guards against someone pointing a hotkey at an hour-long file and exhausting memory.
     private static readonly TimeSpan MaxDuration = TimeSpan.FromMinutes(10);
 
-    private DecodedClip(string fullPath, float[] samples, WaveFormat format)
+    private DecodedClip(string fullPath, ReadOnlyMemory<float> samples, WaveFormat format)
     {
         FullPath = fullPath;
         Samples = samples;
@@ -17,7 +17,7 @@ internal sealed class DecodedClip
 
     public string FullPath { get; }
 
-    public float[] Samples { get; }
+    public ReadOnlyMemory<float> Samples { get; }
 
     public WaveFormat Format { get; }
 
@@ -69,8 +69,7 @@ internal sealed class DecodedClip
         if (count == 0)
             throw new InvalidDataException("The file contains no audio.");
 
-        Array.Resize(ref samples, count - count % format.Channels);
-        return new DecodedClip(fullPath, samples, format);
+        return new DecodedClip(fullPath, samples.AsMemory(0, count - count % format.Channels), format);
     }
 
     // Half a second of MPEG-1 Layer III frames (128 kbps, 44.1 kHz, mono) whose all-zero side info decodes as silence.

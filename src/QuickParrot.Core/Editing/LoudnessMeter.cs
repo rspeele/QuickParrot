@@ -13,7 +13,7 @@ public static class LoudnessMeter
     private const int StepsPerBlock = 4;
 
     public static double IntegratedLufs(EditableAudio audio) =>
-        IntegratedLufs(audio.Samples, audio.Channels, audio.SampleRate);
+        IntegratedLufs(audio.Samples.Span, audio.Channels, audio.SampleRate);
 
     /// <summary>
     /// Integrated loudness in LUFS. Audio shorter than one 400 ms block is measured as a single block spanning all of it

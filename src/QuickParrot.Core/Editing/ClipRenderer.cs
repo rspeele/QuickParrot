@@ -16,24 +16,27 @@ public static class ClipRenderer
 {
     public static RenderedClip Render(EditableAudio source, ClipSelection selection, ClipRenderOptions options)
     {
-        var clip = source.Slice(selection.Start, selection.End);
-        if (clip.Channels > 2)
-            clip = DownmixToStereo(clip);
-
-        ClipFades.Apply(clip.Samples, clip.Channels, clip.FramesFor(ClipFades.DefaultLength));
+        var channels = Math.Min(source.Channels, 2);
+        var samples = CopyOut(source.Frames(selection.Start, selection.End), source.Channels);
+        ClipFades.Apply(samples, channels, source.FramesFor(ClipFades.DefaultLength));
         var normalization = options.Normalize
-            ? LoudnessNormalizer.Normalize(clip.Samples, clip.Channels, clip.SampleRate, options.Loudness)
+            ? LoudnessNormalizer.Normalize(samples, channels, source.SampleRate, options.Loudness)
             : null;
+        var clip = new EditableAudio(samples, source.SampleRate, channels, source.SuggestedTitle, source.SourceLabel);
         return new RenderedClip(clip, normalization);
     }
 
-    private static EditableAudio DownmixToStereo(EditableAudio clip)
+    // The selection's one copy, which Render owns and edits in place; surround is mixed straight down to stereo.
+    private static float[] CopyOut(ReadOnlySpan<float> frames, int channels)
     {
-        var mixer = new ChannelMixer(clip.Channels, 2);
-        var stereo = new float[clip.FrameCount * 2];
-        for (var f = 0; f < clip.FrameCount; f++)
-            mixer.MixFrame(clip.Samples.AsSpan(f * clip.Channels, clip.Channels), stereo.AsSpan(f * 2, 2));
+        if (channels <= 2)
+            return frames.ToArray();
 
-        return new EditableAudio(stereo, clip.SampleRate, 2, clip.SuggestedTitle, clip.SourceLabel);
+        var mixer = new ChannelMixer(channels, 2);
+        var stereo = new float[frames.Length / channels * 2];
+        for (var f = 0; f < stereo.Length / 2; f++)
+            mixer.MixFrame(frames.Slice(f * channels, channels), stereo.AsSpan(f * 2, 2));
+
+        return stereo;
     }
 }

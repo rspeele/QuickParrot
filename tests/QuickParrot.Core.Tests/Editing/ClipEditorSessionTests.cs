@@ -67,7 +67,7 @@ public class ClipEditorSessionTests
         Assert.Equal(("What No!", @"C:\Library\Movies"), (stem, folder));
         Assert.Equal(48000, audio.FrameCount);
         Assert.Equal(-18, LoudnessMeter.IntegratedLufs(audio), 0.2);
-        Assert.Equal(0f, audio.Samples[0]);
+        Assert.Equal(0f, audio.Samples.Span[0]);
         Assert.Equal("What No!.mp3", saved.FileName);
     }
 

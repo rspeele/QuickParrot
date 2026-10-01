@@ -113,7 +113,7 @@ public class QuietPointSnapperTests
 
         var snapped = QuietPointSnapper.Snap(audio, 1000, 240);
 
-        Assert.True(Math.Abs(audio.Samples[snapped]) < 0.01, $"sample {audio.Samples[snapped]}");
+        Assert.True(Math.Abs(audio.Samples.Span[snapped]) < 0.01, $"sample {audio.Samples.Span[snapped]}");
     }
 
     [Fact]

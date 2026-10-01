@@ -76,10 +76,10 @@ public sealed class LoopbackTester : ILoopbackTester
             var clock = Stopwatch.StartNew();
             await Task.Delay(ChimeDelay, cancellationToken);
 
-            LoopbackTesterPlayback chime;
+            WasapiOutput chime;
             try
             {
-                chime = LoopbackTesterPlayback.Open(cableRenderId, _signal.Render(ChimeSampleRate), ChimeSampleRate);
+                chime = WasapiOutput.Open(cableRenderId, Mono(_signal.Render(ChimeSampleRate), ChimeSampleRate));
             }
             catch (Exception e)
             {
@@ -117,10 +117,10 @@ public sealed class LoopbackTester : ILoopbackTester
     private static async Task<string?> PlayBackAsync(
         string monitorRenderId, float[] samples, int sampleRate, CancellationToken cancellationToken)
     {
-        LoopbackTesterPlayback playback;
+        WasapiOutput playback;
         try
         {
-            playback = LoopbackTesterPlayback.Open(monitorRenderId, samples, sampleRate);
+            playback = WasapiOutput.Open(monitorRenderId, Mono(samples, sampleRate));
         }
         catch (Exception e)
         {
@@ -132,7 +132,8 @@ public sealed class LoopbackTester : ILoopbackTester
             playback.Play();
             try
             {
-                return (await playback.Stopped.WaitAsync(playback.Duration + PlaybackSlack, cancellationToken))?.Message;
+                var duration = TimeSpan.FromSeconds(samples.Length / (double)sampleRate);
+                return (await playback.Stopped.WaitAsync(duration + PlaybackSlack, cancellationToken))?.Message;
             }
             catch (TimeoutException)
             {
@@ -140,4 +141,6 @@ public sealed class LoopbackTester : ILoopbackTester
             }
         }
     }
+
+    private static BufferSampleProvider Mono(float[] samples, int sampleRate) => new(samples, sampleRate, 1);
 }

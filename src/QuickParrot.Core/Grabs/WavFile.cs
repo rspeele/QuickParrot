@@ -13,7 +13,7 @@ public readonly record struct WavInfo(int FormatTag, int Channels, int SampleRat
 }
 
 /// <summary>32-bit float samples read back from a WAV file, with the format they were recorded in.</summary>
-public sealed record WavAudio(float[] Samples, int SampleRate, int Channels);
+public sealed record WavAudio(ReadOnlyMemory<float> Samples, int SampleRate, int Channels);
 
 /// <summary>Minimal 32-bit float WAV writing, and reading.</summary>
 public static class WavFile
