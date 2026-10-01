@@ -1,5 +1,3 @@
-using QuickParrot.Core.Navigation;
-
 namespace QuickParrot.Core.Keyboard;
 
 /// <summary>

@@ -1,5 +1,4 @@
 using QuickParrot.Core.Devices;
-using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Mic;
 

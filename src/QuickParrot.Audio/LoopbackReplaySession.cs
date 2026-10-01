@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Playback;
 using QuickParrot.Core.Replay;
 
@@ -17,7 +16,7 @@ internal sealed class LoopbackReplaySession : IDisposable
     private readonly MMDevice _device;
     private readonly WasapiRecorder _recorder;
     private readonly ReplayBuffer _buffer;
-    private readonly LoopbackSampleFormat _format;
+    private readonly SampleFormat _format;
     private readonly ChannelMixer? _mixer; // null when the device is already mono or stereo
     private readonly Action<string> _onError;
     private float[] _scratch = [];
@@ -27,7 +26,7 @@ internal sealed class LoopbackReplaySession : IDisposable
     private bool _dataErrorReported;
 
     private LoopbackReplaySession(
-        string deviceId, MMDevice device, WasapiRecorder recorder, ReplayBuffer buffer, LoopbackSampleFormat format,
+        string deviceId, MMDevice device, WasapiRecorder recorder, ReplayBuffer buffer, SampleFormat format,
         ChannelMixer? mixer, Action<string> onError, Action<LoopbackReplaySession, Exception?> onStopped)
     {
         DeviceId = deviceId;
@@ -114,7 +113,7 @@ internal sealed class LoopbackReplaySession : IDisposable
         {
             var replayFlags = CaptureFormats.ToReplayFlags(flags);
             ReadOnlySpan<float> samples;
-            if (_format == LoopbackSampleFormat.Float32)
+            if (_format == SampleFormat.Float32)
             {
                 samples = MemoryMarshal.Cast<byte, float>(data);
             }

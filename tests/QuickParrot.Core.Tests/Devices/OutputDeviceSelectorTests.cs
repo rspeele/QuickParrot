@@ -1,6 +1,6 @@
 using QuickParrot.Core.Devices;
 
-namespace QuickParrot.Core.Tests;
+namespace QuickParrot.Core.Tests.Devices;
 
 public class OutputDeviceSelectorTests
 {

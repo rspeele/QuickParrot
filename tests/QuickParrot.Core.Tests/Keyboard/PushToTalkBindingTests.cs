@@ -1,8 +1,7 @@
 using QuickParrot.Core.Keyboard;
-using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;
 
-namespace QuickParrot.Core.Tests.Playback;
+namespace QuickParrot.Core.Tests.Keyboard;
 
 public class PushToTalkBindingTests
 {

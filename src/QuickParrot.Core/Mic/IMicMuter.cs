@@ -1,6 +1,4 @@
-using QuickParrot.Core.Mic;
-
-namespace QuickParrot.Core.Playback;
+namespace QuickParrot.Core.Mic;
 
 /// <summary>Silences the user's real microphone while a clip plays. Implementations must not throw.</summary>
 public interface IMicMuter

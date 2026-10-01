@@ -1,7 +1,6 @@
 using QuickParrot.Core.Keyboard;
-using QuickParrot.Core.Playback;
 
-namespace QuickParrot.Core.Tests.Playback;
+namespace QuickParrot.Core.Tests.Keyboard;
 
 public class PushToTalkMergerTests
 {

@@ -1,6 +1,5 @@
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
-using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Tests.Favorites;
 

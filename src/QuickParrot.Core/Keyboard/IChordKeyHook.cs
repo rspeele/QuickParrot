@@ -1,4 +1,3 @@
-using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Core.Keyboard;
 

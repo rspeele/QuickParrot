@@ -11,15 +11,6 @@ public class DiagnosticRulesTests
     private static AudioDeviceInfo Render(string id, string name, AudioDeviceState state = AudioDeviceState.Active) =>
         new(id, name, state);
 
-    [Theory]
-    [InlineData("CABLE Input (VB-Audio Virtual Cable)", "CABLE Output (VB-Audio Virtual Cable)")]
-    [InlineData("CABLE-A Input (VB-Audio Cable A)", "CABLE-A Output (VB-Audio Cable A)")]
-    [InlineData("Line 1 (Virtual Audio Cable)", "Line 1 (Virtual Audio Cable)")]
-    public void PartnerName_MapsPlaybackToRecordingSide(string render, string capture)
-    {
-        Assert.Equal(capture, CableCaptureSelector.PartnerName(render));
-    }
-
     [Fact]
     public void CableCapture_PrefersThePartnerOfTheSelectedCable()
     {

@@ -15,9 +15,6 @@ public sealed record OutputDeviceSelection(AudioDeviceInfo? Cable, AudioDeviceIn
 /// <summary>Pure device-picking rules for the cable and monitor outputs.</summary>
 public static class OutputDeviceSelector
 {
-    private const string VbCableName = "CABLE Input";
-    private const string MuzychenkoName = "Virtual Audio Cable";
-
     public static OutputDeviceSelection Select(
         IReadOnlyList<AudioDeviceInfo> devices, string? cableId, string? monitorId, string? defaultId)
     {
@@ -30,8 +27,8 @@ public static class OutputDeviceSelector
     /// <summary>An explicitly configured active device wins; otherwise VB-CABLE, then Muzychenko's cable.</summary>
     public static AudioDeviceInfo? SelectCable(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId) =>
         FindActive(devices, configuredId)
-        ?? devices.FirstOrDefault(d => d.IsActive && d.Name.Contains(VbCableName, StringComparison.OrdinalIgnoreCase))
-        ?? devices.FirstOrDefault(d => d.IsActive && d.Name.Contains(MuzychenkoName, StringComparison.OrdinalIgnoreCase));
+        ?? devices.FirstOrDefault(d => d.IsActive && CableNames.IsVbCableRender(d.Name))
+        ?? devices.FirstOrDefault(d => d.IsActive && CableNames.IsMuzychenko(d.Name));
 
     internal static AudioDeviceInfo? SelectMonitor(IReadOnlyList<AudioDeviceInfo> devices, string? configuredId, string? defaultId) =>
         FindActive(devices, configuredId) ?? FindActive(devices, defaultId);
@@ -43,12 +40,11 @@ public static class OutputDeviceSelector
     public static AudioDeviceInfo? SelectRealPlaybackDevice(
         IReadOnlyList<AudioDeviceInfo> devices, AudioDeviceInfo? cable, string? monitorId)
     {
-        var real = devices.Where(d => d.IsActive && !IsVirtualCable(d.Name) && (cable is null || !SameId(d.Id, cable.Id))).ToList();
+        var real = devices
+            .Where(d => d.IsActive && !CableNames.IsCableRender(d.Name) && (cable is null || !SameId(d.Id, cable.Id)))
+            .ToList();
         return FindActive(real, monitorId) ?? real.FirstOrDefault();
     }
-
-    public static bool IsVirtualCable(string renderName) =>
-        MicDeviceSelector.IsVirtualCable(renderName) || renderName.Contains(VbCableName, StringComparison.OrdinalIgnoreCase);
 
     private static AudioDeviceInfo? FindActive(IReadOnlyList<AudioDeviceInfo> devices, string? id) =>
         id is null ? null : devices.FirstOrDefault(d => d.IsActive && SameId(d.Id, id));

@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Replay;
 
 namespace QuickParrot.Core.Tests.Replay;
@@ -54,24 +53,24 @@ public sealed class ReplaySnapshotTests
         var pcm16 = new byte[4];
         BinaryPrimitives.WriteInt16LittleEndian(pcm16, short.MinValue);
         BinaryPrimitives.WriteInt16LittleEndian(pcm16.AsSpan(2), 16384);
-        Assert.Equal(2, SampleConverter.ToFloat(pcm16, LoopbackSampleFormat.Pcm16, target));
+        Assert.Equal(2, SampleConverter.ToFloat(pcm16, SampleFormat.Pcm16, target));
         Assert.Equal([-1f, 0.5f], target);
 
         byte[] pcm24 = [0x00, 0x00, 0x40, 0x00, 0x00, 0xC0];
-        SampleConverter.ToFloat(pcm24, LoopbackSampleFormat.Pcm24, target);
+        SampleConverter.ToFloat(pcm24, SampleFormat.Pcm24, target);
         Assert.Equal([0.5f, -0.5f], target);
 
         var float32 = new byte[8];
         BinaryPrimitives.WriteSingleLittleEndian(float32, 0.25f);
         BinaryPrimitives.WriteSingleLittleEndian(float32.AsSpan(4), -0.75f);
-        SampleConverter.ToFloat(float32, LoopbackSampleFormat.Float32, target);
+        SampleConverter.ToFloat(float32, SampleFormat.Float32, target);
         Assert.Equal([0.25f, -0.75f], target);
     }
 
     [Fact]
     public void SampleConverter_StopsAtTheShorterSide()
     {
-        Assert.Equal(1, SampleConverter.ToFloat(new byte[5], LoopbackSampleFormat.Pcm32, new float[4]));
-        Assert.Equal(1, SampleConverter.ToFloat(new byte[8], LoopbackSampleFormat.Pcm32, new float[1]));
+        Assert.Equal(1, SampleConverter.ToFloat(new byte[5], SampleFormat.Pcm32, new float[4]));
+        Assert.Equal(1, SampleConverter.ToFloat(new byte[8], SampleFormat.Pcm32, new float[1]));
     }
 }

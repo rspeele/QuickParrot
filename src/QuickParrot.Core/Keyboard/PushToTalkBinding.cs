@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
-using QuickParrot.Core.Keyboard;
 
-namespace QuickParrot.Core.Playback;
+namespace QuickParrot.Core.Keyboard;
 
 /// <summary>Mouse buttons usable for push-to-talk; left and right would break normal clicking.</summary>
 public enum PushToTalkMouseButton

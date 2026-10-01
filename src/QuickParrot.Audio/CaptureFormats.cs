@@ -1,13 +1,12 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Replay;
 
 namespace QuickParrot.Audio;
 
 internal static class CaptureFormats
 {
-    public static LoopbackSampleFormat? ToSampleFormat(WaveFormat format)
+    public static SampleFormat? ToSampleFormat(WaveFormat format)
     {
         var encoding = format is WaveFormatExtensible extensible
             ? extensible.SubFormat == AudioMediaSubtypes.MEDIASUBTYPE_IEEE_FLOAT ? WaveFormatEncoding.IeeeFloat
@@ -17,10 +16,10 @@ internal static class CaptureFormats
 
         return (encoding, format.BitsPerSample) switch
         {
-            (WaveFormatEncoding.IeeeFloat, 32) => LoopbackSampleFormat.Float32,
-            (WaveFormatEncoding.Pcm, 16) => LoopbackSampleFormat.Pcm16,
-            (WaveFormatEncoding.Pcm, 24) => LoopbackSampleFormat.Pcm24,
-            (WaveFormatEncoding.Pcm, 32) => LoopbackSampleFormat.Pcm32,
+            (WaveFormatEncoding.IeeeFloat, 32) => SampleFormat.Float32,
+            (WaveFormatEncoding.Pcm, 16) => SampleFormat.Pcm16,
+            (WaveFormatEncoding.Pcm, 24) => SampleFormat.Pcm24,
+            (WaveFormatEncoding.Pcm, 32) => SampleFormat.Pcm32,
             _ => null,
         };
     }

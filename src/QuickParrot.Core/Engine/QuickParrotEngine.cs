@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Grabs;
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
+using QuickParrot.Core.Mic;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Playback;
 using QuickParrot.Core.Replay;
@@ -56,8 +58,8 @@ public sealed class QuickParrotEngine : IDisposable
         _settings = settings;
         _replay = replay;
         _grabber = replay is null || grabs is null ? null : new ReplayGrabber(replay, grabs);
-        _controller = new PlaybackController(player, pushToTalk, micMuter, time, settings.ToPlaybackOptions(), Post);
-        _controller.PlaybackFailed += e => ErrorOccurred?.Invoke($"Couldn't play {Path.GetFileName(e.ClipPath)}: {e.Message}");
+        _controller = new PlaybackController(
+            player, pushToTalk, micMuter, time, settings.ToPlaybackOptions(), ReportPlaybackFailure, Post);
         _thread = new Thread(RunQueued) { IsBackground = true, Name = "QuickParrot engine" };
     }
 
@@ -239,6 +241,12 @@ public sealed class QuickParrotEngine : IDisposable
                 case ClearFavorite clear:
                     Clear(clear.Slot);
                     break;
+                case NeedFavoritesPanel need:
+                    navigator.ShowFavorites(BuildFavoritesPanel(need.Slot));
+                    break;
+                case PersistPath persist:
+                    CommitSettings(_settings with { NavigatorPersistentPath = persist.Path });
+                    break;
             }
         }
     }
@@ -324,10 +332,11 @@ public sealed class QuickParrotEngine : IDisposable
     private void UpdateFavorites(FavoriteSlots favorites)
     {
         CommitSettings(_settings with { Favorites = favorites });
-        _navigator?.RefreshFavorites();
+        if (_navigator is { AssigningSlot: int slot } navigator)
+            navigator.ShowFavorites(BuildFavoritesPanel(slot));
     }
 
-    // Runs on the worker thread when assign mode starts, so the file checks stay off the keyboard hook.
+    // Runs on the worker thread, so the file checks stay off the keyboard hook.
     private FavoritesPanel BuildFavoritesPanel(int targetSlot)
     {
         var settings = _settings;
@@ -385,25 +394,13 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void OpenLibrary(AppSettings settings)
     {
-        if (_navigator is not null)
-            _navigator.PersistentPathChanged -= OnPersistentPathChanged;
-
         _lastPlayed = null; // relative to the old library
-        if (string.IsNullOrEmpty(settings.LibraryRoot))
-        {
-            _library = null;
-            _navigator = null;
-            return;
-        }
-
-        _library = _createLibrary(settings.LibraryRoot);
-        var navigator = new ChordNavigator(_library, settings.NavigatorPersistentPath, BuildFavoritesPanel);
-        navigator.PersistentPathChanged += OnPersistentPathChanged;
-        _navigator = navigator;
+        _library = string.IsNullOrEmpty(settings.LibraryRoot) ? null : _createLibrary(settings.LibraryRoot);
+        _navigator = _library is null ? null : new ChordNavigator(_library, settings.NavigatorPersistentPath);
     }
 
-    private void OnPersistentPathChanged(string path) =>
-        CommitSettings(_settings with { NavigatorPersistentPath = path });
+    private void ReportPlaybackFailure(PlaybackError error) =>
+        ErrorOccurred?.Invoke($"Couldn't play {Path.GetFileName(error.ClipPath)}: {error.Message}");
 
     // Saves are throttled (one write per SaveDelay window, not reset by later changes) so dragging a volume
     // slider doesn't write the file on every tick.

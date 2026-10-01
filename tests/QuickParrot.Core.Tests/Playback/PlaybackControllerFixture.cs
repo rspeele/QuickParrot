@@ -29,14 +29,9 @@ public abstract class PlaybackControllerFixture : IDisposable
     /// <summary>Exceptions thrown by dispatched callbacks, which a prepare's continuation would otherwise swallow.</summary>
     protected List<Exception> DispatchErrors { get; } = [];
 
-    protected PlaybackController Create(PlaybackOptions? options = null, Action<Action>? dispatch = null)
-    {
-        var controller = new PlaybackController(
-            Player, PushToTalk, new FakeMicMuter(Log), Time, options ?? PlaybackOptions.Default,
+    protected PlaybackController Create(PlaybackOptions? options = null, Action<Action>? dispatch = null) =>
+        new(Player, PushToTalk, new FakeMicMuter(Log), Time, options ?? PlaybackOptions.Default, Errors.Add,
             dispatch ?? RunInline);
-        controller.PlaybackFailed += Errors.Add;
-        return controller;
-    }
 
     protected void Advance(int milliseconds) => Time.Advance(TimeSpan.FromMilliseconds(milliseconds));
 

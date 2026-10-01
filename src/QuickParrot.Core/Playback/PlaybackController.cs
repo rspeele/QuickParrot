@@ -1,3 +1,5 @@
+using QuickParrot.Core.Mic;
+
 namespace QuickParrot.Core.Playback;
 
 /// <summary>
@@ -10,6 +12,7 @@ public sealed class PlaybackController : IDisposable
     private readonly IPushToTalk _pushToTalk;
     private readonly IMicMuter _micMuter;
     private readonly TimeProvider _time;
+    private readonly Action<PlaybackError> _failed;
     private readonly Action<Action> _dispatch;
 
     private ITimer? _timer;
@@ -22,6 +25,7 @@ public sealed class PlaybackController : IDisposable
     private bool _pushToTalkHeld;
     private bool _micMuted;
 
+    /// <param name="failed">Called when a clip can't be loaded, can't start, or fails mid-play.</param>
     /// <param name="dispatch">Routes timer, prepare and player callbacks back onto the controller's thread.
     /// Defaults to running them inline.</param>
     public PlaybackController(
@@ -30,12 +34,14 @@ public sealed class PlaybackController : IDisposable
         IMicMuter micMuter,
         TimeProvider time,
         PlaybackOptions options,
+        Action<PlaybackError> failed,
         Action<Action>? dispatch = null)
     {
         _player = player;
         _pushToTalk = pushToTalk;
         _micMuter = micMuter;
         _time = time;
+        _failed = failed;
         _dispatch = dispatch ?? (action => action());
         Options = options;
         _player.Finished += OnPlayerFinished;
@@ -45,9 +51,6 @@ public sealed class PlaybackController : IDisposable
     public PlaybackOptions Options { get; set; }
 
     internal PlaybackPhase Phase { get; private set; }
-
-    /// <summary>Raised when a clip can't be loaded, can't start, or fails mid-play.</summary>
-    public event Action<PlaybackError>? PlaybackFailed;
 
     /// <summary>
     /// Starts preparing <paramref name="fullPath"/>. From idle it plays once both the pre-roll and the prepare are
@@ -211,7 +214,7 @@ public sealed class PlaybackController : IDisposable
         }
         finally
         {
-            PlaybackFailed?.Invoke(new PlaybackError(clipPath, Describe(error)));
+            _failed(new PlaybackError(clipPath, Describe(error)));
         }
     }
 

@@ -1,3 +1,4 @@
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Tests.Fakes;
 

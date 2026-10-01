@@ -8,18 +8,6 @@ public class MicDeviceSelectorTests
     private static readonly CaptureDeviceInfo Webcam = new("cam", "Microphone (Webcam)", AudioDeviceState.Active, false);
     private static readonly CaptureDeviceInfo Cable = new("cable", "CABLE Output (VB-Audio Virtual Cable)", AudioDeviceState.Active, false);
 
-    [Theory]
-    [InlineData("CABLE Output (VB-Audio Virtual Cable)", true)]
-    [InlineData("CABLE-A Output (VB-Audio Cable A)", true)]
-    [InlineData("VoiceMeeter Output (VB-Audio VoiceMeeter VAIO)", true)]
-    [InlineData("Line 1 (Virtual Audio Cable)", true)]
-    [InlineData("Microphone (USB Audio Device)", false)]
-    [InlineData("Microphone (I'm Fulla Schiit)", false)]
-    public void RecognisesVirtualCables(string name, bool isCable)
-    {
-        Assert.Equal(isCable, MicDeviceSelector.IsVirtualCable(name));
-    }
-
     [Fact]
     public void ConfiguredActiveDevice_Wins()
     {

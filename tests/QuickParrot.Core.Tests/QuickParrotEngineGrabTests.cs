@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Time.Testing;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Grabs;
-using QuickParrot.Core.Navigation;
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Replay;
 using QuickParrot.Core.Settings;
 using QuickParrot.Core.Tests.Fakes;

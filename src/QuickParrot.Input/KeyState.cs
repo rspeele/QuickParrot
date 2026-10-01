@@ -1,5 +1,4 @@
 using QuickParrot.Core.Keyboard;
-using QuickParrot.Core.Playback;
 using static QuickParrot.Input.NativeMethods;
 
 namespace QuickParrot.Input;

@@ -1,5 +1,3 @@
-using QuickParrot.Core.Navigation;
-
 namespace QuickParrot.Core.Library;
 
 /// <summary>Folder-by-folder browsing of the library for the desktop UI, confined to its root.</summary>
@@ -18,11 +16,6 @@ public sealed class LibraryBrowser
     public IReadOnlyList<FolderEntry> Entries { get; private set; } = [];
 
     public bool CanGoUp => CurrentPath.Length > 0;
-
-    /// <summary>Set when the current folder has more entries than the chord overlay can show.</summary>
-    public string? OverlayTruncationWarning => Entries.Count > LayoutBuilder.GridMaxEntries
-        ? $"This folder has {Entries.Count} entries; the overlay only shows the first {LayoutBuilder.GridMaxEntries}. Consider subfolders."
-        : null;
 
     /// <summary>Enters a folder and returns null, or returns the clip's relative path for the caller to play.</summary>
     public string? Open(FolderEntry entry)

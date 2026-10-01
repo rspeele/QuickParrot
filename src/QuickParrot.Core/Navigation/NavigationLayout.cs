@@ -15,16 +15,13 @@ internal static class LayoutBuilder
     private const int WheelMaxEntries = 9;
     private const int ColumnSize = 9;
 
-    /// <summary>Shared with <see cref="Library.LibraryBrowser.OverlayTruncationWarning"/> so both agree on the limit.</summary>
-    internal const int GridMaxEntries = 81;
-
     public static NavigationLayout Build(IReadOnlyList<FolderEntry> entries)
     {
         if (entries.Count <= WheelMaxEntries)
             return new NavigationLayout(OverlayLayoutKind.Wheel, entries, [], false);
 
-        var truncated = entries.Count > GridMaxEntries;
-        var limited = truncated ? entries.Take(GridMaxEntries).ToList() : entries;
+        var truncated = entries.Count > OverlayCapacity.MaxEntries;
+        var limited = truncated ? entries.Take(OverlayCapacity.MaxEntries).ToList() : entries;
 
         var columns = new List<IReadOnlyList<FolderEntry>>();
         for (var i = 0; i < limited.Count; i += ColumnSize)

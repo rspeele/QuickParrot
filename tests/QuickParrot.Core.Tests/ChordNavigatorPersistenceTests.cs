@@ -1,3 +1,4 @@
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Tests.Fakes;
 
@@ -53,7 +54,7 @@ public class ChordNavigatorPersistenceTests
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
         source.AddFile(trump, "wall.wav");
-        var nav = new ChordNavigator(source) { PersistentPath = trump };
+        var nav = new ChordNavigator(source, trump);
 
         nav.Handle(new ChordPressed());
 
@@ -65,7 +66,7 @@ public class ChordNavigatorPersistenceTests
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
-        var nav = new ChordNavigator(source) { PersistentPath = trump };
+        var nav = new ChordNavigator(source, trump);
 
         nav.Handle(new ChordPressed());
         nav.Handle(new DigitPressed(0, true));
@@ -78,7 +79,7 @@ public class ChordNavigatorPersistenceTests
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
-        var nav = new ChordNavigator(source) { PersistentPath = trump };
+        var nav = new ChordNavigator(source, trump);
 
         nav.Handle(new ChordPressed());
         nav.Handle(new DigitPressed(0, false));
@@ -122,7 +123,7 @@ public class ChordNavigatorPersistenceTests
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
         var quotes = source.AddFolder(trump, "Quotes");
-        var nav = new ChordNavigator(source) { PersistentPath = quotes };
+        var nav = new ChordNavigator(source, quotes);
 
         source.RemoveFolder(trump, "Quotes");
 
@@ -137,7 +138,7 @@ public class ChordNavigatorPersistenceTests
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
-        var nav = new ChordNavigator(source) { PersistentPath = trump };
+        var nav = new ChordNavigator(source, trump);
 
         source.RemoveFolder("", "Trump");
 

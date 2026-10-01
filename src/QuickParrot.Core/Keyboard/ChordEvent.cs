@@ -1,6 +1,6 @@
-namespace QuickParrot.Core.Navigation;
+namespace QuickParrot.Core.Keyboard;
 
-/// <summary>Abstract input to <see cref="ChordNavigator"/>, produced by mapping physical keys upstream.</summary>
+/// <summary>Abstract input to the chord navigator, produced by mapping physical keys.</summary>
 public abstract record ChordEvent;
 
 public sealed record ChordPressed : ChordEvent;

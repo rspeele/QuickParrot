@@ -1,10 +1,11 @@
 using QuickParrot.Core.Favorites;
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
 
 namespace QuickParrot.Core.Navigation;
 
-/// <summary>Pure chord-navigation state machine: turns <see cref="ChordEvent"/>s into
-/// <see cref="NavigationAction"/>s and exposes <see cref="ViewState"/> for the overlay.</summary>
+/// <summary>Chord-navigation state machine: turns <see cref="ChordEvent"/>s into <see cref="NavigationAction"/>s
+/// and exposes <see cref="ViewState"/> for the overlay. Each event moves one immutable session to the next.</summary>
 /// <remarks>
 /// Chord+Shift+F-key enters assign mode for that slot. Picking a file assigns it and spends the session; the same
 /// F-key again (last played) and the clear key apply but stay in assign mode, so several slots can be edited at once.
@@ -12,36 +13,20 @@ namespace QuickParrot.Core.Navigation;
 public sealed class ChordNavigator
 {
     private static readonly IReadOnlyList<NavigationAction> NoActions = [];
+    private static readonly NavigationLayout EmptyLayout = LayoutBuilder.Build([]);
 
     private readonly IFolderSource _source;
-    private readonly Func<int, FavoritesPanel>? _favorites;
     private Session? _session;
     private volatile OverlayViewState? _viewState;
 
-    /// <param name="favorites">Builds the favorites strip for a target slot; called only on entering or changing it.</param>
-    public ChordNavigator(IFolderSource source, string persistentPath = "", Func<int, FavoritesPanel>? favorites = null)
+    public ChordNavigator(IFolderSource source, string persistentPath = "")
     {
         _source = source;
-        _favorites = favorites;
-        PersistentPath = persistentPath;
+        PersistentPath = string.Join('/', persistentPath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries));
     }
 
-    /// <summary>Raised with the new value whenever <see cref="PersistentPath"/> changes, so it can be saved.</summary>
-    public event Action<string>? PersistentPathChanged;
-
-    public string PersistentPath
-    {
-        get;
-        set
-        {
-            var normalized = string.Join('/', value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries));
-            if (normalized == field)
-                return;
-
-            field = normalized;
-            PersistentPathChanged?.Invoke(normalized);
-        }
-    }
+    /// <summary>Where new sessions start; every change is also emitted as <see cref="PersistPath"/>.</summary>
+    public string PersistentPath { get; private set; }
 
     /// <summary>
     /// Immutable snapshot, rebuilt from the source after each event; safe to read from another thread.
@@ -49,117 +34,58 @@ public sealed class ChordNavigator
     /// </summary>
     public OverlayViewState? ViewState => _viewState;
 
-    public IReadOnlyList<NavigationAction> Handle(ChordEvent evt) => evt switch
+    /// <summary>The favorite slot being assigned, if in assign mode; read on the navigator's own thread.</summary>
+    public int? AssigningSlot => _session is { Spent: false } session ? session.AssignSlot : null;
+
+    public IReadOnlyList<NavigationAction> Handle(ChordEvent evt)
     {
-        ChordPressed => HandleChordPressed(),
-        ChordReleased => HandleChordReleased(),
-        ChordCancelled => HandleChordCancelled(),
-        DigitPressed d => HandleDigit(d.Digit, d.Shift),
-        GrabPressed => HandleGrab(),
-        FavoritePressed f => HandleFavorite(f.Slot, f.Shift),
-        FavoriteClearPressed => HandleClear(),
-        ChordlessFavoritePressed c when _session is null && FavoriteSlots.IsValidSlot(c.Slot) => [new PlayFavorite(c.Slot)],
-        _ => NoActions,
-    };
-
-    /// <summary>Re-reads the favorites strip while assigning, e.g. after a slot changed.</summary>
-    public void RefreshFavorites()
-    {
-        if (_session is not { Spent: false, AssignSlot: int slot } session)
-            return;
-
-        session.Favorites = LoadFavorites(slot);
-        Refresh(session);
-    }
-
-    private IReadOnlyList<NavigationAction> HandleChordPressed()
-    {
-        if (_session is not null)
-            return NoActions; // auto-repeat while already held
-
-        _session = new Session { CurrentPath = ResolveStartingPath() };
-        Refresh(_session);
-        return NoActions;
-    }
-
-    private IReadOnlyList<NavigationAction> HandleChordReleased()
-    {
-        if (_session is null)
-            return NoActions;
-
-        var session = _session;
-        _session = null;
-        _viewState = null;
-
-        var bareTap = !session.AnyKeyPressed && !session.Spent;
-        return bareTap ? [new StopPlayback()] : NoActions;
-    }
-
-    private IReadOnlyList<NavigationAction> HandleFavorite(int slot, bool shift)
-    {
-        if (_session is not { Spent: false } session || !FavoriteSlots.IsValidSlot(slot))
-            return NoActions;
-
-        session.AnyKeyPressed = true;
-        if (session.AssignSlot is not int target)
-        {
-            if (!shift)
-            {
-                session.Spent = true;
-                Refresh(session);
-                return [new PlayFavorite(slot)];
-            }
-
-            session.AssignSlot = slot;
-            session.Favorites = LoadFavorites(slot);
-            Refresh(session);
-            return NoActions;
-        }
-
-        if (slot == target)
-            return [new AssignLastPlayedFavorite(slot)];
-
-        session.AssignSlot = slot;
-        session.Favorites = session.Favorites is { } panel ? panel with { TargetSlot = slot } : LoadFavorites(slot);
-        Refresh(session);
-        return NoActions;
-    }
-
-    private IReadOnlyList<NavigationAction> HandleClear() =>
-        _session is { Spent: false, AssignSlot: int slot } ? [new ClearFavorite(slot)] : NoActions;
-
-    private IReadOnlyList<NavigationAction> HandleChordCancelled()
-    {
-        _session = null;
-        _viewState = null;
-        return NoActions;
-    }
-
-    // Like playing a clip, a grab spends the session: the overlay hides and the release won't stop playback.
-    private IReadOnlyList<NavigationAction> HandleGrab()
-    {
-        if (_session is not { Spent: false } session)
-            return NoActions;
-
-        session.Spent = true;
-        Refresh(session);
-        return [new GrabReplay()];
-    }
-
-    private IReadOnlyList<NavigationAction> HandleDigit(int digit, bool shift)
-    {
-        if (_session is not { Spent: false } session)
-            return NoActions;
-
-        session.AnyKeyPressed = true;
-
-        var actions = digit == 0 ? HandleZero(session, shift) : HandleNumber(session, digit, shift);
-        Refresh(session);
+        var (next, actions) = Transition(_session, evt);
+        Apply(next, actions);
         return actions;
     }
 
+    /// <summary>Supplies the strip asked for by <see cref="NeedFavoritesPanel"/>; ignored unless still assigning
+    /// that slot.</summary>
+    public void ShowFavorites(FavoritesPanel panel)
+    {
+        if (_session is { Spent: false } session && session.AssignSlot == panel.TargetSlot)
+            Apply(session with { Favorites = panel }, NoActions);
+    }
+
+    private (Session? Next, IReadOnlyList<NavigationAction> Actions) Transition(Session? session, ChordEvent evt) =>
+        (session, evt) switch
+        {
+            (null, ChordPressed) => Start(),
+            (null, ChordlessFavoritePressed c) when FavoriteSlots.IsValidSlot(c.Slot) =>
+                (null, [new PlayFavorite(c.Slot)]),
+            ({ AnyKeyPressed: false, Spent: false }, ChordReleased) => (null, [new StopPlayback()]), // bare tap
+            (_, ChordReleased or ChordCancelled) => (null, NoActions),
+            ({ Spent: false } live, DigitPressed d) => Digit(live with { AnyKeyPressed = true }, d.Digit, d.Shift),
+            ({ Spent: false } live, FavoritePressed f) when FavoriteSlots.IsValidSlot(f.Slot) =>
+                Favorite(live, f.Slot, f.Shift),
+            ({ Spent: false, AssignSlot: int slot }, FavoriteClearPressed) => (session, [new ClearFavorite(slot)]),
+
+            // Like playing a clip, a grab spends the session: the overlay hides and the release won't stop playback.
+            ({ Spent: false } live, GrabPressed) => (live with { Spent = true }, [new GrabReplay()]),
+            _ => (session, NoActions), // includes chord auto-repeat while already held
+        };
+
+    // Falls back to the nearest existing ancestor (ultimately root) if PersistentPath no longer exists,
+    // and persists that fallback since PersistentPath is meant to always point somewhere real.
+    private (Session?, IReadOnlyList<NavigationAction>) Start()
+    {
+        var path = PersistentPath;
+        while (path.Length > 0 && _source.GetEntries(path) is null)
+            path = GetParentPath(path);
+
+        return (new Session(path), path == PersistentPath ? NoActions : [new PersistPath(path)]);
+    }
+
+    private (Session?, IReadOnlyList<NavigationAction>) Digit(Session session, int digit, bool shift) =>
+        digit == 0 ? Up(session, shift) : Number(session, digit, shift);
+
     // Selects from the layout the user was shown, not a fresh read, so the number always matches the overlay.
-    private IReadOnlyList<NavigationAction> HandleNumber(Session session, int digit, bool shift)
+    private (Session?, IReadOnlyList<NavigationAction>) Number(Session session, int digit, bool shift)
     {
         var layout = session.Layout;
         var index = digit - 1;
@@ -168,7 +94,7 @@ public sealed class ChordNavigator
         {
             return index >= 0 && index < layout.WheelEntries.Count
                 ? Select(session, layout.WheelEntries[index], shift)
-                : NoActions;
+                : (session, NoActions);
         }
 
         if (session.ZoomedColumn is int zoomedColumn)
@@ -176,69 +102,59 @@ public sealed class ChordNavigator
             var columnEntries = layout.GridColumns[zoomedColumn - 1];
             return index >= 0 && index < columnEntries.Count
                 ? Select(session, columnEntries[index], shift)
-                : NoActions;
+                : (session, NoActions);
         }
 
-        if (index >= 0 && index < layout.GridColumns.Count)
-            session.ZoomedColumn = digit;
-
-        return NoActions;
+        return index >= 0 && index < layout.GridColumns.Count
+            ? (session with { ZoomedColumn = digit }, NoActions)
+            : (session, NoActions);
     }
 
-    private IReadOnlyList<NavigationAction> HandleZero(Session session, bool shift)
+    private (Session?, IReadOnlyList<NavigationAction>) Up(Session session, bool shift)
     {
         if (session.ZoomedColumn is not null)
-        {
-            session.ZoomedColumn = null;
-            return NoActions;
-        }
+            return (session with { ZoomedColumn = null }, NoActions);
 
         if (session.CurrentPath.Length == 0)
-            return NoActions; // no-op at root
+            return (session, NoActions); // no-op at root
 
         var parent = GetParentPath(session.CurrentPath);
-        session.CurrentPath = parent;
-
-        if (shift && session.AssignSlot is null)
-            PersistentPath = parent;
-
-        return NoActions;
+        return (session with { CurrentPath = parent }, Persist(session, shift, parent));
     }
 
-    private IReadOnlyList<NavigationAction> Select(Session session, FolderEntry entry, bool shift)
+    private (Session?, IReadOnlyList<NavigationAction>) Select(Session session, FolderEntry entry, bool shift)
     {
         if (entry.IsFolder)
         {
-            session.CurrentPath = entry.RelativePath;
-            session.ZoomedColumn = null;
-
-            if (shift && session.AssignSlot is null)
-                PersistentPath = entry.RelativePath;
-
-            return NoActions;
+            var opened = session with { CurrentPath = entry.RelativePath, ZoomedColumn = null };
+            return (opened, Persist(session, shift, entry.RelativePath));
         }
 
-        if (shift && session.AssignSlot is null)
-            PersistentPath = session.CurrentPath;
-
-        session.Spent = true;
-        return session.AssignSlot is int slot
-            ? [new AssignFavorite(slot, entry.RelativePath)]
-            : [new PlayClip(entry.RelativePath)];
+        NavigationAction pick = session.AssignSlot is int slot
+            ? new AssignFavorite(slot, entry.RelativePath)
+            : new PlayClip(entry.RelativePath);
+        return (session with { Spent = true }, [.. Persist(session, shift, session.CurrentPath), pick]);
     }
 
-    // Falls back to the nearest existing ancestor (ultimately root) if PersistentPath no longer exists,
-    // and persists that fallback since PersistentPath is meant to always point somewhere real.
-    private string ResolveStartingPath()
+    // Not in assign mode, where Shift may still be held from Shift+F-key.
+    private IReadOnlyList<NavigationAction> Persist(Session session, bool shift, string path) =>
+        shift && session.AssignSlot is null && path != PersistentPath ? [new PersistPath(path)] : NoActions;
+
+    private static (Session?, IReadOnlyList<NavigationAction>) Favorite(Session session, int slot, bool shift)
     {
-        var path = PersistentPath;
-        while (path.Length > 0 && _source.GetEntries(path) is null)
-            path = GetParentPath(path);
+        if (session.AssignSlot is not int target)
+        {
+            return shift
+                ? (session with { AnyKeyPressed = true, AssignSlot = slot }, [new NeedFavoritesPanel(slot)])
+                : (session with { AnyKeyPressed = true, Spent = true }, [new PlayFavorite(slot)]);
+        }
 
-        if (path != PersistentPath)
-            PersistentPath = path;
+        if (slot == target)
+            return (session, [new AssignLastPlayedFavorite(slot)]);
 
-        return path;
+        return session.Favorites is { } panel
+            ? (session with { AssignSlot = slot, Favorites = panel with { TargetSlot = slot } }, NoActions)
+            : (session with { AssignSlot = slot }, [new NeedFavoritesPanel(slot)]);
     }
 
     private static string GetParentPath(string path)
@@ -247,56 +163,62 @@ public sealed class ChordNavigator
         return separatorIndex < 0 ? "" : path[..separatorIndex];
     }
 
-    private void Refresh(Session session)
+    // An unchanged session keeps its view state, so the engine only republishes real changes.
+    private void Apply(Session? next, IReadOnlyList<NavigationAction> actions)
     {
-        if (session.Spent)
+        foreach (var action in actions)
         {
-            _viewState = null;
-            return;
+            if (action is PersistPath persist)
+                PersistentPath = persist.Path;
         }
 
-        var layout = LayoutBuilder.Build(_source.GetEntries(session.CurrentPath) ?? []);
-        if (session.ZoomedColumn > layout.GridColumns.Count)
-            session.ZoomedColumn = null; // column vanished on disk (or folder shrank to a wheel)
+        if (ReferenceEquals(next, _session))
+            return;
 
-        session.Layout = layout;
-        var favorites = session.AssignSlot is null ? null : session.Favorites;
-        _viewState = BuildViewState(session.CurrentPath, layout, session.ZoomedColumn, favorites);
+        _session = next is { Spent: false } live ? Relayout(live) : next;
+        _viewState = _session is { Spent: false } shown ? BuildViewState(shown) : null;
     }
 
-    private FavoritesPanel LoadFavorites(int targetSlot) =>
-        _favorites?.Invoke(targetSlot) ?? new FavoritesPanel(
-            Enumerable.Range(1, FavoriteSlots.Count).Select(s => new FavoriteSlotView(s, null, false, null)).ToList(),
-            targetSlot, null, "");
-
-    private static OverlayViewState BuildViewState(
-        string path, NavigationLayout layout, int? zoomedColumn, FavoritesPanel? favorites)
+    private Session Relayout(Session session)
     {
+        var layout = LayoutBuilder.Build(_source.GetEntries(session.CurrentPath) ?? []);
+        var zoomedColumn = session.ZoomedColumn > layout.GridColumns.Count
+            ? null // column vanished on disk (or folder shrank to a wheel)
+            : session.ZoomedColumn;
+        return session with { Layout = layout, ZoomedColumn = zoomedColumn };
+    }
+
+    private static OverlayViewState BuildViewState(Session session)
+    {
+        var layout = session.Layout;
         if (layout.Kind == OverlayLayoutKind.Wheel)
         {
             return new OverlayViewState(
-                path, OverlayLayoutKind.Wheel, Number(layout.WheelEntries), [], null, false, favorites);
+                session.CurrentPath, OverlayLayoutKind.Wheel, NumberEntries(layout.WheelEntries), [], null, false,
+                session.Favorites);
         }
 
         var columns = layout.GridColumns
-            .Select((column, i) => new GridColumn(i + 1, Number(column)))
+            .Select((column, i) => new GridColumn(i + 1, NumberEntries(column)))
             .ToList();
 
         return new OverlayViewState(
-            path, OverlayLayoutKind.Grid, [], columns, zoomedColumn, layout.Truncated, favorites);
+            session.CurrentPath, OverlayLayoutKind.Grid, [], columns, session.ZoomedColumn, layout.Truncated,
+            session.Favorites);
     }
 
-    private static IReadOnlyList<NumberedEntry> Number(IReadOnlyList<FolderEntry> entries) =>
+    private static IReadOnlyList<NumberedEntry> NumberEntries(IReadOnlyList<FolderEntry> entries) =>
         entries.Select((e, i) => new NumberedEntry(i + 1, e.Name, e.IsFolder)).ToList();
 
-    private sealed class Session
+    private sealed record Session(string CurrentPath)
     {
-        public required string CurrentPath { get; set; }
-        public NavigationLayout Layout { get; set; } = LayoutBuilder.Build([]);
-        public int? ZoomedColumn { get; set; }
-        public bool AnyKeyPressed { get; set; }
-        public bool Spent { get; set; }
-        public int? AssignSlot { get; set; }
-        public FavoritesPanel? Favorites { get; set; }
+        public NavigationLayout Layout { get; init; } = EmptyLayout;
+        public int? ZoomedColumn { get; init; }
+        public bool AnyKeyPressed { get; init; }
+        public bool Spent { get; init; }
+        public int? AssignSlot { get; init; }
+
+        /// <summary>Set only in assign mode, once the engine supplies it.</summary>
+        public FavoritesPanel? Favorites { get; init; }
     }
 }

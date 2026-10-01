@@ -1,3 +1,4 @@
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Tests.Fakes;
 
@@ -6,61 +7,64 @@ namespace QuickParrot.Core.Tests;
 public class ChordNavigatorChangeSignalTests
 {
     [Fact]
-    public void ShiftNavigation_RaisesPersistentPathChanged()
+    public void ShiftNavigation_EmitsPersistPath()
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
         var nav = new ChordNavigator(source);
-        var changes = new List<string>();
-        nav.PersistentPathChanged += changes.Add;
 
-        nav.Handle(new ChordPressed());
-        nav.Handle(new DigitPressed(1, true));
-        nav.Handle(new DigitPressed(0, true));
-
-        Assert.Equal([trump, ""], changes);
+        Assert.Empty(nav.Handle(new ChordPressed()));
+        Assert.Equal([new PersistPath(trump)], nav.Handle(new DigitPressed(1, true)));
+        Assert.Equal([new PersistPath("")], nav.Handle(new DigitPressed(0, true)));
     }
 
     [Fact]
-    public void NonShiftNavigation_DoesNotRaise()
+    public void NonShiftNavigation_DoesNotEmit()
     {
         var source = new FakeFolderSource();
         source.AddFolder("", "Trump");
         var nav = new ChordNavigator(source);
-        var changes = new List<string>();
-        nav.PersistentPathChanged += changes.Add;
+
+        Assert.Empty(nav.Handle(new ChordPressed()));
+        Assert.Empty(nav.Handle(new DigitPressed(1, false)));
+        Assert.Empty(nav.Handle(new ChordReleased()));
+    }
+
+    [Fact]
+    public void ShiftPickingAFile_PersistsItsFolderBeforePlaying()
+    {
+        var source = new FakeFolderSource();
+        var trump = source.AddFolder("", "Trump");
+        var wall = source.AddFile(trump, "wall.wav");
+        var nav = new ChordNavigator(source);
 
         nav.Handle(new ChordPressed());
         nav.Handle(new DigitPressed(1, false));
-        nav.Handle(new ChordReleased());
 
-        Assert.Empty(changes);
+        Assert.Equal([new PersistPath(trump), new PlayClip(wall)], nav.Handle(new DigitPressed(1, true)));
     }
 
     [Fact]
-    public void SettingSameValue_DoesNotRaise()
+    public void PersistingTheSameFolder_DoesNotEmit()
     {
-        var nav = new ChordNavigator(new FakeFolderSource(), "Trump");
-        var changes = new List<string>();
-        nav.PersistentPathChanged += changes.Add;
+        var source = new FakeFolderSource();
+        var trump = source.AddFolder("", "Trump");
+        var wall = source.AddFile(trump, "wall.wav");
+        var nav = new ChordNavigator(source, "Trump/");
 
-        nav.PersistentPath = "Trump/";
+        nav.Handle(new ChordPressed());
 
-        Assert.Empty(changes);
+        Assert.Equal([new PlayClip(wall)], nav.Handle(new DigitPressed(1, true)));
     }
 
     [Fact]
-    public void FallbackFromMissingFolder_Raises()
+    public void FallbackFromMissingFolder_Emits()
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
         var nav = new ChordNavigator(source, trump);
-        var changes = new List<string>();
-        nav.PersistentPathChanged += changes.Add;
         source.RemoveFolder("", "Trump");
 
-        nav.Handle(new ChordPressed());
-
-        Assert.Equal([""], changes);
+        Assert.Equal([new PersistPath("")], nav.Handle(new ChordPressed()));
     }
 }

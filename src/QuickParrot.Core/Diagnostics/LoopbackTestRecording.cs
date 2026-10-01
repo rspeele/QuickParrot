@@ -2,14 +2,6 @@ using QuickParrot.Core.Replay;
 
 namespace QuickParrot.Core.Diagnostics;
 
-public enum LoopbackSampleFormat
-{
-    Float32,
-    Pcm16,
-    Pcm24,
-    Pcm32,
-}
-
 /// <summary>
 /// Collects captured packets as mono float samples (channels averaged), up to a maximum length. Thread-safe.
 /// </summary>
@@ -20,7 +12,7 @@ public sealed class LoopbackTestRecording
     private readonly int _bytesPerSample;
     private int _count;
 
-    public LoopbackTestRecording(int sampleRate, int channels, LoopbackSampleFormat format, TimeSpan maxDuration)
+    public LoopbackTestRecording(int sampleRate, int channels, SampleFormat format, TimeSpan maxDuration)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
@@ -35,7 +27,7 @@ public sealed class LoopbackTestRecording
 
     public int Channels { get; }
 
-    public LoopbackSampleFormat Format { get; }
+    public SampleFormat Format { get; }
 
     public int Count
     {

@@ -1,5 +1,4 @@
 using QuickParrot.Core.Keyboard;
-using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Core.Tests.Keyboard;
 

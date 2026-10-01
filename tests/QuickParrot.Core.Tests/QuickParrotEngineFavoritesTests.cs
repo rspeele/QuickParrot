@@ -3,7 +3,6 @@ using QuickParrot.Core.Engine;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
-using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;
 using QuickParrot.Core.Tests.Fakes;
 
@@ -114,6 +113,21 @@ public sealed class QuickParrotEngineFavoritesTests : IDisposable
         Assert.Equal(new FavoriteSlotView(2, "gone", true, null), favorites.Slots[1]);
         Assert.Equal("Wilhelm scream", favorites.LastPlayedName);
         Assert.Equal("B", favorites.ChordKeyName);
+    }
+
+    [Fact]
+    public async Task ChangesFromTheApp_DuringAssignMode_UpdateTheStrip()
+    {
+        _engine.Post(new ChordPressed());
+        _engine.Post(new FavoritePressed(4, true));
+        _engine.AssignFavorite(5, "Movies/Wilhelm scream.wav");
+        _engine.ClearFavorite(1);
+        await _engine.FlushAsync();
+
+        var favorites = _engine.ViewState!.Favorites!;
+        Assert.Equal(4, favorites.TargetSlot);
+        Assert.Equal("Wilhelm scream", favorites.Slots[4].Name);
+        Assert.True(favorites.Slots[0].IsEmpty);
     }
 
     [Fact]

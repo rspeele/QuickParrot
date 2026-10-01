@@ -6,7 +6,7 @@ public sealed record CaptureDeviceInfo(string Id, string Name, AudioDeviceState 
     public bool IsActive => State == AudioDeviceState.Active;
 
     /// <summary>The virtual cable's own recording side, which must never be treated as the real mic.</summary>
-    public bool IsCable => MicDeviceSelector.IsVirtualCable(Name);
+    public bool IsCable => CableNames.IsCableCapture(Name);
 }
 
 /// <summary>Lists the system's capture (recording) endpoints, including not-present ones.</summary>

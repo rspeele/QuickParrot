@@ -68,7 +68,7 @@ public sealed record AppSettings
     /// <summary>Null disables LiteLLM-based clip naming.</summary>
     public string? LiteLlmBaseUrl { get; init; }
 
-    /// <summary>Base64 DPAPI ciphertext; never the plaintext key. See <see cref="Naming.IDpapiProtector"/>.</summary>
+    /// <summary>Base64 DPAPI ciphertext; never the plaintext key. See <c>Naming.IDpapiProtector</c>.</summary>
     public string? LiteLlmApiKeyEncrypted { get; init; }
 
     public string LiteLlmTranscriptionModel { get; init; } = "whisper-1";

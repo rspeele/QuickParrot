@@ -15,7 +15,7 @@ public static class PreviewDeviceSelector
         if (selection.Monitor is null)
             return new PreviewDevice(null, "No output device is available to preview on.");
 
-        if (selection.MonitorIsCable || OutputDeviceSelector.IsVirtualCable(selection.Monitor.Name))
+        if (selection.MonitorIsCable || CableNames.IsCableRender(selection.Monitor.Name))
         {
             return new PreviewDevice(null,
                 "Your output device is the virtual cable, so preview is off to keep it out of voice chat. "

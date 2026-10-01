@@ -1,6 +1,4 @@
-using QuickParrot.Core.Keyboard;
-
-namespace QuickParrot.Core.Playback;
+namespace QuickParrot.Core.Keyboard;
 
 /// <summary>What to inject for the push-to-talk binding.</summary>
 public enum PushToTalkSend

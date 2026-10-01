@@ -12,7 +12,7 @@ using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Mic;
 using QuickParrot.Core.Naming;
-using QuickParrot.Core.Playback;
+using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Settings;
 using QuickParrot.Overlay;
 
@@ -785,7 +785,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var entries = _library?.Browser.Entries.Select(e => new LibraryItem(e)).ToList() ?? [];
         if (!entries.SequenceEqual(_entries)) // unchanged after a live refresh: keep the list's focus and scroll position
             Entries = entries;
-        LibraryWarning = _library?.Browser.OverlayTruncationWarning ?? "";
+        LibraryWarning = OverlayCapacity.TruncationWarning(_library?.Browser.Entries.Count ?? 0) ?? "";
         OnPropertyChanged(nameof(CurrentPath));
         OnPropertyChanged(nameof(CanGoUp));
         OnPropertyChanged(nameof(LibraryFolderFullPath));

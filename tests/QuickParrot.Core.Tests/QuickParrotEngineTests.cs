@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
 using QuickParrot.Core.Engine;
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Playback;
 using QuickParrot.Core.Settings;

@@ -1,4 +1,5 @@
 using QuickParrot.Core.Favorites;
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Tests.Fakes;
 
@@ -16,41 +17,52 @@ public class ChordNavigatorFavoritesTests
         _source.AddFolder("", "Trump");
         _source.AddFile("Trump", "wall.wav");
         _source.AddFile("", "boom.wav");
-        _nav = new ChordNavigator(_source, "", target =>
-        {
-            _panelRequests.Add(target);
-            var slots = Enumerable.Range(1, FavoriteSlots.Count)
-                .Select(s => new FavoriteSlotView(s, s == 1 ? "airhorn" : null, false, null))
-                .ToList();
-            return new FavoritesPanel(slots, target, _lastPlayedName, "B");
-        });
+        _nav = new ChordNavigator(_source);
+    }
+
+    // Answers NeedFavoritesPanel the way the engine does.
+    private IReadOnlyList<NavigationAction> Handle(ChordEvent evt)
+    {
+        var actions = _nav.Handle(evt);
+        foreach (var need in actions.OfType<NeedFavoritesPanel>())
+            _nav.ShowFavorites(BuildPanel(need.Slot));
+        return actions;
+    }
+
+    private FavoritesPanel BuildPanel(int target)
+    {
+        _panelRequests.Add(target);
+        var slots = Enumerable.Range(1, FavoriteSlots.Count)
+            .Select(s => new FavoriteSlotView(s, s == 1 ? "airhorn" : null, false, null))
+            .ToList();
+        return new FavoritesPanel(slots, target, _lastPlayedName, "B");
     }
 
     private IReadOnlyList<NavigationAction> EnterAssignMode(int slot)
     {
-        _nav.Handle(new ChordPressed());
-        return _nav.Handle(new FavoritePressed(slot, true));
+        Handle(new ChordPressed());
+        return Handle(new FavoritePressed(slot, true));
     }
 
     [Fact]
     public void FKey_PlaysThatFavorite_AndSpendsTheSession()
     {
-        _nav.Handle(new ChordPressed());
+        Handle(new ChordPressed());
 
-        Assert.Equal([new PlayFavorite(3)], _nav.Handle(new FavoritePressed(3, false)));
+        Assert.Equal([new PlayFavorite(3)], Handle(new FavoritePressed(3, false)));
         Assert.Null(_nav.ViewState);
-        Assert.Empty(_nav.Handle(new DigitPressed(1, false)));
-        Assert.Empty(_nav.Handle(new ChordReleased())); // not a bare-tap stop
+        Assert.Empty(Handle(new DigitPressed(1, false)));
+        Assert.Empty(Handle(new ChordReleased())); // not a bare-tap stop
     }
 
     [Fact]
     public void FKeyWithoutASession_IsIgnored() =>
-        Assert.Empty(_nav.Handle(new FavoritePressed(3, false)));
+        Assert.Empty(Handle(new FavoritePressed(3, false)));
 
     [Fact]
     public void NormalSessions_CarryNoFavorites()
     {
-        _nav.Handle(new ChordPressed());
+        Handle(new ChordPressed());
 
         Assert.Null(_nav.ViewState!.Favorites);
         Assert.Empty(_panelRequests);
@@ -59,7 +71,7 @@ public class ChordNavigatorFavoritesTests
     [Fact]
     public void ShiftFKey_EntersAssignMode_ShowingTheStrip()
     {
-        Assert.Empty(EnterAssignMode(3));
+        Assert.Equal([new NeedFavoritesPanel(3)], EnterAssignMode(3));
 
         var favorites = _nav.ViewState!.Favorites!;
         Assert.Equal(3, favorites.TargetSlot);
@@ -74,13 +86,13 @@ public class ChordNavigatorFavoritesTests
     public void AssignMode_PickingAFile_AssignsInsteadOfPlaying_AndSpendsTheSession()
     {
         EnterAssignMode(3);
-        _nav.Handle(new DigitPressed(1, false)); // into Trump, as usual
+        Handle(new DigitPressed(1, false)); // into Trump, as usual
 
         Assert.Equal("Trump", _nav.ViewState!.FolderPath);
         Assert.NotNull(_nav.ViewState.Favorites);
-        Assert.Equal([new AssignFavorite(3, "Trump/wall.wav")], _nav.Handle(new DigitPressed(1, false)));
+        Assert.Equal([new AssignFavorite(3, "Trump/wall.wav")], Handle(new DigitPressed(1, false)));
         Assert.Null(_nav.ViewState);
-        Assert.Empty(_nav.Handle(new ChordReleased()));
+        Assert.Empty(Handle(new ChordReleased()));
     }
 
     [Fact]
@@ -88,8 +100,8 @@ public class ChordNavigatorFavoritesTests
     {
         EnterAssignMode(3);
 
-        Assert.Equal([new AssignLastPlayedFavorite(3)], _nav.Handle(new FavoritePressed(3, false)));
-        Assert.Equal([new AssignLastPlayedFavorite(3)], _nav.Handle(new FavoritePressed(3, true)));
+        Assert.Equal([new AssignLastPlayedFavorite(3)], Handle(new FavoritePressed(3, false)));
+        Assert.Equal([new AssignLastPlayedFavorite(3)], Handle(new FavoritePressed(3, true)));
         Assert.Equal(3, _nav.ViewState!.Favorites!.TargetSlot);
     }
 
@@ -98,9 +110,9 @@ public class ChordNavigatorFavoritesTests
     {
         EnterAssignMode(3);
 
-        Assert.Empty(_nav.Handle(new FavoritePressed(7, false)));
+        Assert.Empty(Handle(new FavoritePressed(7, false)));
         Assert.Equal(7, _nav.ViewState!.Favorites!.TargetSlot);
-        Assert.Equal([new AssignFavorite(7, "boom.wav")], _nav.Handle(new DigitPressed(2, false)));
+        Assert.Equal([new AssignFavorite(7, "boom.wav")], Handle(new DigitPressed(2, false)));
         Assert.Equal([3], _panelRequests);
     }
 
@@ -109,19 +121,19 @@ public class ChordNavigatorFavoritesTests
     {
         EnterAssignMode(3);
 
-        Assert.Equal([new ClearFavorite(3)], _nav.Handle(new FavoriteClearPressed()));
+        Assert.Equal([new ClearFavorite(3)], Handle(new FavoriteClearPressed()));
         Assert.NotNull(_nav.ViewState);
-        _nav.Handle(new FavoritePressed(5, false));
-        Assert.Equal([new ClearFavorite(5)], _nav.Handle(new FavoriteClearPressed()));
+        Handle(new FavoritePressed(5, false));
+        Assert.Equal([new ClearFavorite(5)], Handle(new FavoriteClearPressed()));
     }
 
     [Fact]
     public void ClearKey_OutsideAssignMode_DoesNothing()
     {
-        _nav.Handle(new ChordPressed());
+        Handle(new ChordPressed());
 
-        Assert.Empty(_nav.Handle(new FavoriteClearPressed()));
-        Assert.Equal([new StopPlayback()], _nav.Handle(new ChordReleased())); // still a bare tap
+        Assert.Empty(Handle(new FavoriteClearPressed()));
+        Assert.Equal([new StopPlayback()], Handle(new ChordReleased())); // still a bare tap
     }
 
     [Fact]
@@ -129,52 +141,81 @@ public class ChordNavigatorFavoritesTests
     {
         EnterAssignMode(3);
 
-        Assert.Empty(_nav.Handle(new ChordReleased()));
+        Assert.Empty(Handle(new ChordReleased()));
         Assert.Null(_nav.ViewState);
 
-        _nav.Handle(new ChordPressed()); // the next session starts fresh
+        Handle(new ChordPressed()); // the next session starts fresh
         Assert.Null(_nav.ViewState!.Favorites);
-        Assert.Equal([new PlayFavorite(3)], _nav.Handle(new FavoritePressed(3, false)));
+        Assert.Equal([new PlayFavorite(3)], Handle(new FavoritePressed(3, false)));
     }
 
     [Fact]
-    public void RefreshFavorites_ReloadsTheStripWhileAssigning()
+    public void AssigningSlot_FollowsAssignMode_AndShowFavoritesReplacesTheStrip()
     {
+        Assert.Null(_nav.AssigningSlot);
         EnterAssignMode(3);
+        Assert.Equal(3, _nav.AssigningSlot);
         var before = _nav.ViewState;
         _lastPlayedName = "Nope";
 
-        _nav.RefreshFavorites();
+        _nav.ShowFavorites(BuildPanel(3));
 
         Assert.NotSame(before, _nav.ViewState);
         Assert.Equal("Nope", _nav.ViewState!.Favorites!.LastPlayedName);
-        Assert.Equal([3, 3], _panelRequests);
+        Handle(new DigitPressed(2, false)); // assigns boom.wav, spending the session
+        Assert.Null(_nav.AssigningSlot);
     }
 
     [Fact]
-    public void RefreshFavorites_OutsideAssignMode_DoesNothing()
+    public void AssignMode_ShowsNoStripUntilOneIsSupplied()
     {
-        _nav.RefreshFavorites();
         _nav.Handle(new ChordPressed());
-        _nav.RefreshFavorites();
 
-        Assert.Empty(_panelRequests);
+        Assert.Equal([new NeedFavoritesPanel(2)], _nav.Handle(new FavoritePressed(2, true)));
+        Assert.Null(_nav.ViewState!.Favorites);
+
+        _nav.ShowFavorites(BuildPanel(2));
+        Assert.Equal(2, _nav.ViewState!.Favorites!.TargetSlot);
+    }
+
+    [Fact]
+    public void RetargetingBeforeTheStripArrives_AsksAgain_AndIgnoresTheStaleStrip()
+    {
+        _nav.Handle(new ChordPressed());
+        _nav.Handle(new FavoritePressed(2, true));
+
+        Assert.Equal([new NeedFavoritesPanel(5)], _nav.Handle(new FavoritePressed(5, false)));
+        _nav.ShowFavorites(BuildPanel(2));
+        Assert.Null(_nav.ViewState!.Favorites);
+
+        _nav.ShowFavorites(BuildPanel(5));
+        Assert.Equal(5, _nav.ViewState!.Favorites!.TargetSlot);
+    }
+
+    [Fact]
+    public void ShowFavorites_OutsideAssignMode_IsIgnored()
+    {
+        _nav.ShowFavorites(BuildPanel(3));
+        Assert.Null(_nav.ViewState);
+
+        Handle(new ChordPressed());
+        _nav.ShowFavorites(BuildPanel(3));
         Assert.Null(_nav.ViewState!.Favorites);
     }
 
     [Fact]
     public void ChordlessFavorite_PlaysWithoutStartingASession()
     {
-        Assert.Equal([new PlayFavorite(4)], _nav.Handle(new ChordlessFavoritePressed(4)));
+        Assert.Equal([new PlayFavorite(4)], Handle(new ChordlessFavoritePressed(4)));
         Assert.Null(_nav.ViewState);
     }
 
     [Fact]
     public void OutOfRangeSlots_AreIgnored()
     {
-        Assert.Empty(_nav.Handle(new ChordlessFavoritePressed(13)));
-        _nav.Handle(new ChordPressed());
-        Assert.Empty(_nav.Handle(new FavoritePressed(0, false)));
+        Assert.Empty(Handle(new ChordlessFavoritePressed(13)));
+        Handle(new ChordPressed());
+        Assert.Empty(Handle(new FavoritePressed(0, false)));
     }
 
     [Fact]
@@ -182,7 +223,7 @@ public class ChordNavigatorFavoritesTests
     {
         EnterAssignMode(3);
 
-        _nav.Handle(new DigitPressed(1, true)); // shift+1, as if Shift from Shift+F3 is still held
+        Handle(new DigitPressed(1, true)); // shift+1, as if Shift from Shift+F3 is still held
 
         Assert.Equal("Trump", _nav.ViewState!.FolderPath);
         Assert.Equal("", _nav.PersistentPath);
@@ -193,10 +234,10 @@ public class ChordNavigatorFavoritesTests
     {
         _source.AddFolder("Trump", "Sub");
         EnterAssignMode(3);
-        _nav.Handle(new DigitPressed(1, false)); // into Trump
-        _nav.Handle(new DigitPressed(1, false)); // into Trump/Sub (folders sort before files)
+        Handle(new DigitPressed(1, false)); // into Trump
+        Handle(new DigitPressed(1, false)); // into Trump/Sub (folders sort before files)
 
-        _nav.Handle(new DigitPressed(0, true)); // shift+0 back up to Trump
+        Handle(new DigitPressed(0, true)); // shift+0 back up to Trump
 
         Assert.Equal("Trump", _nav.ViewState!.FolderPath);
         Assert.Equal("", _nav.PersistentPath);
@@ -206,31 +247,19 @@ public class ChordNavigatorFavoritesTests
     public void AssignMode_ShiftDigit_PickingAFile_Assigns_AndDoesNotPersist()
     {
         EnterAssignMode(3);
-        _nav.Handle(new DigitPressed(1, false)); // into Trump
+        Handle(new DigitPressed(1, false)); // into Trump
 
-        Assert.Equal([new AssignFavorite(3, "Trump/wall.wav")], _nav.Handle(new DigitPressed(1, true)));
+        Assert.Equal([new AssignFavorite(3, "Trump/wall.wav")], Handle(new DigitPressed(1, true)));
         Assert.Equal("", _nav.PersistentPath);
     }
 
     [Fact]
     public void NormalSession_ShiftDigit_StillPersists()
     {
-        _nav.Handle(new ChordPressed());
+        Handle(new ChordPressed());
 
-        _nav.Handle(new DigitPressed(1, true)); // shift+1 into Trump, outside assign mode
+        Handle(new DigitPressed(1, true)); // shift+1 into Trump, outside assign mode
 
         Assert.Equal("Trump", _nav.PersistentPath);
-    }
-
-    [Fact]
-    public void WithoutAProvider_AssignModeShowsEmptySlots()
-    {
-        var nav = new ChordNavigator(_source);
-        nav.Handle(new ChordPressed());
-        nav.Handle(new FavoritePressed(2, true));
-
-        var favorites = nav.ViewState!.Favorites!;
-        Assert.Equal(12, favorites.Slots.Count);
-        Assert.All(favorites.Slots, s => Assert.True(s.IsEmpty));
     }
 }
