@@ -2,7 +2,10 @@ using System.Globalization;
 
 namespace QuickParrot.Core.Diagnostics;
 
-/// <summary>Plain-language wording for a <see cref="LoopbackTestResult"/>.</summary>
+/// <summary>Plain-language wording of a <see cref="LoopbackTestResult"/>, ready for display.</summary>
+public sealed record LoopbackTestReport(string Headline, IReadOnlyList<string> Details, IReadOnlyList<string> Advice);
+
+/// <summary>Builds a <see cref="LoopbackTestReport"/> from a <see cref="LoopbackTestResult"/>.</summary>
 public static class LoopbackTestAdvice
 {
     public const double QuietTestSoundGainDb = -12;
@@ -11,7 +14,10 @@ public static class LoopbackTestAdvice
     // A digitally silent cable reads -120; any real mic's hiss sits well above this.
     public const double AudibleBackgroundDb = -90;
 
-    public static string Headline(LoopbackTestResult result) => result.Verdict switch
+    public static LoopbackTestReport Describe(LoopbackTestResult result) =>
+        new(Headline(result), Details(result), Advice(result));
+
+    private static string Headline(LoopbackTestResult result) => result.Verdict switch
     {
         LoopbackTestVerdict.Passed => "Everything works: the game hears your voice and QuickParrot's sounds.",
         LoopbackTestVerdict.VoiceMissing => "The game hears QuickParrot's sounds, but not your voice.",
@@ -20,7 +26,7 @@ public static class LoopbackTestAdvice
         _ => "The test couldn't run.",
     };
 
-    public static IReadOnlyList<string> Details(LoopbackTestResult result)
+    private static IReadOnlyList<string> Details(LoopbackTestResult result)
     {
         if (result.Verdict == LoopbackTestVerdict.Failed)
             return [];
@@ -36,7 +42,7 @@ public static class LoopbackTestAdvice
         ];
     }
 
-    public static IReadOnlyList<string> Advice(LoopbackTestResult result)
+    private static IReadOnlyList<string> Advice(LoopbackTestResult result)
     {
         var advice = new List<string>();
         switch (result.Verdict)

@@ -1,3 +1,4 @@
+using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
@@ -16,27 +17,39 @@ public sealed class LoopbackTestViewModel : ObservableObject
     private readonly IAudioDeviceCatalog _devices;
     private readonly ICaptureDeviceCatalog _captureDevices;
     private readonly QuickParrotEngine _engine;
-    private readonly DiagnosticsViewModel _diagnostics;
+    private readonly AudioDiagnostics _diagnostics;
     private CancellationTokenSource? _cts;
     private bool _isRunning;
+    private bool _setupReady;
     private string _progress = "";
     private LoopbackTestResult? _result;
+    private LoopbackTestReport? _report;
 
     public LoopbackTestViewModel(
         ILoopbackTester tester,
         IAudioDeviceCatalog devices,
         ICaptureDeviceCatalog captureDevices,
         QuickParrotEngine engine,
-        DiagnosticsViewModel diagnostics)
+        AudioDiagnostics diagnostics)
     {
         _tester = tester;
         _devices = devices;
         _captureDevices = captureDevices;
         _engine = engine;
         _diagnostics = diagnostics;
+        _setupReady = ResolveSetup().IsReady;
+    }
 
-        // The setup test's readiness depends on the same devices and settings diagnostics already watches.
-        _diagnostics.ReportChanged += _ => OnPropertyChanged(nameof(CanRun));
+    /// <summary>Re-resolves whether the test is ready to run; call this when the audio setup may have changed
+    /// (e.g. a new diagnostics report arrived) rather than resolving devices on every <see cref="CanRun"/> read.</summary>
+    public void Refresh()
+    {
+        var ready = ResolveSetup().IsReady;
+        if (ready != _setupReady)
+        {
+            _setupReady = ready;
+            OnPropertyChanged(nameof(CanRun));
+        }
     }
 
     public bool IsRunning
@@ -52,7 +65,7 @@ public sealed class LoopbackTestViewModel : ObservableObject
         }
     }
 
-    public bool CanRun => IsRunning || ResolveSetup().IsReady;
+    public bool CanRun => IsRunning || _setupReady;
 
     public string ButtonLabel => IsRunning ? "Cancel" : "Run test";
 
@@ -68,11 +81,21 @@ public sealed class LoopbackTestViewModel : ObservableObject
         private set
         {
             if (SetField(ref _result, value))
+            {
                 OnPropertyChanged(nameof(HasResult));
+                Report = value is null ? null : LoopbackTestAdvice.Describe(value);
+            }
         }
     }
 
     public bool HasResult => _result is not null;
+
+    /// <summary>Plain-language wording of <see cref="Result"/>, for binding; null until a test has run.</summary>
+    public LoopbackTestReport? Report
+    {
+        get => _report;
+        private set => SetField(ref _report, value);
+    }
 
     /// <summary>Starts the test, or cancels one already running.</summary>
     public async Task RunOrCancelAsync()

@@ -1,3 +1,4 @@
+using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Library;

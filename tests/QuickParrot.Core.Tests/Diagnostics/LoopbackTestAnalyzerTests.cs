@@ -64,7 +64,7 @@ public class LoopbackTestAnalyzerTests
         var result = Analyze(WithHiss(recording, 0.0003));
 
         Assert.Equal(LoopbackTestVerdict.Passed, result.Verdict);
-        Assert.Empty(result.Advice);
+        Assert.Empty(LoopbackTestAdvice.Describe(result).Advice);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class LoopbackTestAnalyzerTests
 
         Assert.True(result.TestSoundDetected);
         Assert.InRange(result.TestSoundGainDb!.Value, -32, -28);
-        Assert.Contains(result.Advice, a => a.Contains("quieter"));
+        Assert.Contains(LoopbackTestAdvice.Describe(result).Advice, a => a.Contains("quieter"));
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class LoopbackTestAnalyzerTests
         var result = Analyze(recording);
 
         Assert.True(result.Clipped);
-        Assert.Contains(result.Advice, a => a.Contains("distorted"));
+        Assert.Contains(LoopbackTestAdvice.Describe(result).Advice, a => a.Contains("distorted"));
     }
 
     [Fact]

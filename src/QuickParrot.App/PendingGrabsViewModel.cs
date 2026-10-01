@@ -1,4 +1,5 @@
 using System.IO;
+using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Settings;

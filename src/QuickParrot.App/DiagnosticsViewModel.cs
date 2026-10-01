@@ -1,6 +1,5 @@
-using QuickParrot.Core.Devices;
+using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Diagnostics;
-using QuickParrot.Core.Engine;
 
 namespace QuickParrot.App;
 
@@ -27,17 +26,12 @@ public sealed class DiagnosticsViewModel : ObservableObject
     private bool _isBusy;
     private string _repairMessage = "";
 
-    public DiagnosticsViewModel(
-        AudioDiagnostics diagnostics,
-        ILoopbackTester tester,
-        IAudioDeviceCatalog devices,
-        ICaptureDeviceCatalog captureDevices,
-        QuickParrotEngine engine)
+    public DiagnosticsViewModel(AudioDiagnostics diagnostics, LoopbackTestViewModel test)
     {
         _diagnostics = diagnostics;
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
         _diagnostics.Updated += report => _ui.Post(_ => Apply(report), null);
-        Test = new LoopbackTestViewModel(tester, devices, captureDevices, engine, this);
+        Test = test;
     }
 
     public LoopbackTestViewModel Test { get; }

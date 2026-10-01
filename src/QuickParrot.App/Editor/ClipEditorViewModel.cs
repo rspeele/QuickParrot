@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
+using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Editing;
 using QuickParrot.Core.Library;
 

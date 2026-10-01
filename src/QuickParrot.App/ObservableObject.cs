@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace QuickParrot.App;
+namespace QuickParrot.App.Mvvm;
 
 public abstract class ObservableObject : INotifyPropertyChanged
 {

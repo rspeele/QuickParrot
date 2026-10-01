@@ -331,7 +331,7 @@
                             </DockPanel>
 
                             <StackPanel Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="{Binding Result.Headline}" FontSize="16" FontWeight="Bold"
+                                <TextBlock Text="{Binding Report.Headline}" FontSize="16" FontWeight="Bold"
                                            TextWrapping="Wrap" Margin="0,0,0,4">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -351,7 +351,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <ItemsControl ItemsSource="{Binding Result.Details}" Margin="0,0,0,4">
+                                <ItemsControl ItemsSource="{Binding Report.Details}" Margin="0,0,0,4">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding}" TextWrapping="Wrap" />
@@ -359,7 +359,7 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <ItemsControl ItemsSource="{Binding Result.Advice}">
+                                <ItemsControl ItemsSource="{Binding Report.Advice}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding StringFormat={}• {0}}" TextWrapping="Wrap" />

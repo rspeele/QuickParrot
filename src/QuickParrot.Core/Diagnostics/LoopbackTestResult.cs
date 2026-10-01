@@ -45,14 +45,6 @@ public sealed record LoopbackTestResult
     /// <summary>Why the recording couldn't be played back to the user, if it couldn't; the analysis still stands.</summary>
     public string? PlaybackError { get; init; }
 
-    public string Headline => LoopbackTestAdvice.Headline(this);
-
-    /// <summary>One line per check, e.g. "Test sound: heard (-16 dBFS)".</summary>
-    public IReadOnlyList<string> Details => LoopbackTestAdvice.Details(this);
-
-    /// <summary>What to fix, most important first; empty when all is well.</summary>
-    public IReadOnlyList<string> Advice => LoopbackTestAdvice.Advice(this);
-
     public static LoopbackTestResult Failed(string message) =>
         new() { Verdict = LoopbackTestVerdict.Failed, ErrorMessage = message };
 }

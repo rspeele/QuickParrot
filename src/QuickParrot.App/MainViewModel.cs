@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using QuickParrot.App.Editor;
 using QuickParrot.App.Library;
+using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Editing;

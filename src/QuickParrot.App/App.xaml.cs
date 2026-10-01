@@ -148,6 +148,12 @@ public partial class App : System.Windows.Application
         _httpClient = new HttpClient();
         _dpapiProtector = new DpapiProtector();
 
+        var loopbackTest = new LoopbackTestViewModel(new LoopbackTester(), _devices, _devices, _engine, _diagnostics);
+        var diagnosticsViewModel = new DiagnosticsViewModel(_diagnostics, loopbackTest);
+        // One-way: the setup test's readiness depends on the devices diagnostics already watches, but it never
+        // references DiagnosticsViewModel back.
+        diagnosticsViewModel.ReportChanged += _ => loopbackTest.Refresh();
+
         var viewModel = new MainViewModel(
             _engine,
             _devices,
@@ -158,7 +164,7 @@ public partial class App : System.Windows.Application
             _clipEncoder,
             _httpClient,
             _dpapiProtector,
-            new DiagnosticsViewModel(_diagnostics, new LoopbackTester(), _devices, _devices, _engine),
+            diagnosticsViewModel,
             warnings.Count == 0 ? null : string.Join(" ", warnings));
         _viewModel = viewModel;
 
