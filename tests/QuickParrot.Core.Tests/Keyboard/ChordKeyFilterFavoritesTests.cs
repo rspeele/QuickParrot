@@ -117,6 +117,19 @@ public class ChordKeyFilterFavoritesTests
     }
 
     [Theory]
+    [InlineData(0x53, true)] // Delete
+    [InlineData(0x1C, false)] // Enter, which push-to-talk validation also refuses
+    public void PushToTalkChordActionKey_IsLeftForTheGame_DuringChord(int scanCode, bool extended)
+    {
+        var key = new ScanKey(scanCode, extended);
+        _filter.PushToTalkKey = key;
+        Down(B);
+
+        AssertPassed(Down(key));
+        AssertPassed(Up(key));
+    }
+
+    [Theory]
     [InlineData(0x53, true)]
     [InlineData(0x0E, false)]
     public void ClearKeysDuringChord_AreSwallowed_AndEmitted(int scanCode, bool extended)

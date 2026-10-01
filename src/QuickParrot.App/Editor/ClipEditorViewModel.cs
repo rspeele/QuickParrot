@@ -317,37 +317,41 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         var selection = _selection;
         var name = _name;
         var folder = FolderPath(_selectedFolder);
+        var folderDisplay = _selectedFolder.Display;
         var normalize = _normalize;
         Status = "Saving…";
+        SavedClip saved;
         try
         {
-            var saved = await Task.Run(() => Session.Save(selection, name, folder, normalize, CancellationToken.None));
-            SavedClips.Add(saved);
-            Status = saved.Warning is { } warning
-                ? $"Saved “{saved.FileName}” to {_selectedFolder.Display}. {warning}"
-                : $"Saved “{saved.FileName}” to {_selectedFolder.Display}. Select another bite, or click Done.";
-            _namer?.Cancel();
-            IsSuggesting = false;
-            _name = "";
-            _nameEditedByUser = false;
-            OnPropertyChanged(nameof(Name));
-
-            var next = Session.PostSaveSelection(selection);
-            ApplySelection(Session.Select(next, snap: false));
-            CursorFrame = _selection.Start;
-            _history.Push(_selection);
-            MeasureSelection();
-
-            ClipSaved?.Invoke(saved);
+            saved = await Task.Run(() => Session.Save(selection, name, folder, normalize, CancellationToken.None));
         }
         catch (Exception e)
         {
             Status = $"Couldn't save: {e.Message}";
+            return;
         }
         finally
         {
             SetSaving(false);
         }
+
+        SavedClips.Add(saved);
+        Status = saved.Warning is { } warning
+            ? $"Saved “{saved.FileName}” to {folderDisplay}. {warning}"
+            : $"Saved “{saved.FileName}” to {folderDisplay}. Select another bite, or click Done.";
+        _namer?.Cancel();
+        IsSuggesting = false;
+        _name = "";
+        _nameEditedByUser = false;
+        OnPropertyChanged(nameof(Name));
+
+        var next = Session.PostSaveSelection(selection);
+        ApplySelection(Session.Select(next, snap: false));
+        CursorFrame = _selection.Start;
+        _history.Push(_selection);
+        MeasureSelection();
+
+        ClipSaved?.Invoke(saved);
     }
 
     /// <summary>Stops preview and any pending name suggestion; call when the editor closes.</summary>
@@ -369,9 +373,9 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         var cts = new CancellationTokenSource();
         _playCts = cts;
         var selection = Session.Selection;
-        var lufs = _selectionLufs ?? await Task.Run(() => Session.MeasureSelection(selection));
         try
         {
+            var lufs = _selectionLufs ?? await Task.Run(() => Session.MeasureSelection(selection));
             await _preview.PlayAsync(Session.Audio, range.Start, range.End, Session.PreviewGain(lufs, _normalize), cts.Token);
             if (cts.IsCancellationRequested)
                 return;
@@ -416,12 +420,18 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             PlaybackEnded();
     }
 
-    private void OnPreviewStopped(Exception? error) => _dispatcher.BeginInvoke(() =>
+    private void OnPreviewStopped(EditableAudio audio, Exception? error)
+    {
+        if (ReferenceEquals(audio, Session.Audio)) // the preview output is shared by every editor window
+            _dispatcher.BeginInvoke(() => OnOwnPreviewStopped(error));
+    }
+
+    private void OnOwnPreviewStopped(Exception? error)
     {
         PlaybackEnded();
         if (error is not null)
             Status = $"Preview stopped: {error.Message}";
-    });
+    }
 
     private void PlaybackEnded()
     {
@@ -457,7 +467,18 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         var selection = _selection;
         _selectionLufs = null;
         OnPropertyChanged(nameof(LoudnessText));
-        var lufs = await Task.Run(() => Session.MeasureSelection(selection));
+        double lufs;
+        try
+        {
+            lufs = await Task.Run(() => Session.MeasureSelection(selection));
+        }
+        catch (Exception e) // async void: anything escaping would crash the app via the dispatcher
+        {
+            if (version == _measureVersion)
+                Status = $"Couldn't measure loudness: {e.Message}";
+            return;
+        }
+
         if (version != _measureVersion)
             return;
 

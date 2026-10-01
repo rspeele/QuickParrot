@@ -13,7 +13,7 @@ public sealed class EditorPreview(IAudioDeviceCatalog devices, Func<OutputSettin
     private EditorPreviewOutput? _current;
     private int _generation;
 
-    public event Action<Exception?>? Stopped;
+    public event Action<EditableAudio, Exception?>? Stopped;
 
     public bool IsPlaying => Volatile.Read(ref _current) is not null;
 
@@ -62,6 +62,6 @@ public sealed class EditorPreview(IAudioDeviceCatalog devices, Func<OutputSettin
             return;
 
         output.Dispose();
-        Stopped?.Invoke(error);
+        Stopped?.Invoke(output.Audio, error);
     }
 }

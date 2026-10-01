@@ -129,7 +129,7 @@ internal sealed class EditorPreviewOutput : IDisposable
         }
         catch (Exception e)
         {
-            System.Diagnostics.Debug.WriteLine($"QuickParrot: disposing preview failed: {e.Message}");
+            System.Diagnostics.Debug.WriteLine($"QuickParrot: abandoned preview, stop or dispose failed: {e.Message}");
         }
         finally
         {

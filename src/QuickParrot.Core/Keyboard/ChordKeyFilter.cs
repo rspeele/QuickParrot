@@ -175,6 +175,9 @@ public sealed class ChordKeyFilter
             return new KeyFilterResult(false, Pressed);
         }
 
+        if (key == PushToTalkKey)
+            return KeyFilterResult.PassThrough;
+
         var digit = key.Digit;
         if (_chordActive && digit >= 0)
         {
@@ -187,9 +190,6 @@ public sealed class ChordKeyFilter
             _swallowed[slot] = true;
             return new KeyFilterResult(true, Grab);
         }
-
-        if (key == PushToTalkKey)
-            return KeyFilterResult.PassThrough;
 
         // Delete and Backspace only mean something in assign mode, but every chord-held key belongs to QuickParrot.
         if (_chordActive && key.IsClearKey)

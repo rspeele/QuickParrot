@@ -51,7 +51,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly HashSet<string> _openGrabIds = [];
     private readonly Dictionary<string, int> _savedGrabCounts = [];
     private readonly Dictionary<string, ClipEditorViewModel> _openEditors = [];
-    private LibraryBrowser? _browser;
+    private OpenedLibrary? _library;
     private LibraryWatcher? _libraryWatcher;
     private IReadOnlyList<LibraryItem> _entries = [];
     private IReadOnlyList<DeviceChoice> _cableChoices = [];
@@ -161,9 +161,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         private set => SetField(ref _libraryRoot, value);
     }
 
-    public string CurrentPath => _browser is null ? "" : "/" + _browser.CurrentPath;
+    public string CurrentPath => _library is null ? "" : "/" + _library.Browser.CurrentPath;
 
-    public bool CanGoUp => _browser?.CanGoUp == true;
+    public bool CanGoUp => _library?.Browser.CanGoUp == true;
 
     public IReadOnlyList<LibraryItem> Entries
     {
@@ -525,7 +525,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Reads the grab off the UI thread and asks the view to open the clip editor for it.</summary>
     public async Task OpenGrabAsync(PendingGrab grab)
     {
-        if (string.IsNullOrEmpty(_engine.Settings.LibraryRoot))
+        if (_library is not { } library)
         {
             Status = "Choose a sound library folder first.";
             return;
@@ -551,8 +551,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var options = new ClipEditorOptions
         {
-            LibraryRoot = _engine.Settings.LibraryRoot!,
-            InitialFolder = _browser?.CurrentPath ?? "",
+            LibraryRoot = library.Root,
+            InitialFolder = library.Browser.CurrentPath,
             SuggestName = BuildSuggestName(),
             PlaySampleOnDrag = _engine.Settings.EditorPlaySampleOnDrag,
             PlaySampleOnDragChanged = value => _engine.UpdateSettings(s => s with { EditorPlaySampleOnDrag = value }),
@@ -561,7 +561,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var editorViewModel = new ClipEditorViewModel(audio, _preview, _encoder, options);
         editorViewModel.ClipSaved += _ =>
         {
-            _savedGrabCounts[grab.Id] = _savedGrabCounts.GetValueOrDefault(grab.Id) + 1;
+            // A save can finish after its editor closed; counting it then would leak into the grab's next editor.
+            if (_openEditors.GetValueOrDefault(grab.Id) == editorViewModel)
+                _savedGrabCounts[grab.Id] = _savedGrabCounts.GetValueOrDefault(grab.Id) + 1;
             RefreshLibraryView();
         };
         _openEditors[grab.Id] = editorViewModel;
@@ -675,10 +677,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Open(LibraryItem? item)
     {
-        if (_browser is null || item is null)
+        if (_library is null || item is null)
             return;
 
-        if (_browser.Open(item.Entry) is { } clipPath)
+        if (_library.Browser.Open(item.Entry) is { } clipPath)
         {
             _engine.Play(clipPath);
             Status = $"Playing {item.Entry.Name}";
@@ -691,7 +693,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void GoUp()
     {
-        _browser?.GoUp();
+        _library?.Browser.GoUp();
         ShowEntries();
     }
 
@@ -718,13 +720,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _captureDevices.GetDefaultCommunicationsCaptureDeviceId());
         OnPropertyChanged(nameof(SelectedMicDeviceId));
 
-        _browser?.Refresh();
+        _library?.Browser.Refresh();
         ShowEntries();
     }
 
     /// <summary>The full path of the folder currently shown on the Library tab, or null with no library chosen.</summary>
     public string? LibraryFolderFullPath =>
-        _browser is null ? null : LibraryPathResolver.FullPath(_engine.Settings.LibraryRoot!, _browser.CurrentPath);
+        _library is null ? null : LibraryPathResolver.FullPath(_library.Root, _library.Browser.CurrentPath);
 
     public bool CanOpenInExplorer => LibraryFolderFullPath is not null;
 
@@ -758,7 +760,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _libraryWatcher?.Dispose();
         _libraryWatcher = null;
-        _browser = string.IsNullOrEmpty(root) ? null : new LibraryBrowser(new FileSystemFolderSource(root));
+        _library = string.IsNullOrEmpty(root)
+            ? null
+            : new OpenedLibrary(root, new LibraryBrowser(new FileSystemFolderSource(root)));
         LibraryRoot = string.IsNullOrEmpty(root) ? "(no sound library chosen)" : root;
         if (!string.IsNullOrEmpty(root))
         {
@@ -781,10 +785,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void ShowEntries()
     {
-        var entries = _browser?.Entries.Select(e => new LibraryItem(e)).ToList() ?? [];
+        var entries = _library?.Browser.Entries.Select(e => new LibraryItem(e)).ToList() ?? [];
         if (!entries.SequenceEqual(_entries)) // unchanged after a live refresh: keep the list's focus and scroll position
             Entries = entries;
-        LibraryWarning = _browser?.OverlayTruncationWarning ?? "";
+        LibraryWarning = _library?.Browser.OverlayTruncationWarning ?? "";
         OnPropertyChanged(nameof(CurrentPath));
         OnPropertyChanged(nameof(CanGoUp));
         OnPropertyChanged(nameof(LibraryFolderFullPath));
@@ -793,7 +797,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshLibraryView()
     {
-        _browser?.Refresh();
+        _library?.Browser.Refresh();
         ShowEntries();
     }
 
@@ -840,4 +844,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
+
+    // The engine applies settings asynchronously, so the root is kept here rather than read back from it.
+    private sealed record OpenedLibrary(string Root, LibraryBrowser Browser);
 }

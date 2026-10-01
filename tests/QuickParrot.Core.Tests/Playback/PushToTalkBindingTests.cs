@@ -28,6 +28,8 @@ public class PushToTalkBindingTests
     [InlineData(0x2A, false)] // Left Shift
     [InlineData(0x36, false)] // Right Shift
     [InlineData(0x2A, true)] // fake shift
+    [InlineData(0x1C, false)] // Enter
+    [InlineData(0x1C, true)] // Numpad Enter
     [InlineData(0x30, false)] // B, the chord key
     [InlineData(0x01, false)] // Escape
     [InlineData(0x5B, true)] // Left Windows
@@ -139,6 +141,7 @@ public class PushToTalkBindingTests
     [InlineData("""{ }""")]
     [InlineData("""{ "key": { "scanCode": 3 } }""")] // 2
     [InlineData("""{ "key": { "scanCode": 42 } }""")] // left shift
+    [InlineData("""{ "key": { "scanCode": 28 } }""")] // Enter
     [InlineData("""{ "key": { "scanCode": 48 } }""")] // B, the chord key
     [InlineData("""{ "mouseButton": 0 }""")]
     [InlineData("""{ "mouseButton": 9 }""")]

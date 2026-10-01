@@ -8,6 +8,7 @@ namespace QuickParrot.Audio;
 internal sealed class DeviceOutput : IDisposable
 {
     private const int LatencyMilliseconds = 50;
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
 
     private readonly MMDevice _device;
     private readonly WasapiPlayer _player;
@@ -95,14 +96,14 @@ internal sealed class DeviceOutput : IDisposable
             if (_started)
             {
                 await Task.Run(_player.Stop);
-                await _playThreadExited.Task;
+                await _playThreadExited.Task.WaitAsync(StopTimeout);
             }
 
             _player.Dispose();
         }
         catch (Exception e)
         {
-            System.Diagnostics.Debug.WriteLine($"QuickParrot: disposing output failed: {e.Message}");
+            System.Diagnostics.Debug.WriteLine($"QuickParrot: abandoned output, stop or dispose failed: {e.Message}");
         }
         finally
         {

@@ -6,8 +6,11 @@ namespace QuickParrot.Core.Editing;
 /// </summary>
 public interface IEditorPreview
 {
-    /// <summary>Raised once when a preview ends by itself or fails (with the error), but not after <see cref="Stop"/>.</summary>
-    event Action<Exception?>? Stopped;
+    /// <summary>
+    /// Raised once with the previewed audio when a preview ends by itself or fails (with the error), but not after
+    /// <see cref="Stop"/>.
+    /// </summary>
+    event Action<EditableAudio, Exception?>? Stopped;
 
     bool IsPlaying { get; }
 

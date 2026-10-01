@@ -82,7 +82,7 @@ internal sealed class LoopbackTesterPlayback : IAsyncDisposable
         }
         catch (Exception e)
         {
-            Debug.WriteLine($"QuickParrot: disposing test playback failed: {e.Message}");
+            Debug.WriteLine($"QuickParrot: abandoned test playback, stop or dispose failed: {e.Message}");
         }
         finally
         {

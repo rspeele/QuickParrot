@@ -43,6 +43,9 @@ public readonly record struct PushToTalkBinding(ScanKey? Key, PushToTalkMouseBut
         if (key.IsShift)
             return "Shift is used by the chord, so it can't be push-to-talk.";
 
+        if (key.IsEnter)
+            return "Enter grabs the replay with the chord, so it can't be push-to-talk.";
+
         // Escape cancels key capture, and a simulated Windows key would open the Start menu.
         var windowsKey = key.IsExtended && key.ScanCode is 0x5B or 0x5C;
         if (key.ScanCode is <= 0 or > 0xFF || key == ScanKey.Escape || windowsKey)
