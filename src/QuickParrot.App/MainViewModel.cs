@@ -544,6 +544,8 @@ public sealed class MainViewModel : ObservableObject
             LibraryRoot = _engine.Settings.LibraryRoot!,
             InitialFolder = _browser?.CurrentPath ?? "",
             SuggestName = BuildSuggestName(),
+            PlaySampleOnDrag = _engine.Settings.EditorPlaySampleOnDrag,
+            PlaySampleOnDragChanged = value => _engine.UpdateSettings(s => s with { EditorPlaySampleOnDrag = value }),
         };
 
         var editorViewModel = new ClipEditorViewModel(audio, _preview, _encoder, options);

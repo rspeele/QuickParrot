@@ -48,15 +48,9 @@ public sealed class ClipEditorSession
 
     public void SetCursor(int frame) => Cursor = Math.Clamp(frame, 0, Audio.FrameCount);
 
-    /// <summary>The selection, or from the cursor to the end (from the start if the cursor is at the very end).</summary>
-    public ClipSelection PreviewRange(bool selectionOnly)
-    {
-        if (selectionOnly && Selection.Length > 0)
-            return Selection;
-
-        var start = Cursor >= Audio.FrameCount ? 0 : Cursor;
-        return new ClipSelection(start, Audio.FrameCount);
-    }
+    /// <summary>The selection, or (see <see cref="PlaybackPlanner.FromCursorRange"/>) from the cursor.</summary>
+    public ClipSelection PreviewRange(bool selectionOnly) =>
+        selectionOnly && Selection.Length > 0 ? Selection : PlaybackPlanner.FromCursorRange(Selection, Cursor, Audio.FrameCount);
 
     /// <summary>The selection's integrated loudness, cached per selection. CPU-bound; fine on a worker thread.</summary>
     public double MeasureSelection(ClipSelection selection)

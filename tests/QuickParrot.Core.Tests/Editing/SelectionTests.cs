@@ -72,6 +72,16 @@ public class SelectionGestureTests
     }
 
     [Fact]
+    public void Anchor_IsTheOppositeHandle_OrThePressFrameForANewSelection()
+    {
+        var selection = new ClipSelection(1000, 3000);
+
+        Assert.Equal(3000, SelectionGesture.Begin(Viewport, selection, 103, 50).Anchor); // start handle: anchored at the end
+        Assert.Equal(1000, SelectionGesture.Begin(Viewport, selection, 296, 50).Anchor); // end handle: anchored at the start
+        Assert.Equal(2000, SelectionGesture.Begin(Viewport, null, 200, 50).Anchor);      // new selection: anchored at the press point
+    }
+
+    [Fact]
     public void Dragging_EnforcesTheMinimumLength()
     {
         var gesture = SelectionGesture.Begin(Viewport, new ClipSelection(1000, 3000), 300, 500);

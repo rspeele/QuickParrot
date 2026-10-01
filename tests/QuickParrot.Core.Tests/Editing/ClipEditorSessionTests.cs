@@ -48,7 +48,9 @@ public class ClipEditorSessionTests
         session.SetCursor(5000);
 
         Assert.Equal(new ClipSelection(1000, 9000), session.PreviewRange(selectionOnly: true));
-        Assert.Equal(new ClipSelection(5000, Capture.FrameCount), session.PreviewRange(selectionOnly: false));
+        // The cursor sits inside the selection, so "from cursor" stops at the selection end (see PlaybackPlannerTests
+        // for the full range of cases, including the cursor outside the selection).
+        Assert.Equal(new ClipSelection(5000, 9000), session.PreviewRange(selectionOnly: false));
         session.SetCursor(int.MaxValue);
         Assert.Equal(new ClipSelection(0, Capture.FrameCount), session.PreviewRange(selectionOnly: false));
     }

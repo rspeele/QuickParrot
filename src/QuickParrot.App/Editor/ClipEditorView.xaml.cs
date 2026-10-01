@@ -18,7 +18,11 @@ public partial class ClipEditorView : UserControl
 
     private ClipEditorViewModel Vm => (ClipEditorViewModel)DataContext;
 
-    private void Wave_SelectionCommitted(object sender, RoutedEventArgs e) => Vm.CommitSelection();
+    private void Wave_SelectionCommitted(object sender, RoutedEventArgs e)
+    {
+        var args = (SelectionCommittedEventArgs)e;
+        Vm.CommitSelection(args.Target, args.AnchorFrame);
+    }
 
     private void ZoomToSelection_Click(object sender, RoutedEventArgs e) => Wave.ZoomToSelection();
 
@@ -27,6 +31,8 @@ public partial class ClipEditorView : UserControl
     private void PlaySelection_Click(object sender, RoutedEventArgs e) => _ = Vm.PlaySelectionAsync();
 
     private void PlayFromCursor_Click(object sender, RoutedEventArgs e) => _ = Vm.PlayFromCursorAsync();
+
+    private void PlayEnd_Click(object sender, RoutedEventArgs e) => _ = Vm.PlayEndAsync();
 
     private void Stop_Click(object sender, RoutedEventArgs e) => Vm.Stop();
 

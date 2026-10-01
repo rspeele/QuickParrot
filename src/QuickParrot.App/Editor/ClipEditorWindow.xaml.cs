@@ -9,8 +9,7 @@ using TextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 namespace QuickParrot.App.Editor;
 
 /// <summary>
-/// Hosts <see cref="ClipEditorView"/>. Keys: Space plays/stops (except while typing a name), Enter saves, Esc closes,
-/// Ctrl+A selects all audio. Disposes the view model on close; read <see cref="Outcome"/> afterwards.
+/// Hosts <see cref="ClipEditorView"/> and its keyboard shortcuts. Disposes the view model on close; read <see cref="Outcome"/> afterwards.
 /// </summary>
 public partial class ClipEditorWindow : Window
 {
@@ -36,8 +35,8 @@ public partial class ClipEditorWindow : Window
         var typing = Keyboard.FocusedElement is TextBoxBase;
         switch (e.Key)
         {
-            case Key.Space or Key.Enter when e.IsRepeat:
-                e.Handled = !typing || e.Key == Key.Enter; // holding a key mustn't toggle play or save the clip again and again
+            case Key.Space or Key.Enter or Key.OemOpenBrackets or Key.OemCloseBrackets when e.IsRepeat:
+                e.Handled = !typing || e.Key == Key.Enter; // holding a key mustn't toggle play, save, or re-edit the selection repeatedly
                 break;
             case Key.Space when !typing && Keyboard.Modifiers == ModifierKeys.None:
                 _ = _viewModel.TogglePlayAsync();
@@ -53,6 +52,14 @@ public partial class ClipEditorWindow : Window
                 break;
             case Key.A when !typing && Keyboard.Modifiers == ModifierKeys.Control:
                 _viewModel.SelectAll();
+                e.Handled = true;
+                break;
+            case Key.OemOpenBrackets when !typing && Keyboard.Modifiers == ModifierKeys.None:
+                _viewModel.SetSelectionEdgeAtPlayheadOrCursor(isStart: true);
+                e.Handled = true;
+                break;
+            case Key.OemCloseBrackets when !typing && Keyboard.Modifiers == ModifierKeys.None:
+                _viewModel.SetSelectionEdgeAtPlayheadOrCursor(isStart: false);
                 e.Handled = true;
                 break;
         }

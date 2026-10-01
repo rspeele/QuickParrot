@@ -25,6 +25,7 @@ public sealed class WaveformView : FrameworkElement
     public static readonly DependencyProperty SelectionProperty = Register(nameof(Selection), default(ClipSelection), twoWay: true);
     public static readonly DependencyProperty CursorFrameProperty = Register(nameof(CursorFrame), 0, twoWay: true);
     public static readonly DependencyProperty PlayheadFrameProperty = Register(nameof(PlayheadFrame), double.NaN, OnPlayheadChanged);
+    public static readonly DependencyProperty StopMarkerFrameProperty = Register(nameof(StopMarkerFrame), double.NaN);
     public static readonly DependencyProperty ScrollValueProperty = Register(nameof(ScrollValue), 0.0, OnScrollValueChanged, twoWay: true);
     public static readonly DependencyProperty ScrollMaximumProperty = Register(nameof(ScrollMaximum), 0.0);
     public static readonly DependencyProperty VisibleFramesProperty = Register(nameof(VisibleFrames), 0.0);
@@ -65,6 +66,9 @@ public sealed class WaveformView : FrameworkElement
 
     /// <summary>The frame being heard during preview, or NaN to hide the playhead.</summary>
     public double PlayheadFrame { get => (double)GetValue(PlayheadFrameProperty); set => SetValue(PlayheadFrameProperty, value); }
+
+    /// <summary>Where playback last stopped manually, or NaN to hide the marker.</summary>
+    public double StopMarkerFrame { get => (double)GetValue(StopMarkerFrameProperty); set => SetValue(StopMarkerFrameProperty, value); }
 
     /// <summary>First visible frame; bind a horizontal ScrollBar's Value here (with Maximum and ViewportSize below).</summary>
     public double ScrollValue { get => (double)GetValue(ScrollValueProperty); set => SetValue(ScrollValueProperty, value); }
@@ -134,6 +138,12 @@ public sealed class WaveformView : FrameworkElement
             dc.DrawLine(WaveformPalette.PlayheadLine, new Point(x, 0), new Point(x, height));
             dc.DrawGeometry(WaveformPalette.Playhead, null, Triangle(x, RulerHeight - 8, 5, pointsDown: true));
         }
+
+        if (!double.IsNaN(StopMarkerFrame))
+        {
+            var x = _viewport.XAt(StopMarkerFrame);
+            dc.DrawLine(WaveformPalette.StopMarkerLine, new Point(x, waveTop), new Point(x, height));
+        }
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -173,13 +183,13 @@ public sealed class WaveformView : FrameworkElement
         if (gesture.IsClick)
             CursorFrame = gesture.ClickFrame;
         else
-            RaiseEvent(new RoutedEventArgs(SelectionCommittedEvent, this));
+            RaiseEvent(new SelectionCommittedEventArgs(SelectionCommittedEvent, this, gesture.Target, gesture.Anchor));
     }
 
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
-        if (_gesture is { IsClick: false })
-            RaiseEvent(new RoutedEventArgs(SelectionCommittedEvent, this));
+        if (_gesture is { IsClick: false } gesture)
+            RaiseEvent(new SelectionCommittedEventArgs(SelectionCommittedEvent, this, gesture.Target, gesture.Anchor));
 
         _gesture = null;
     }
@@ -317,4 +327,13 @@ public sealed class WaveformView : FrameworkElement
         PropertyChangedCallback? callback = changed is null ? null : (d, e) => changed((WaveformView)d, (T)e.NewValue);
         return DependencyProperty.Register(name, typeof(T), typeof(WaveformView), new FrameworkPropertyMetadata(defaultValue, options, callback));
     }
+}
+
+/// <summary>A finished selection drag: which handle moved (or <see cref="SelectionDragTarget.NewSelection"/>) and its anchor frame.</summary>
+public sealed class SelectionCommittedEventArgs(RoutedEvent routedEvent, object source, SelectionDragTarget target, int anchorFrame)
+    : RoutedEventArgs(routedEvent, source)
+{
+    public SelectionDragTarget Target { get; } = target;
+
+    public int AnchorFrame { get; } = anchorFrame;
 }

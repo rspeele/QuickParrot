@@ -33,6 +33,9 @@ public sealed class SelectionGesture
 
     public SelectionDragTarget Target { get; }
 
+    /// <summary>The fixed point the drag grows from: the opposite handle, or (for a new selection) the press frame.</summary>
+    public int Anchor => _anchor;
+
     public static SelectionDragTarget HitTest(WaveformViewport viewport, ClipSelection? selection, double x)
     {
         if (selection is not { Length: > 0 } s)

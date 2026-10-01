@@ -93,8 +93,12 @@
         <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                 <Button Content="▶  Play selection" Margin="0,0,6,0" Click="PlaySelection_Click" ToolTip="Space" />
-                <Button Content="▶  From cursor" Margin="0,0,6,0" Click="PlayFromCursor_Click" />
-                <Button Content="■  Stop" Margin="0,0,16,0" Click="Stop_Click" />
+                <Button Content="▶  From cursor" Margin="0,0,6,0" Click="PlayFromCursor_Click"
+                        ToolTip="Plays from the cursor: to the selection end if the cursor is inside it, otherwise to the end of the capture." />
+                <Button Content="▶  End" Margin="0,0,6,0" Click="PlayEnd_Click" ToolTip="Plays the last second of the selection" />
+                <Button Content="■  Stop" Margin="0,0,16,0" Click="Stop_Click" ToolTip="Space" />
+                <CheckBox Content="Play sample when dragging" Margin="0,0,16,0" VerticalAlignment="Center" IsChecked="{Binding PlaySampleOnDrag}"
+                          ToolTip="Releasing a selection handle plays a 1 s sample of the edge you moved." />
             </StackPanel>
             <Button DockPanel.Dock="Right" Content="Select all" Click="SelectAll_Click" />
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -107,6 +111,9 @@
             </StackPanel>
         </DockPanel>
 
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,4,0,0" Style="{StaticResource Label}" FontSize="11"
+                   Text="Shortcuts: Space play/stop selection  ·  [ set selection start  ·  ] set selection end  ·  Ctrl+A select all" />
+
         <ScrollBar DockPanel.Dock="Bottom" Orientation="Horizontal" Minimum="0" SmallChange="1"
                    Maximum="{Binding ScrollMaximum, ElementName=Wave}"
                    ViewportSize="{Binding VisibleFrames, ElementName=Wave}"
@@ -117,6 +124,7 @@
             <editor:WaveformView x:Name="Wave" Peaks="{Binding Peaks}" SampleRate="{Binding SampleRate}"
                                  MinSelectionFrames="{Binding MinSelectionFrames}" Selection="{Binding Selection}"
                                  CursorFrame="{Binding CursorFrame}" PlayheadFrame="{Binding PlayheadFrame}"
+                                 StopMarkerFrame="{Binding StopMarkerFrame}"
                                  SelectionCommitted="Wave_SelectionCommitted" />
         </Border>
     </DockPanel>

@@ -74,6 +74,9 @@ public sealed record AppSettings
 
     public string LiteLlmChatModel { get; init; } = "gpt-4o-mini";
 
+    /// <summary>Whether releasing a clip-editor selection-edge drag plays a 1 s sample of that edge.</summary>
+    public bool EditorPlaySampleOnDrag { get; init; } = true;
+
     public PlaybackOptions ToPlaybackOptions() => new(
         TimeSpan.FromMilliseconds(PreRollMilliseconds),
         TimeSpan.FromMilliseconds(PostRollMilliseconds),

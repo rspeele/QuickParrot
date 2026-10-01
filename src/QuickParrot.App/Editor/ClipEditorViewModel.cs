@@ -23,8 +23,10 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     private ClipSelection _selection;
     private int _cursorFrame;
     private double _playheadFrame = double.NaN;
+    private double _stopMarkerFrame = double.NaN;
     private bool _isPlaying;
     private bool _normalize = true;
+    private bool _playSampleOnDrag;
     private double? _selectionLufs;
     private int _measureVersion;
     private string _name = "";
@@ -44,6 +46,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         Session = new ClipEditorSession(audio, encoder, options.Loudness);
         _selection = Session.Selection;
         _cursorFrame = Session.Cursor;
+        _playSampleOnDrag = options.PlaySampleOnDrag;
         _name = string.IsNullOrWhiteSpace(audio.SuggestedTitle) ? "" : ClipFileNames.Sanitize(audio.SuggestedTitle);
 
         Folders = LibraryFolderList.Build(new FileSystemFolderSource(options.LibraryRoot));
@@ -100,6 +103,13 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         private set => SetField(ref _playheadFrame, value);
     }
 
+    /// <summary>Where playback last stopped manually, for a faint marker in the waveform; NaN once there's no mark.</summary>
+    public double StopMarkerFrame
+    {
+        get => _stopMarkerFrame;
+        private set => SetField(ref _stopMarkerFrame, value);
+    }
+
     public string SelectionStartText => TimeFormatting.Position(Session.Audio.SecondsAt(_selection.Start));
 
     public string SelectionEndText => TimeFormatting.Position(Session.Audio.SecondsAt(_selection.End));
@@ -123,6 +133,16 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     }
 
     public string NormalizeLabel => string.Create(CultureInfo.CurrentCulture, $"Normalize loudness to {_options.Loudness.TargetLufs:0.#} LUFS");
+
+    public bool PlaySampleOnDrag
+    {
+        get => _playSampleOnDrag;
+        set
+        {
+            if (SetField(ref _playSampleOnDrag, value))
+                _options.PlaySampleOnDragChanged?.Invoke(value);
+        }
+    }
 
     public string LoudnessText
     {
@@ -207,12 +227,18 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 
     public ClipEditorOutcome Outcome { get; set; } = ClipEditorOutcome.Done;
 
-    /// <summary>Called when a selection drag ends: snaps its edges to quiet points, re-measures, and re-suggests a name.</summary>
-    public void CommitSelection()
+    /// <summary>
+    /// Called when a selection drag ends: snaps its edges to quiet points, re-measures, re-suggests a name, and
+    /// (if enabled) plays a 1 s sample of the edge the drag touched.
+    /// </summary>
+    public void CommitSelection(SelectionDragTarget target, int anchorFrame)
     {
-        ApplySelection(Session.Select(_selection, snap: true));
+        var snapped = Session.Select(_selection, snap: true);
+        ApplySelection(snapped);
         MeasureSelection();
         _ = AutoSuggestNameAsync();
+        if (_playSampleOnDrag)
+            _ = PlayAsync(PlaybackPlanner.DragReleaseSampleRange(snapped, target, anchorFrame, OneSecondFrames));
     }
 
     public void SelectAll()
@@ -223,28 +249,38 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _ = AutoSuggestNameAsync();
     }
 
+    /// <summary>"[" or "]": sets that edge to the playhead (while playing) or the cursor (while stopped); see <see cref="PlaybackPlanner"/>.</summary>
+    public void SetSelectionEdgeAtPlayheadOrCursor(bool isStart)
+    {
+        var target = IsPlaying && !double.IsNaN(PlayheadFrame) ? (int)Math.Round(PlayheadFrame) : _cursorFrame;
+        var totalFrames = Session.Audio.FrameCount;
+        var candidate = isStart
+            ? PlaybackPlanner.SetSelectionStart(_selection, target, totalFrames)
+            : PlaybackPlanner.SetSelectionEnd(_selection, target, totalFrames);
+
+        ApplySelection(Session.Select(candidate, snap: true));
+        MeasureSelection();
+        _ = AutoSuggestNameAsync();
+    }
+
     public Task TogglePlayAsync()
     {
         if (!IsPlaying && _playCts is null)
-            return PlayAsync(selectionOnly: true);
+            return PlaySelectionAsync();
 
         Stop();
         return Task.CompletedTask;
     }
 
-    public Task PlaySelectionAsync() => PlayAsync(selectionOnly: true);
+    public Task PlaySelectionAsync() => PlayAsync(Session.PreviewRange(selectionOnly: true));
 
-    public Task PlayFromCursorAsync() => PlayAsync(selectionOnly: false);
+    public Task PlayFromCursorAsync() => PlayAsync(Session.PreviewRange(selectionOnly: false));
+
+    /// <summary>Plays the last second of the selection (or all of it if shorter).</summary>
+    public Task PlayEndAsync() => PlayAsync(PlaybackPlanner.LastSeconds(Session.Selection, OneSecondFrames));
 
     /// <summary>Stops this editor's preview; another editor window's preview on the shared output is left playing.</summary>
-    public void Stop()
-    {
-        _playCts?.Cancel();
-        if (OwnsPreview)
-            _preview.Stop();
-
-        PlaybackEnded();
-    }
+    public void Stop() => StopInternal(manualStop: true);
 
     public async Task SuggestNameAsync()
     {
@@ -300,10 +336,11 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _namer?.Dispose();
     }
 
-    private async Task PlayAsync(bool selectionOnly)
+    private int OneSecondFrames => Session.Audio.SampleRate;
+
+    private async Task PlayAsync(ClipSelection range)
     {
-        Stop();
-        var range = Session.PreviewRange(selectionOnly);
+        StopInternal(manualStop: false);
         if (range.Length <= 0)
             return;
 
@@ -334,6 +371,17 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
                 _playCts = null;
             cts.Dispose();
         }
+    }
+
+    /// <summary>A manual stop (button/Space) marks the stop position, replacing any earlier mark; any other stop leaves it alone.</summary>
+    private void StopInternal(bool manualStop)
+    {
+        StopMarkerFrame = PlaybackPlanner.StopMarker(_stopMarkerFrame, manualStop && IsPlaying && !double.IsNaN(PlayheadFrame), PlayheadFrame);
+        _playCts?.Cancel();
+        if (OwnsPreview)
+            _preview.Stop();
+
+        PlaybackEnded();
     }
 
     private bool OwnsPreview => _preview.PlayingAudio == Session.Audio;

@@ -21,6 +21,8 @@ internal static class WaveformPalette
     public static readonly Pen CursorLine = new Pen(Solid(0xC8, 0xCE, 0xDA), 1) { DashStyle = new DashStyle([3, 3], 0) }.Frozen();
     public static readonly Brush Playhead = Solid(0xFF, 0x8A, 0x3D);
     public static readonly Pen PlayheadLine = new Pen(Playhead, 1.5).Frozen();
+    public static readonly Pen StopMarkerLine =
+        new Pen(Solid(0xFF, 0x8A, 0x3D, 0x90), 1) { DashStyle = new DashStyle([4, 3], 0) }.Frozen();
 
     private static Brush Solid(byte r, byte g, byte b, byte a = 0xFF)
     {

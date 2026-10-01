@@ -17,6 +17,12 @@ public sealed record ClipEditorOptions
     public Func<EditableAudio, CancellationToken, Task<string?>>? SuggestName { get; init; }
 
     public TimeSpan SuggestDelay { get; init; } = NameSuggestionDebouncer.DefaultDelay;
+
+    /// <summary>Whether releasing a selection-edge drag plays a 1 s sample of that edge.</summary>
+    public bool PlaySampleOnDrag { get; init; } = true;
+
+    /// <summary>Called when the user toggles <see cref="PlaySampleOnDrag"/>, so the app can persist it.</summary>
+    public Action<bool>? PlaySampleOnDragChanged { get; init; }
 }
 
 public enum ClipEditorOutcome
