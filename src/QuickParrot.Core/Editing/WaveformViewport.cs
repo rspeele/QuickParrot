@@ -1,12 +1,10 @@
 namespace QuickParrot.Core.Editing;
 
-/// <summary>Maps frames to horizontal positions for a waveform of a given width, with zoom and scroll.</summary>
-public sealed class WaveformViewport
+/// <summary>Maps frames to horizontal positions for a waveform of a given width, with zoom and scroll. Immutable.</summary>
+public sealed record WaveformViewport
 {
     /// <summary>The closest zoom: a few pixels per frame, enough to see individual samples.</summary>
     public const double MinFramesPerPixel = 1 / 8.0;
-
-    private bool _fitsAll = true;
 
     public WaveformViewport(int totalFrames, double width = 1)
     {
@@ -18,11 +16,11 @@ public sealed class WaveformViewport
 
     public int TotalFrames { get; }
 
-    public double Width { get; private set; }
+    public double Width { get; private init; }
 
-    public double FirstFrame { get; private set; }
+    public double FirstFrame { get; private init; }
 
-    public double FramesPerPixel { get; private set; }
+    public double FramesPerPixel { get; private init; }
 
     public double MaxFramesPerPixel => Math.Max(MinFramesPerPixel, TotalFrames / Width);
 
@@ -32,49 +30,41 @@ public sealed class WaveformViewport
 
     public bool IsZoomedIn => FramesPerPixel < MaxFramesPerPixel;
 
+    private bool FitsAll { get; init; } = true;
+
     public double FrameAt(double x) => FirstFrame + x * FramesPerPixel;
 
     public double XAt(double frame) => (frame - FirstFrame) / FramesPerPixel;
 
     /// <summary>Resizes, keeping the zoom (or staying fully zoomed out) and the left edge where possible.</summary>
-    public void SetWidth(double width)
+    public WaveformViewport WithWidth(double width)
     {
-        Width = Math.Max(1, width);
-        FramesPerPixel = _fitsAll ? MaxFramesPerPixel : Math.Clamp(FramesPerPixel, MinFramesPerPixel, MaxFramesPerPixel);
-        ScrollTo(FirstFrame);
+        var resized = this with { Width = Math.Max(1, width) };
+        var framesPerPixel = FitsAll
+            ? resized.MaxFramesPerPixel
+            : Math.Clamp(FramesPerPixel, MinFramesPerPixel, resized.MaxFramesPerPixel);
+        return (resized with { FramesPerPixel = framesPerPixel }).ScrollTo(FirstFrame);
     }
 
     /// <summary>Zooms by <paramref name="factor"/> (&gt;1 zooms in) keeping the frame under <paramref name="x"/> in place.</summary>
-    public void ZoomAround(double x, double factor)
+    public WaveformViewport ZoomAround(double x, double factor)
     {
         if (factor <= 0)
             throw new ArgumentOutOfRangeException(nameof(factor));
 
         var anchor = FrameAt(x);
-        FramesPerPixel = Math.Clamp(FramesPerPixel / factor, MinFramesPerPixel, MaxFramesPerPixel);
-        _fitsAll = FramesPerPixel >= MaxFramesPerPixel;
-        ScrollTo(anchor - x * FramesPerPixel);
+        var framesPerPixel = Math.Clamp(FramesPerPixel / factor, MinFramesPerPixel, MaxFramesPerPixel);
+        var zoomed = this with { FramesPerPixel = framesPerPixel, FitsAll = framesPerPixel >= MaxFramesPerPixel };
+        return zoomed.ScrollTo(anchor - x * framesPerPixel);
     }
 
-    public void ShowAll()
-    {
-        _fitsAll = true;
-        FramesPerPixel = MaxFramesPerPixel;
-        FirstFrame = 0;
-    }
+    public WaveformViewport ShowAll() => this with { FitsAll = true, FramesPerPixel = MaxFramesPerPixel, FirstFrame = 0 };
 
-    public void ScrollTo(double firstFrame) => FirstFrame = Math.Clamp(firstFrame, 0, MaxFirstFrame);
+    public WaveformViewport ScrollTo(double firstFrame) => this with { FirstFrame = Math.Clamp(firstFrame, 0, MaxFirstFrame) };
 
-    public void ScrollBy(double pixels) => ScrollTo(FirstFrame + pixels * FramesPerPixel);
+    public WaveformViewport ScrollBy(double pixels) => ScrollTo(FirstFrame + pixels * FramesPerPixel);
 
     /// <summary>Pages the view so <paramref name="frame"/> is visible, putting it near the left edge if it was off-screen.</summary>
-    public bool EnsureVisible(double frame)
-    {
-        if (frame >= FirstFrame && frame <= FirstFrame + VisibleFrames)
-            return false;
-
-        var before = FirstFrame;
-        ScrollTo(frame - VisibleFrames * 0.05);
-        return FirstFrame != before;
-    }
+    public WaveformViewport EnsureVisible(double frame) =>
+        frame >= FirstFrame && frame <= FirstFrame + VisibleFrames ? this : ScrollTo(frame - VisibleFrames * 0.05);
 }

@@ -3,8 +3,8 @@ using QuickParrot.Core.Dsp;
 namespace QuickParrot.Core.Editing;
 
 /// <summary>
-/// The editor's state and actions independent of any UI: the selection and cursor over one capture, what preview
-/// should play, its loudness, and saving any number of clips from it.
+/// The editor's logic independent of any UI: constraining selections and the cursor over one capture, what preview
+/// should play, its loudness, and saving any number of clips from it. Holds no selection state of its own.
 /// </summary>
 public sealed class ClipEditorSession
 {
@@ -20,8 +20,7 @@ public sealed class ClipEditorSession
         Loudness = loudness;
         Peaks = new WaveformPeaks(audio);
         MinSelectionFrames = Math.Min(audio.FramesFor(MinSelectionLength), audio.FrameCount);
-        Selection = audio.FrameCount > 0 ? SilenceTrimmer.Suggest(audio) : ClipSelection.All(0);
-        Cursor = Selection.Start;
+        InitialSelection = audio.FrameCount > 0 ? SilenceTrimmer.Suggest(audio) : ClipSelection.All(0);
     }
 
     public EditableAudio Audio { get; }
@@ -32,27 +31,25 @@ public sealed class ClipEditorSession
 
     public int MinSelectionFrames { get; }
 
-    public ClipSelection Selection { get; private set; }
+    /// <summary>The capture with leading and trailing silence trimmed.</summary>
+    public ClipSelection InitialSelection { get; }
 
-    public int Cursor { get; private set; }
+    public ClipSelection AllFrames => ClipSelection.All(Audio.FrameCount);
 
-    public bool CanSave => Selection.Length >= MinSelectionFrames && Selection.Length > 0;
+    public bool CanSave(ClipSelection selection) => selection.Length >= MinSelectionFrames && selection.Length > 0;
 
-    /// <summary>Sets the selection, clamped and at least the minimum length; snapping moves its edges to nearby quiet points.</summary>
-    public ClipSelection Select(ClipSelection selection, bool snap)
+    /// <summary>The selection clamped and at least the minimum length; snapping moves its edges to nearby quiet points.</summary>
+    public ClipSelection Constrain(ClipSelection selection, bool snap)
     {
         var clamped = ClipSelection.FromPoints(selection.Start, selection.End, Audio.FrameCount, MinSelectionFrames);
-        Selection = snap ? QuietPointSnapper.Snap(Audio, clamped, QuietPointSnapper.DefaultRadius, MinSelectionFrames) : clamped;
-        return Selection;
+        return snap ? QuietPointSnapper.Snap(Audio, clamped, QuietPointSnapper.DefaultRadius, MinSelectionFrames) : clamped;
     }
 
-    public void SelectAll() => Selection = ClipSelection.All(Audio.FrameCount);
-
-    public void SetCursor(int frame) => Cursor = Math.Clamp(frame, 0, Audio.FrameCount);
+    public int ClampCursor(int frame) => Math.Clamp(frame, 0, Audio.FrameCount);
 
     /// <summary>The selection, or (see <see cref="PlaybackPlanner.FromCursorRange"/>) from the cursor.</summary>
-    public ClipSelection PreviewRange(bool selectionOnly) =>
-        selectionOnly && Selection.Length > 0 ? Selection : PlaybackPlanner.FromCursorRange(Selection, Cursor, Audio.FrameCount);
+    public ClipSelection PreviewRange(ClipSelection selection, int cursor, bool selectionOnly) =>
+        selectionOnly && selection.Length > 0 ? selection : PlaybackPlanner.FromCursorRange(selection, cursor, Audio.FrameCount);
 
     /// <summary>The selection's integrated loudness, cached per selection. CPU-bound; fine on a worker thread.</summary>
     public double MeasureSelection(ClipSelection selection)
@@ -68,7 +65,7 @@ public sealed class ClipEditorSession
     public float PreviewGain(double measuredLufs, bool normalize) =>
         normalize ? (float)Decibels.ToAmplitude(LoudnessNormalizer.GainDbFor(measuredLufs, Loudness)) : 1f;
 
-    public EditableAudio SelectionAudio() => Audio.Slice(Selection.Start, Selection.End);
+    public EditableAudio SelectionAudio(ClipSelection selection) => Audio.Slice(selection.Start, selection.End);
 
     /// <summary>Where the selection should move after saving <paramref name="saved"/>; see <see cref="PlaybackPlanner.PostSaveSelection"/>.</summary>
     public ClipSelection PostSaveSelection(ClipSelection saved) =>

@@ -8,6 +8,12 @@ public sealed record ClipEditorOptions
     /// <summary>The sound library's root folder; clips can only be saved inside it.</summary>
     public required string LibraryRoot { get; init; }
 
+    /// <summary>The library's folders, already scanned (see <see cref="LibraryFolderList.Build"/>).</summary>
+    public required IReadOnlyList<LibraryFolder> Folders { get; init; }
+
+    /// <summary>Rescans the folders off the UI thread and hands them to <see cref="ClipEditorViewModel.UpdateFolders"/>.</summary>
+    public required Func<Task> RefreshFolders { get; init; }
+
     /// <summary>The destination folder selected at first, "/"-separated relative to the root ("" for the root).</summary>
     public string InitialFolder { get; init; } = "";
 

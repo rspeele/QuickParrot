@@ -20,38 +20,43 @@ public class ClipEditorSessionTests
         Audio(Concat(Silence(1), Sine(1000, -30, 1), Silence(1)));
 
     [Fact]
-    public void StartsWithTheSilenceTrimmedSelection_AndTheCursorAtItsStart()
+    public void InitialSelection_IsTheSilenceTrimmedCapture()
     {
         var session = new ClipEditorSession(Capture, new FakeEncoder(), new LoudnessOptions());
 
-        Assert.Equal(SilenceTrimmer.Suggest(Capture), session.Selection);
-        Assert.Equal(session.Selection.Start, session.Cursor);
-        Assert.True(session.CanSave);
+        Assert.Equal(SilenceTrimmer.Suggest(Capture), session.InitialSelection);
+        Assert.True(session.CanSave(session.InitialSelection));
+        Assert.False(session.CanSave(new ClipSelection(0, session.MinSelectionFrames - 1)));
     }
 
     [Fact]
-    public void Select_ClampsAndEnforcesTheMinimumLength()
+    public void Constrain_ClampsAndEnforcesTheMinimumLength()
     {
         var session = new ClipEditorSession(Capture, new FakeEncoder(), new LoudnessOptions());
 
-        var selection = session.Select(new ClipSelection(-10, 100), snap: false);
+        Assert.Equal(new ClipSelection(0, 2400), session.Constrain(new ClipSelection(-10, 100), snap: false));
+    }
 
-        Assert.Equal(new ClipSelection(0, 2400), selection);
+    [Fact]
+    public void ClampCursor_KeepsItInsideTheCapture()
+    {
+        var session = new ClipEditorSession(Capture, new FakeEncoder(), new LoudnessOptions());
+
+        Assert.Equal(0, session.ClampCursor(-5));
+        Assert.Equal(Capture.FrameCount, session.ClampCursor(int.MaxValue));
     }
 
     [Fact]
     public void PreviewRange_IsTheSelectionOrFromTheCursor()
     {
         var session = new ClipEditorSession(Capture, new FakeEncoder(), new LoudnessOptions());
-        session.Select(new ClipSelection(1000, 9000), snap: false);
-        session.SetCursor(5000);
+        var selection = new ClipSelection(1000, 9000);
 
-        Assert.Equal(new ClipSelection(1000, 9000), session.PreviewRange(selectionOnly: true));
+        Assert.Equal(selection, session.PreviewRange(selection, 5000, selectionOnly: true));
         // The cursor sits inside the selection, so "from cursor" stops at the selection end (see PlaybackPlannerTests
         // for the full range of cases, including the cursor outside the selection).
-        Assert.Equal(new ClipSelection(5000, 9000), session.PreviewRange(selectionOnly: false));
-        session.SetCursor(int.MaxValue);
-        Assert.Equal(new ClipSelection(0, Capture.FrameCount), session.PreviewRange(selectionOnly: false));
+        Assert.Equal(new ClipSelection(5000, 9000), session.PreviewRange(selection, 5000, selectionOnly: false));
+        Assert.Equal(new ClipSelection(0, Capture.FrameCount), session.PreviewRange(selection, Capture.FrameCount, selectionOnly: false));
     }
 
     [Fact]

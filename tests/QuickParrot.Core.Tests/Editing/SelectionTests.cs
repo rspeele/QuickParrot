@@ -34,21 +34,37 @@ public class SelectionGestureTests
     {
         var gesture = SelectionGesture.Begin(Viewport, null, 100, 50);
 
-        Assert.Null(gesture.Move(101)); // still within click distance
-        Assert.Equal(new ClipSelection(1000, 3000), gesture.Move(300));
-        Assert.Equal(new ClipSelection(500, 1000), gesture.Move(50));
+        Assert.Null(gesture.Move(Viewport, 101).Selection); // still within click distance
+        gesture = gesture.Move(Viewport, 300);
+        Assert.Equal(new ClipSelection(1000, 3000), gesture.Selection);
+        Assert.Equal(new ClipSelection(500, 1000), gesture.Move(Viewport, 50).Selection);
         Assert.False(gesture.IsClick);
+    }
+
+    [Fact]
+    public void OnceDragging_ReturningNearThePressPointStillSelects()
+    {
+        var gesture = SelectionGesture.Begin(Viewport, null, 100, 50).Move(Viewport, 300).Move(Viewport, 101);
+
+        Assert.Equal(new ClipSelection(1000, 1050), gesture.Selection);
     }
 
     [Fact]
     public void PressWithoutDragging_IsAClick()
     {
-        var gesture = SelectionGesture.Begin(Viewport, new ClipSelection(1000, 3000), 600, 50);
-
-        gesture.Move(601);
+        var gesture = SelectionGesture.Begin(Viewport, new ClipSelection(1000, 3000), 600, 50).Move(Viewport, 601);
 
         Assert.True(gesture.IsClick);
         Assert.Equal(6000, gesture.ClickFrame);
+    }
+
+    [Fact]
+    public void Moving_UsesTheViewportOfThatMove()
+    {
+        var gesture = SelectionGesture.Begin(Viewport, null, 100, 50);
+        var scrolled = Viewport.ZoomAround(0, 2).ScrollTo(1000); // 5 frames per pixel from frame 1000
+
+        Assert.Equal(new ClipSelection(1000, 2000), gesture.Move(scrolled, 200).Selection);
     }
 
     [Theory]
@@ -64,11 +80,10 @@ public class SelectionGestureTests
     [Fact]
     public void DraggingAHandle_MovesThatEdge_AndCanCrossTheOther()
     {
-        var selection = new ClipSelection(1000, 3000);
-        var gesture = SelectionGesture.Begin(Viewport, selection, 100, 50);
+        var gesture = SelectionGesture.Begin(Viewport, new ClipSelection(1000, 3000), 100, 50);
 
-        Assert.Equal(new ClipSelection(1500, 3000), gesture.Move(150));
-        Assert.Equal(new ClipSelection(3000, 4000), gesture.Move(400));
+        Assert.Equal(new ClipSelection(1500, 3000), gesture.Move(Viewport, 150).Selection);
+        Assert.Equal(new ClipSelection(3000, 4000), gesture.Move(Viewport, 400).Selection);
     }
 
     [Fact]
@@ -86,7 +101,7 @@ public class SelectionGestureTests
     {
         var gesture = SelectionGesture.Begin(Viewport, new ClipSelection(1000, 3000), 300, 500);
 
-        Assert.Equal(new ClipSelection(1000, 1500), gesture.Move(101));
+        Assert.Equal(new ClipSelection(1000, 1500), gesture.Move(Viewport, 101).Selection);
     }
 }
 

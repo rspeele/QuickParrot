@@ -4,96 +4,135 @@ namespace QuickParrot.Core.Tests.Editing;
 
 public class SelectionHistoryTests
 {
+    private static readonly ClipSelection Initial = new(0, 100);
+
     [Fact]
     public void PushThenUndo_RestoresThePreviousSelection()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 100));
-
-        history.Push(new ClipSelection(10, 90));
+        var history = SelectionHistory.Start(Initial).Push(new ClipSelection(10, 90));
 
         Assert.True(history.CanUndo);
-        Assert.Equal(new ClipSelection(0, 100), history.Undo());
-        Assert.False(history.CanUndo);
+        var undone = history.Undo();
+        Assert.Equal(Initial, undone.Current);
+        Assert.False(undone.CanUndo);
     }
 
     [Fact]
     public void Redo_AfterUndo_ReappliesTheStep()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 100));
-        history.Push(new ClipSelection(10, 90));
-        history.Undo();
+        var history = SelectionHistory.Start(Initial).Push(new ClipSelection(10, 90)).Undo();
 
         Assert.True(history.CanRedo);
-        Assert.Equal(new ClipSelection(10, 90), history.Redo());
-        Assert.False(history.CanRedo);
+        var redone = history.Redo();
+        Assert.Equal(new ClipSelection(10, 90), redone.Current);
+        Assert.False(redone.CanRedo);
     }
 
     [Fact]
     public void Push_AfterUndo_ClearsTheRedoStack()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 100));
-        history.Push(new ClipSelection(10, 90));
-        history.Undo();
-
-        history.Push(new ClipSelection(20, 80));
+        var history = SelectionHistory.Start(Initial).Push(new ClipSelection(10, 90)).Undo()
+            .Push(new ClipSelection(20, 80));
 
         Assert.False(history.CanRedo);
         Assert.Equal(new ClipSelection(20, 80), history.Current);
     }
 
     [Fact]
-    public void Push_WithTheSameSelection_IsANoOp()
+    public void Push_WithTheSameSelection_IsNotAStep()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 100));
-
-        history.Push(new ClipSelection(0, 100));
-
-        Assert.False(history.CanUndo);
+        Assert.False(SelectionHistory.Start(Initial).Push(Initial).CanUndo);
     }
 
     [Fact]
-    public void Undo_WithNothingToUndo_ReturnsNull()
+    public void UndoAndRedo_WithNothingToDo_ReturnTheSameHistory()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 100));
+        var history = SelectionHistory.Start(Initial);
 
-        Assert.Null(history.Undo());
-        Assert.Equal(new ClipSelection(0, 100), history.Current);
-    }
-
-    [Fact]
-    public void Redo_WithNothingToRedo_ReturnsNull()
-    {
-        var history = new SelectionHistory(new ClipSelection(0, 100));
-
-        Assert.Null(history.Redo());
+        Assert.Same(history, history.Undo());
+        Assert.Same(history, history.Redo());
     }
 
     [Fact]
     public void Capacity_DropsTheOldestEntryOnceExceeded()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 1), capacity: 2);
+        var history = SelectionHistory.Start(new ClipSelection(0, 1), capacity: 2)
+            .Push(new ClipSelection(0, 2))  // past: [0,1]
+            .Push(new ClipSelection(0, 3))  // past: [0,1] [0,2]
+            .Push(new ClipSelection(0, 4)); // past: [0,2] [0,3] — [0,1] dropped
 
-        history.Push(new ClipSelection(0, 2)); // past: [0,1]
-        history.Push(new ClipSelection(0, 3)); // past: [0,1] [0,2]
-        history.Push(new ClipSelection(0, 4)); // past: [0,2] [0,3] — [0,1] dropped
-
-        Assert.Equal(new ClipSelection(0, 3), history.Undo());
-        Assert.Equal(new ClipSelection(0, 2), history.Undo());
-        Assert.Null(history.Undo());
+        history = history.Undo();
+        Assert.Equal(new ClipSelection(0, 3), history.Current);
+        history = history.Undo();
+        Assert.Equal(new ClipSelection(0, 2), history.Current);
+        Assert.False(history.CanUndo);
     }
 
     [Fact]
     public void UndoRedo_RoundTrip_ThroughSeveralSteps()
     {
-        var history = new SelectionHistory(new ClipSelection(0, 1));
-        history.Push(new ClipSelection(0, 2));
-        history.Push(new ClipSelection(0, 3));
+        var history = SelectionHistory.Start(new ClipSelection(0, 1))
+            .Push(new ClipSelection(0, 2))
+            .Push(new ClipSelection(0, 3))
+            .Undo()
+            .Undo();
 
-        history.Undo();
-        history.Undo();
-
-        Assert.Equal(new ClipSelection(0, 2), history.Redo());
-        Assert.Equal(new ClipSelection(0, 3), history.Redo());
+        history = history.Redo();
+        Assert.Equal(new ClipSelection(0, 2), history.Current);
+        history = history.Redo();
+        Assert.Equal(new ClipSelection(0, 3), history.Current);
         Assert.False(history.CanRedo);
+    }
+
+    [Fact]
+    public void Preview_ShowsASelectionWithoutRecordingAStep()
+    {
+        var history = SelectionHistory.Start(Initial).Preview(new ClipSelection(5, 50));
+
+        Assert.Equal(new ClipSelection(5, 50), history.Current);
+        Assert.False(history.CanUndo);
+    }
+
+    [Fact]
+    public void PushAfterPreviews_RecordsOneStepFromTheSelectionBeforeThem()
+    {
+        var history = SelectionHistory.Start(Initial)
+            .Preview(new ClipSelection(5, 50))
+            .Preview(new ClipSelection(5, 60))
+            .Push(new ClipSelection(6, 61));
+
+        Assert.Equal(new ClipSelection(6, 61), history.Current);
+        Assert.Equal(Initial, history.Undo().Current);
+        Assert.False(history.Undo().CanUndo);
+    }
+
+    [Fact]
+    public void PushingBackToTheRecordedSelection_DropsThePreviewWithoutAStep()
+    {
+        var history = SelectionHistory.Start(Initial).Preview(new ClipSelection(5, 50)).Push(Initial);
+
+        Assert.Equal(Initial, history.Current);
+        Assert.False(history.CanUndo);
+    }
+
+    [Fact]
+    public void UndoDuringAPreview_StepsBackFromTheRecordedSelection()
+    {
+        var history = SelectionHistory.Start(Initial)
+            .Push(new ClipSelection(10, 90))
+            .Preview(new ClipSelection(20, 30))
+            .Undo();
+
+        Assert.Equal(Initial, history.Current);
+        Assert.Equal(new ClipSelection(10, 90), history.Redo().Current);
+    }
+
+    [Fact]
+    public void Cursor_IsKeptAcrossUndoAndRedo()
+    {
+        var history = SelectionHistory.Start(Initial, cursor: 7).Push(new ClipSelection(10, 90)).WithCursor(42);
+
+        Assert.Equal(42, history.Undo().Cursor);
+        Assert.Equal(42, history.Undo().Redo().Cursor);
     }
 }

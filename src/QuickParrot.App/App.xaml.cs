@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
+using QuickParrot.App.Editor;
 using QuickParrot.App.Library;
 using QuickParrot.Audio;
 using QuickParrot.Core.Diagnostics;
@@ -31,10 +32,8 @@ public partial class App : System.Windows.Application
     private ReplayBuffer? _replayBuffer;
     private FilePendingGrabStore? _grabStore;
     private LoopbackReplayCapture? _replayCapture;
-    private ClipEncoder? _clipEncoder;
     private EditorPreview? _editorPreview;
     private HttpClient? _httpClient;
-    private DpapiProtector? _dpapiProtector;
     private LibraryViewModel? _library;
     private Action<AppSettings>? _applySettings;
     private int _crashCleanupStarted;
@@ -147,10 +146,11 @@ public partial class App : System.Windows.Application
         _devices.DevicesChanged += engine.RetryMicRestore;
         _devices.SetupChanged += diagnostics.RequestCheck;
 
-        _clipEncoder = new ClipEncoder();
+        var clipEncoder = new ClipEncoder();
         _editorPreview = new EditorPreview(_devices, () => engine.Settings.ToOutputSettings());
-        _httpClient = new HttpClient();
-        _dpapiProtector = new DpapiProtector();
+        var httpClient = new HttpClient();
+        _httpClient = httpClient;
+        var protector = new DpapiProtector();
 
         var status = new StatusViewModel();
         if (warnings.Count > 0)
@@ -177,8 +177,14 @@ public partial class App : System.Windows.Application
         diagnosticsViewModel.ReportChanged += status.ShowDiagnostics;
 
         _library = new LibraryViewModel(settings, engine, status, OpenFolderSource, WatchLibrary, OpenInExplorer, PostToUi);
+        var editorServices = new GrabEditorServices(
+            _grabStore,
+            _editorPreview,
+            clipEncoder,
+            OpenFolderSource,
+            () => LiteLlmNaming.CreateSuggester(() => settings.Current, protector, httpClient, status.Report),
+            editor => ClipEditorWindow.Open(editor, MainWindow));
         var viewModel = new MainViewModel(
-            settings,
             status,
             _library,
             new PendingGrabsViewModel(_grabStore, engine, settings, status, PostToUi),
@@ -186,9 +192,9 @@ public partial class App : System.Windows.Application
             new SettingsViewModel(settings),
             new DeviceSettingsViewModel(settings, _devices, _devices),
             new HotkeysViewModel(settings, status, hook.CaptureNextKeyAsync),
-            new LiteLlmSettingsViewModel(settings, status, _httpClient, _dpapiProtector),
+            new LiteLlmSettingsViewModel(settings, status, httpClient, protector),
             diagnosticsViewModel,
-            new GrabEditorServices(_grabStore, _editorPreview, _clipEncoder, _httpClient, _dpapiProtector));
+            new GrabEditorCoordinator(settings, _library, status, editorServices));
 
         MainWindow = new MainWindow(viewModel);
         MainWindow.Show();

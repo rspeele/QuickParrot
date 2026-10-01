@@ -37,6 +37,21 @@ public static class LibraryFolderList
         }
     }
 
+    /// <summary>
+    /// The listed folder for a full path picked in a folder dialog, or null (keep the current one) if it's outside
+    /// <paramref name="root"/>; the warning explains either a refusal or a fallback to a listed ancestor.
+    /// </summary>
+    public static (LibraryFolder? Folder, string? Warning) ResolvePicked(string root, IReadOnlyList<LibraryFolder> folders, string pickedFullPath)
+    {
+        if (LibraryPathResolver.RelativePathWithin(root, pickedFullPath) is not { } relative)
+            return (null, $"Pick a folder inside your library ({root}).");
+
+        var found = Find(folders, relative);
+        return found.RelativePath.Equals(relative, StringComparison.OrdinalIgnoreCase)
+            ? (found, null)
+            : (found, $"That folder isn't listed (hidden or nested too deep), so clips will go to {found.Display}.");
+    }
+
     private static void Add(IFolderSource source, string path, int depth, List<LibraryFolder> folders, int maxFolders, int maxDepth)
     {
         if (depth > maxDepth)

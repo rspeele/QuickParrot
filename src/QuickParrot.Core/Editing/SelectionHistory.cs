@@ -1,68 +1,67 @@
+using System.Collections.Immutable;
+
 namespace QuickParrot.Core.Editing;
 
 /// <summary>
-/// Undo/redo over a clip editor's selection: a bounded stack of past selections plus a redo stack that a new
-/// push clears. Pure state; the caller decides which selection changes are worth a step (e.g. not every mouse move).
+/// The clip editor's selection and cursor, with undo/redo over the selection. <see cref="Preview"/> shows a selection
+/// without recording a step (e.g. mid-drag); <see cref="Push"/> records one. Immutable: each change returns a new value.
 /// </summary>
-public sealed class SelectionHistory
+public sealed record SelectionHistory
 {
     public const int DefaultCapacity = 100;
 
-    private readonly int _capacity;
-    private readonly List<ClipSelection> _past = [];
-    private readonly List<ClipSelection> _future = [];
-    private ClipSelection _current;
-
-    public SelectionHistory(ClipSelection initial, int capacity = DefaultCapacity)
+    private SelectionHistory(ClipSelection committed, int cursor, int capacity)
     {
-        _capacity = Math.Max(1, capacity);
-        _current = initial;
+        Committed = committed;
+        Cursor = cursor;
+        Capacity = capacity;
     }
 
-    public ClipSelection Current => _current;
+    /// <summary>What the editor shows: the last recorded step, or a previewed selection on top of it.</summary>
+    public ClipSelection Current => Draft ?? Committed;
 
-    internal bool CanUndo => _past.Count > 0;
+    /// <summary>The cursor frame; not part of undo.</summary>
+    public int Cursor { get; private init; }
 
-    internal bool CanRedo => _future.Count > 0;
+    public bool CanUndo => !Past.IsEmpty;
 
-    /// <summary>Records a step away from <see cref="Current"/>; a no-op if <paramref name="selection"/> matches it. Clears redo.</summary>
-    public void Push(ClipSelection selection)
-    {
-        if (selection == _current)
-            return;
+    public bool CanRedo => !Future.IsEmpty;
 
-        _past.Add(_current);
-        if (_past.Count > _capacity)
-            _past.RemoveAt(0);
+    // The selection the next step is recorded from; Current differs from it only while a preview is showing.
+    private ClipSelection Committed { get; init; }
 
-        _current = selection;
-        _future.Clear();
-    }
+    private ClipSelection? Draft { get; init; }
 
-    /// <summary>Steps back one selection, or null if there's nothing to undo.</summary>
-    public ClipSelection? Undo()
-    {
-        if (_past.Count == 0)
-            return null;
+    private ImmutableList<ClipSelection> Past { get; init; } = [];
 
-        _future.Add(_current);
-        _current = _past[^1];
-        _past.RemoveAt(_past.Count - 1);
-        return _current;
-    }
+    private ImmutableList<ClipSelection> Future { get; init; } = [];
 
-    /// <summary>Steps forward one selection, or null if there's nothing to redo.</summary>
-    public ClipSelection? Redo()
-    {
-        if (_future.Count == 0)
-            return null;
+    private int Capacity { get; }
 
-        _past.Add(_current);
-        if (_past.Count > _capacity)
-            _past.RemoveAt(0);
+    public static SelectionHistory Start(ClipSelection initial, int cursor = 0, int capacity = DefaultCapacity) =>
+        new(initial, cursor, Math.Max(1, capacity));
 
-        _current = _future[^1];
-        _future.RemoveAt(_future.Count - 1);
-        return _current;
-    }
+    /// <summary>Shows <paramref name="selection"/> without recording a step.</summary>
+    public SelectionHistory Preview(ClipSelection selection) =>
+        this with { Draft = selection == Committed ? null : selection };
+
+    /// <summary>Records a step to <paramref name="selection"/> and clears redo; no step if it matches the last one recorded.</summary>
+    public SelectionHistory Push(ClipSelection selection) => selection == Committed
+        ? this with { Draft = null }
+        : this with { Past = Capped(Past.Add(Committed)), Committed = selection, Draft = null, Future = [] };
+
+    /// <summary>Steps back one selection; unchanged if there's nothing to undo.</summary>
+    public SelectionHistory Undo() => Past.IsEmpty
+        ? this
+        : this with { Future = Future.Add(Committed), Committed = Past[^1], Past = Past.RemoveAt(Past.Count - 1), Draft = null };
+
+    /// <summary>Steps forward one selection; unchanged if there's nothing to redo.</summary>
+    public SelectionHistory Redo() => Future.IsEmpty
+        ? this
+        : this with { Past = Capped(Past.Add(Committed)), Committed = Future[^1], Future = Future.RemoveAt(Future.Count - 1), Draft = null };
+
+    public SelectionHistory WithCursor(int cursor) => this with { Cursor = cursor };
+
+    private ImmutableList<ClipSelection> Capped(ImmutableList<ClipSelection> past) =>
+        past.Count > Capacity ? past.RemoveAt(0) : past;
 }

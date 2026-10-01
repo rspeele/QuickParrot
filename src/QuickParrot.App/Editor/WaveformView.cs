@@ -44,7 +44,7 @@ public sealed class WaveformView : FrameworkElement
         Focusable = true; // so clicking the waveform takes focus from the name box and Space plays again
         FocusVisualStyle = null;
         ClipToBounds = true;
-        SizeChanged += (_, _) => ApplyViewportChange(() => _viewport.SetWidth(ActualWidth));
+        SizeChanged += (_, _) => ApplyViewport(_viewport.WithWidth(ActualWidth));
     }
 
     /// <summary>Raised when a drag that changed the selection ends.</summary>
@@ -77,7 +77,7 @@ public sealed class WaveformView : FrameworkElement
 
     public double VisibleFrames { get => (double)GetValue(VisibleFramesProperty); private set => SetValue(VisibleFramesProperty, value); }
 
-    public void ShowAll() => ApplyViewportChange(_viewport.ShowAll);
+    public void ShowAll() => ApplyViewport(_viewport.ShowAll());
 
     /// <summary>Zooms so the selection fills most of the view.</summary>
     public void ZoomToSelection()
@@ -86,13 +86,9 @@ public sealed class WaveformView : FrameworkElement
         if (selection.Length <= 0)
             return;
 
-        ApplyViewportChange(() =>
-        {
-            var margin = selection.Length * 0.1;
-            _viewport.ShowAll();
-            _viewport.ZoomAround(0, _viewport.VisibleFrames / (selection.Length + 2 * margin));
-            _viewport.ScrollTo(selection.Start - margin);
-        });
+        var margin = selection.Length * 0.1;
+        var all = _viewport.ShowAll();
+        ApplyViewport(all.ZoomAround(0, all.VisibleFrames / (selection.Length + 2 * margin)).ScrollTo(selection.Start - margin));
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -165,9 +161,10 @@ public sealed class WaveformView : FrameworkElement
         }
 
         if (x < 0 || x > ActualWidth)
-            ApplyViewportChange(() => _viewport.ScrollBy((x < 0 ? x : x - ActualWidth) * 0.5)); // drag past an edge scrolls
+            ApplyViewport(_viewport.ScrollBy((x < 0 ? x : x - ActualWidth) * 0.5)); // drag past an edge scrolls
 
-        if (_gesture.Move(x) is { } selection)
+        _gesture = _gesture.Move(_viewport, x);
+        if (_gesture.Selection is { } selection)
             Selection = selection;
     }
 
@@ -197,9 +194,9 @@ public sealed class WaveformView : FrameworkElement
         var x = e.GetPosition(this).X;
         var notches = e.Delta / 120.0;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
-            ApplyViewportChange(() => _viewport.ScrollBy(-notches * ActualWidth / 8));
+            ApplyViewport(_viewport.ScrollBy(-notches * ActualWidth / 8));
         else
-            ApplyViewportChange(() => _viewport.ZoomAround(x, Math.Pow(ZoomPerNotch, notches)));
+            ApplyViewport(_viewport.ZoomAround(x, Math.Pow(ZoomPerNotch, notches)));
 
         e.Handled = true;
     }
@@ -284,9 +281,9 @@ public sealed class WaveformView : FrameworkElement
         return new Rect(left, top, Math.Max(0, right - left), height);
     }
 
-    private void ApplyViewportChange(Action change)
+    private void ApplyViewport(WaveformViewport viewport)
     {
-        change();
+        _viewport = viewport;
         _syncingScroll = true;
         try
         {
@@ -303,19 +300,19 @@ public sealed class WaveformView : FrameworkElement
     }
 
     private static void OnPeaksChanged(WaveformView view, WaveformPeaks? peaks) =>
-        view.ApplyViewportChange(() => view._viewport = new WaveformViewport(peaks?.FrameCount ?? 0, view.ActualWidth));
+        view.ApplyViewport(new WaveformViewport(peaks?.FrameCount ?? 0, view.ActualWidth));
 
     private static void OnScrollValueChanged(WaveformView view, double value)
     {
         if (!view._syncingScroll)
-            view.ApplyViewportChange(() => view._viewport.ScrollTo(value));
+            view.ApplyViewport(view._viewport.ScrollTo(value));
     }
 
     // While playing, page the view along so the playhead stays visible.
     private static void OnPlayheadChanged(WaveformView view, double frame)
     {
         if (!double.IsNaN(frame) && view._gesture is null && view._viewport.IsZoomedIn)
-            view.ApplyViewportChange(() => view._viewport.EnsureVisible(frame));
+            view.ApplyViewport(view._viewport.EnsureVisible(frame));
     }
 
     private static DependencyProperty Register<T>(string name, T defaultValue, Action<WaveformView, T>? changed = null, bool twoWay = false)

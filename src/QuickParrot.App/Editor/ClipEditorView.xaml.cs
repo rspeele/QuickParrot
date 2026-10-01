@@ -32,10 +32,10 @@ public partial class ClipEditorView : UserControl
             vm.FolderBrowseRequested += OnFolderBrowseRequested;
     }
 
-    private void OnFolderBrowseRequested(string initialDirectory)
+    private async void OnFolderBrowseRequested(string initialDirectory)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = initialDirectory };
-        Vm.ApplyBrowsedFolder(dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FolderName : null);
+        await Vm.ApplyBrowsedFolderAsync(dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FolderName : null);
     }
 
     private void Wave_SelectionCommitted(object sender, RoutedEventArgs e)

@@ -1,16 +1,17 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using QuickParrot.Core.Editing;
 
 namespace QuickParrot.App.Editor;
 
-/// <summary>
-/// Hosts <see cref="ClipEditorView"/> and its keyboard shortcuts. Disposes the view model on close; read <see cref="Outcome"/> afterwards.
-/// </summary>
-public partial class ClipEditorWindow : Window
+/// <summary>Hosts <see cref="ClipEditorView"/> and dispatches its keyboard shortcuts. Disposes the view model on close.</summary>
+public partial class ClipEditorWindow : Window, IClipEditorWindow
 {
     private readonly ClipEditorViewModel _viewModel;
+    private readonly TaskCompletionSource<ClipEditorOutcome> _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private ClipEditorOutcome _closingAs = ClipEditorOutcome.Done;
 
     public ClipEditorWindow(ClipEditorViewModel viewModel)
     {
@@ -19,71 +20,99 @@ public partial class ClipEditorWindow : Window
         InitializeComponent();
     }
 
-    public ClipEditorOutcome Outcome => _viewModel.Outcome;
+    Task<ClipEditorOutcome> IClipEditorWindow.Closed => _closed.Task;
+
+    public static IClipEditorWindow Open(ClipEditorViewModel viewModel, Window? owner)
+    {
+        var window = new ClipEditorWindow(viewModel) { Owner = owner };
+        window.Show();
+        return window;
+    }
+
+    public void BringToFront()
+    {
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        Activate();
+    }
 
     private void Editor_CloseRequested(ClipEditorOutcome outcome)
     {
-        _viewModel.Outcome = outcome;
+        _closingAs = outcome;
         Close();
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        var typing = Keyboard.FocusedElement is TextBoxBase;
-        switch (e.Key)
+        var focused = Keyboard.FocusedElement;
+        var shortcut = EditorShortcuts.Map(
+            ToEditorKey(e.Key), (EditorModifiers)Keyboard.Modifiers, focused is TextBoxBase, e.IsRepeat,
+            focused is ComboBox { IsDropDownOpen: true });
+        if (shortcut == EditorShortcut.None)
+            return;
+
+        e.Handled = true;
+        switch (shortcut)
         {
-            case Key.Space or Key.Enter or Key.OemOpenBrackets or Key.OemCloseBrackets or Key.S or Key.E when e.IsRepeat:
-            {
-                // holding a key mustn't toggle play, save, re-edit the selection, replay+refocus, or re-suggest repeatedly
-                var isControlShortcut = (e.Key is Key.S or Key.E) && Keyboard.Modifiers == ModifierKeys.Control;
-                e.Handled = !typing || e.Key == Key.Enter || isControlShortcut;
-                break;
-            }
-            case Key.Space when !typing && Keyboard.Modifiers == ModifierKeys.None:
+            case EditorShortcut.TogglePlay:
                 _ = _viewModel.TogglePlayAsync();
-                e.Handled = true;
                 break;
-            case Key.Enter when Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true }:
+            case EditorShortcut.Save:
                 _ = _viewModel.SaveAsync();
-                e.Handled = true;
                 break;
-            case Key.Escape when Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true }:
+            case EditorShortcut.Close:
                 Close();
-                e.Handled = true;
                 break;
-            case Key.A when !typing && Keyboard.Modifiers == ModifierKeys.Control:
+            case EditorShortcut.SelectAll:
                 _viewModel.SelectAll();
-                e.Handled = true;
                 break;
-            case Key.OemOpenBrackets when !typing && Keyboard.Modifiers == ModifierKeys.None:
+            case EditorShortcut.SetSelectionStart:
                 _viewModel.SetSelectionEdgeAtPlayheadOrCursor(isStart: true);
-                e.Handled = true;
                 break;
-            case Key.OemCloseBrackets when !typing && Keyboard.Modifiers == ModifierKeys.None:
+            case EditorShortcut.SetSelectionEnd:
                 _viewModel.SetSelectionEdgeAtPlayheadOrCursor(isStart: false);
-                e.Handled = true;
                 break;
-            // Both work regardless of focus, including from inside the name box itself.
-            case Key.S when Keyboard.Modifiers == ModifierKeys.Control:
+            case EditorShortcut.PlayAndFocusName:
                 _ = _viewModel.PlaySelectionAsync();
                 Editor.FocusName();
-                e.Handled = true;
                 break;
-            case Key.E when Keyboard.Modifiers == ModifierKeys.Control:
+            case EditorShortcut.SuggestName:
                 _ = _viewModel.SuggestNameAsync();
-                e.Handled = true;
                 break;
-            case Key.Z when !typing && Keyboard.Modifiers == ModifierKeys.Control:
+            case EditorShortcut.Undo:
                 _viewModel.Undo();
-                e.Handled = true;
                 break;
-            case Key.Z when !typing && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift):
-            case Key.Y when !typing && Keyboard.Modifiers == ModifierKeys.Control:
+            case EditorShortcut.Redo:
                 _viewModel.Redo();
-                e.Handled = true;
                 break;
         }
     }
 
-    private void Window_Closed(object? sender, EventArgs e) => _viewModel.Dispose();
+    private static EditorKey ToEditorKey(Key key) => key switch
+    {
+        Key.Space => EditorKey.Space,
+        Key.Enter => EditorKey.Enter,
+        Key.Escape => EditorKey.Escape,
+        Key.OemOpenBrackets => EditorKey.OpenBracket,
+        Key.OemCloseBrackets => EditorKey.CloseBracket,
+        Key.A => EditorKey.A,
+        Key.E => EditorKey.E,
+        Key.S => EditorKey.S,
+        Key.Y => EditorKey.Y,
+        Key.Z => EditorKey.Z,
+        _ => EditorKey.Other,
+    };
+
+    private void Window_Closed(object? sender, EventArgs e)
+    {
+        try
+        {
+            _viewModel.Dispose();
+        }
+        finally
+        {
+            _closed.TrySetResult(_closingAs);
+        }
+    }
 }

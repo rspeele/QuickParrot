@@ -108,4 +108,45 @@ public class LibraryFolderListTests
 
         Assert.Equal(expected, LibraryFolderList.Find(LibraryFolderList.Build(source), requested).RelativePath);
     }
+
+    [Fact]
+    public void ResolvePicked_FindsAListedFolder()
+    {
+        var folders = ArnoldLibrary();
+
+        Assert.Equal(("Movies/Arnold", null), Resolve(folders, @"C:\Library\movies\Arnold\"));
+        Assert.Equal(("", null), Resolve(folders, @"C:\Library"));
+    }
+
+    [Fact]
+    public void ResolvePicked_FallsBackToAListedAncestor_WithAWarning()
+    {
+        var (path, warning) = Resolve(ArnoldLibrary(), @"C:\Library\Movies\Hidden");
+
+        Assert.Equal("Movies", path);
+        Assert.Contains("isn't listed", warning);
+        Assert.Contains("Movies", warning);
+    }
+
+    [Fact]
+    public void ResolvePicked_OutsideTheLibrary_KeepsTheCurrentFolder()
+    {
+        var (folder, warning) = LibraryFolderList.ResolvePicked(@"C:\Library", ArnoldLibrary(), @"C:\Elsewhere");
+
+        Assert.Null(folder);
+        Assert.Equal(@"Pick a folder inside your library (C:\Library).", warning);
+    }
+
+    private static IReadOnlyList<LibraryFolder> ArnoldLibrary()
+    {
+        var source = new FakeFolderSource();
+        source.AddFolder(source.AddFolder("", "Movies"), "Arnold");
+        return LibraryFolderList.Build(source);
+    }
+
+    private static (string? Path, string? Warning) Resolve(IReadOnlyList<LibraryFolder> folders, string picked)
+    {
+        var (folder, warning) = LibraryFolderList.ResolvePicked(@"C:\Library", folders, picked);
+        return (folder?.RelativePath, warning);
+    }
 }

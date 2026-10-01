@@ -108,9 +108,7 @@ public class WaveformViewportTests
     [Fact]
     public void ZoomAround_KeepsTheFrameUnderTheCursorInPlace()
     {
-        var viewport = new WaveformViewport(48000, 480);
-
-        viewport.ZoomAround(120, 4);
+        var viewport = new WaveformViewport(48000, 480).ZoomAround(120, 4);
 
         Assert.Equal(25, viewport.FramesPerPixel);
         Assert.Equal(12000, viewport.FrameAt(120), 6);
@@ -118,18 +116,26 @@ public class WaveformViewportTests
     }
 
     [Fact]
-    public void Zoom_IsClampedBothWays_AndScrollStaysInsideTheAudio()
+    public void Transitions_LeaveTheOriginalUnchanged()
     {
         var viewport = new WaveformViewport(48000, 480);
 
-        viewport.ZoomAround(480, 1e9);
+        viewport.ZoomAround(120, 4).ScrollBy(10);
+
+        Assert.Equal(new WaveformViewport(48000, 480), viewport);
+    }
+
+    [Fact]
+    public void Zoom_IsClampedBothWays_AndScrollStaysInsideTheAudio()
+    {
+        var viewport = new WaveformViewport(48000, 480).ZoomAround(480, 1e9);
         Assert.Equal(WaveformViewport.MinFramesPerPixel, viewport.FramesPerPixel);
         Assert.Equal(viewport.MaxFirstFrame, viewport.FirstFrame, 6);
 
-        viewport.ScrollTo(1e9);
+        viewport = viewport.ScrollTo(1e9);
         Assert.Equal(48000 - viewport.VisibleFrames, viewport.FirstFrame, 6);
 
-        viewport.ZoomAround(0, 1e-9);
+        viewport = viewport.ZoomAround(0, 1e-9);
         Assert.Equal(100, viewport.FramesPerPixel);
         Assert.Equal(0, viewport.FirstFrame);
     }
@@ -137,33 +143,37 @@ public class WaveformViewportTests
     [Fact]
     public void Resizing_StaysFittedWhenZoomedOut_AndKeepsZoomWhenZoomedIn()
     {
-        var viewport = new WaveformViewport(48000, 480);
-        viewport.SetWidth(960);
+        var viewport = new WaveformViewport(48000, 480).WithWidth(960);
         Assert.Equal(50, viewport.FramesPerPixel);
 
-        viewport.ZoomAround(0, 5);
-        viewport.SetWidth(480);
+        viewport = viewport.ZoomAround(0, 5).WithWidth(480);
         Assert.Equal(10, viewport.FramesPerPixel);
+    }
+
+    [Fact]
+    public void ShowAll_FitsTheWholeCaptureAgain()
+    {
+        var viewport = new WaveformViewport(48000, 480).ZoomAround(240, 8).ShowAll();
+
+        Assert.Equal(100, viewport.FramesPerPixel);
+        Assert.Equal(0, viewport.FirstFrame);
+        Assert.Equal(50, viewport.WithWidth(960).FramesPerPixel);
     }
 
     [Fact]
     public void EnsureVisible_PagesToAnOffScreenFrame()
     {
-        var viewport = new WaveformViewport(48000, 100);
-        viewport.ZoomAround(0, 10); // 48 frames per pixel, 4800 visible
+        var viewport = new WaveformViewport(48000, 100).ZoomAround(0, 10); // 48 frames per pixel, 4800 visible
 
-        Assert.False(viewport.EnsureVisible(1000));
-        Assert.True(viewport.EnsureVisible(10000));
-        Assert.InRange(10000.0, viewport.FirstFrame, viewport.FirstFrame + viewport.VisibleFrames);
+        Assert.Same(viewport, viewport.EnsureVisible(1000));
+        var paged = viewport.EnsureVisible(10000);
+        Assert.InRange(10000.0, paged.FirstFrame, paged.FirstFrame + paged.VisibleFrames);
     }
 
     [Fact]
     public void ScrollBy_MovesByPixels()
     {
-        var viewport = new WaveformViewport(48000, 100);
-        viewport.ZoomAround(0, 10);
-
-        viewport.ScrollBy(10);
+        var viewport = new WaveformViewport(48000, 100).ZoomAround(0, 10).ScrollBy(10);
 
         Assert.Equal(480, viewport.FirstFrame);
     }

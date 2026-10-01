@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.IO;
 using System.Windows.Threading;
 using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Editing;
@@ -22,20 +20,19 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     /// </summary>
     private static readonly LibraryFolder BrowseEntry = new("Browse…");
 
+    private readonly ClipEditorSession _session;
     private readonly IEditorPreview _preview;
     private readonly ClipEditorOptions _options;
     private readonly NameSuggester? _namer;
     private readonly DispatcherTimer _playheadTimer;
     private readonly Dispatcher _dispatcher;
-    private readonly SelectionHistory _history;
-    private ClipSelection _selection;
-    private int _cursorFrame;
+    private SelectionHistory _state;
     private double _playheadFrame = double.NaN;
     private double _stopMarkerFrame = double.NaN;
     private bool _isPlaying;
     private bool _normalize = true;
     private bool _playSampleOnDrag;
-    private double? _selectionLufs;
+    private LoudnessReading _loudness;
     private int _measureVersion;
     private string _name = "";
     private bool _nameEditedByUser;
@@ -51,14 +48,12 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _preview = preview;
         _options = options;
         _dispatcher = Dispatcher.CurrentDispatcher;
-        Session = new ClipEditorSession(audio, encoder, options.Loudness);
-        _selection = Session.Selection;
-        _history = new SelectionHistory(_selection);
-        _cursorFrame = Session.Cursor;
+        _session = new ClipEditorSession(audio, encoder, options.Loudness);
+        _state = SelectionHistory.Start(_session.InitialSelection, _session.InitialSelection.Start);
         _playSampleOnDrag = options.PlaySampleOnDrag;
         _name = string.IsNullOrWhiteSpace(audio.SuggestedTitle) ? "" : ClipFileNames.Sanitize(audio.SuggestedTitle);
 
-        _libraryFolders = LibraryFolderList.Build(new FileSystemFolderSource(options.LibraryRoot));
+        _libraryFolders = options.Folders;
         Folders = [.. _libraryFolders, BrowseEntry];
         _selectedFolder = LibraryFolderList.Find(_libraryFolders, options.InitialFolder);
 
@@ -78,34 +73,30 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     /// <summary>Raised when "Browse…" is picked, with the folder a picker dialog should start in; the view owns the dialog.</summary>
     public event Action<string>? FolderBrowseRequested;
 
-    private ClipEditorSession Session { get; }
+    /// <summary>How many clips this editor has saved so far.</summary>
+    public int SavedClipCount { get; private set; }
 
-    public WaveformPeaks Peaks => Session.Peaks;
+    public WaveformPeaks Peaks => _session.Peaks;
 
-    public int SampleRate => Session.Audio.SampleRate;
+    public int SampleRate => _session.Audio.SampleRate;
 
-    public int MinSelectionFrames => Session.MinSelectionFrames;
+    public int MinSelectionFrames => _session.MinSelectionFrames;
 
-    public string Title => Session.Audio.SourceLabel is { Length: > 0 } label ? $"Edit clip — {label}" : "Edit clip";
+    public string Title => ClipEditorCaptions.Title(_session.Audio);
 
-    public string HeaderText => Session.Audio.SourceLabel is { Length: > 0 } label
-        ? $"{label}  ·  {TimeFormatting.Position(Session.Audio.Duration.TotalSeconds)} captured"
-        : $"{TimeFormatting.Position(Session.Audio.Duration.TotalSeconds)} captured";
+    public string HeaderText => ClipEditorCaptions.Header(_session.Audio);
 
+    /// <summary>Set by the waveform while dragging; a drag becomes an undo step only in <see cref="CommitSelection"/>.</summary>
     public ClipSelection Selection
     {
-        get => _selection;
-        set => ApplySelection(Session.Select(value, snap: false));
+        get => _state.Current;
+        set => SetState(_state.Preview(_session.Constrain(value, snap: false)));
     }
 
     public int CursorFrame
     {
-        get => _cursorFrame;
-        set
-        {
-            Session.SetCursor(value);
-            SetField(ref _cursorFrame, Session.Cursor);
-        }
+        get => _state.Cursor;
+        set => SetState(_state.WithCursor(_session.ClampCursor(value)));
     }
 
     public double PlayheadFrame
@@ -121,11 +112,11 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         private set => SetField(ref _stopMarkerFrame, value);
     }
 
-    public string SelectionStartText => TimeFormatting.Position(Session.Audio.SecondsAt(_selection.Start));
+    public string SelectionStartText => TimeFormatting.Position(_session.Audio.SecondsAt(Selection.Start));
 
-    public string SelectionEndText => TimeFormatting.Position(Session.Audio.SecondsAt(_selection.End));
+    public string SelectionEndText => TimeFormatting.Position(_session.Audio.SecondsAt(Selection.End));
 
-    public string SelectionLengthText => TimeFormatting.Position(Session.Audio.SecondsAt(_selection.Length));
+    public string SelectionLengthText => TimeFormatting.Position(_session.Audio.SecondsAt(Selection.Length));
 
     public bool IsPlaying
     {
@@ -156,25 +147,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>A plain-words description of the normalization gain; hidden (empty) unless <see cref="Normalize"/> is on.</summary>
-    public string LoudnessText
-    {
-        get
-        {
-            if (!_normalize)
-                return "";
-            if (_selectionLufs is not { } lufs)
-                return "Measuring…";
-            if (!double.IsFinite(lufs))
-                return "Selection is silent";
-
-            var gain = LoudnessNormalizer.GainDbFor(lufs, _options.Loudness);
-            if (Math.Abs(gain) < 0.5)
-                return "Already about right";
-
-            var direction = gain > 0 ? "turned up" : "turned down";
-            return string.Create(CultureInfo.CurrentCulture, $"Will be {direction} {Math.Abs(gain):0.#} dB");
-        }
-    }
+    public string LoudnessText => _normalize ? LoudnessDescription.Describe(_loudness, _options.Loudness) : "";
 
     public string Name
     {
@@ -224,7 +197,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool CanSave => Session.CanSave && !_isSaving;
+    public bool CanSave => _session.CanSave(Selection) && !_isSaving;
 
     public string Status
     {
@@ -232,17 +205,14 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         private set => SetField(ref _status, value);
     }
 
-    public ClipEditorOutcome Outcome { get; set; } = ClipEditorOutcome.Done;
-
     /// <summary>
-    /// Called when a selection drag ends: snaps its edges to quiet points, re-measures, and (if enabled) plays a
-    /// 1 s sample of the edge the drag touched. Naming is manual — see <see cref="SuggestNameAsync"/>.
+    /// Called when a selection drag ends: snaps its edges to quiet points, records an undo step, re-measures, and (if
+    /// enabled) plays a 1 s sample of the edge the drag touched. Naming is manual — see <see cref="SuggestNameAsync"/>.
     /// </summary>
     public void CommitSelection(SelectionDragTarget target, int anchorFrame)
     {
-        var snapped = Session.Select(_selection, snap: true);
-        ApplySelection(snapped);
-        _history.Push(snapped);
+        var snapped = _session.Constrain(Selection, snap: true);
+        SetState(_state.Push(snapped));
         MeasureSelection();
         if (_playSampleOnDrag)
             _ = PlayAsync(PlaybackPlanner.DragReleaseSampleRange(snapped, target, anchorFrame, OneSecondFrames));
@@ -250,29 +220,40 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 
     public void SelectAll()
     {
-        Session.SelectAll();
-        ApplySelection(Session.Selection);
-        _history.Push(_selection);
+        SetState(_state.Push(_session.AllFrames));
         MeasureSelection();
     }
 
     /// <summary>Ctrl+Z: steps back to the previous selection, if any. Re-measures but doesn't play a sample or suggest a name.</summary>
-    public void Undo() => ApplyHistorySelection(_history.Undo());
+    public void Undo()
+    {
+        if (!_state.CanUndo)
+            return;
+
+        SetState(_state.Undo());
+        MeasureSelection();
+    }
 
     /// <summary>Ctrl+Y / Ctrl+Shift+Z: re-applies the selection undone most recently, if any.</summary>
-    public void Redo() => ApplyHistorySelection(_history.Redo());
+    public void Redo()
+    {
+        if (!_state.CanRedo)
+            return;
+
+        SetState(_state.Redo());
+        MeasureSelection();
+    }
 
     /// <summary>"[" or "]": sets that edge to the playhead (while playing) or the cursor (while stopped); see <see cref="PlaybackPlanner"/>.</summary>
     public void SetSelectionEdgeAtPlayheadOrCursor(bool isStart)
     {
-        var target = IsPlaying && !double.IsNaN(PlayheadFrame) ? (int)Math.Round(PlayheadFrame) : _cursorFrame;
-        var totalFrames = Session.Audio.FrameCount;
+        var target = IsPlaying && !double.IsNaN(PlayheadFrame) ? (int)Math.Round(PlayheadFrame) : _state.Cursor;
+        var totalFrames = _session.Audio.FrameCount;
         var candidate = isStart
-            ? PlaybackPlanner.SetSelectionStart(_selection, target, totalFrames)
-            : PlaybackPlanner.SetSelectionEnd(_selection, target, totalFrames);
+            ? PlaybackPlanner.SetSelectionStart(Selection, target, totalFrames)
+            : PlaybackPlanner.SetSelectionEnd(Selection, target, totalFrames);
 
-        ApplySelection(Session.Select(candidate, snap: true));
-        _history.Push(_selection);
+        SetState(_state.Push(_session.Constrain(candidate, snap: true)));
         MeasureSelection();
     }
 
@@ -285,12 +266,12 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         return Task.CompletedTask;
     }
 
-    public Task PlaySelectionAsync() => PlayAsync(Session.PreviewRange(selectionOnly: true));
+    public Task PlaySelectionAsync() => PlayAsync(_session.PreviewRange(Selection, _state.Cursor, selectionOnly: true));
 
-    public Task PlayFromCursorAsync() => PlayAsync(Session.PreviewRange(selectionOnly: false));
+    public Task PlayFromCursorAsync() => PlayAsync(_session.PreviewRange(Selection, _state.Cursor, selectionOnly: false));
 
     /// <summary>Plays the last second of the selection (or all of it if shorter).</summary>
-    public Task PlayEndAsync() => PlayAsync(PlaybackPlanner.LastSeconds(Session.Selection, OneSecondFrames));
+    public Task PlayEndAsync() => PlayAsync(PlaybackPlanner.LastSeconds(Selection, OneSecondFrames));
 
     /// <summary>Stops this editor's preview; another editor window's preview on the shared output is left playing.</summary>
     public void Stop() => StopInternal(manualStop: true);
@@ -303,7 +284,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 
         IsSuggesting = true;
         _nameEditedByUser = false; // about to replace the name; typing while this is in flight should still win
-        ApplySuggestion(await _namer.SuggestNowAsync(Session.SelectionAudio()));
+        ApplySuggestion(await _namer.SuggestNowAsync(_session.SelectionAudio(Selection)));
     }
 
     public async Task SaveAsync()
@@ -312,7 +293,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             return;
 
         SetSaving(true);
-        var selection = _selection;
+        var selection = Selection;
         var name = _name;
         var folder = FolderPath(_selectedFolder);
         var folderDisplay = _selectedFolder.Display;
@@ -321,7 +302,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         SavedClip saved;
         try
         {
-            saved = await Task.Run(() => Session.Save(selection, name, folder, normalize, CancellationToken.None));
+            saved = await Task.Run(() => _session.Save(selection, name, folder, normalize, CancellationToken.None));
         }
         catch (Exception e)
         {
@@ -342,13 +323,48 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _nameEditedByUser = false;
         OnPropertyChanged(nameof(Name));
 
-        var next = Session.PostSaveSelection(selection);
-        ApplySelection(Session.Select(next, snap: false));
-        CursorFrame = _selection.Start;
-        _history.Push(_selection);
+        var next = _session.Constrain(_session.PostSaveSelection(selection), snap: false);
+        SetState(_state.Push(next).WithCursor(_session.ClampCursor(next.Start)));
         MeasureSelection();
 
+        SavedClipCount++;
         ClipSaved?.Invoke(saved);
+    }
+
+    /// <summary>Call when the library changes on disk: replaces the folder list, keeping the selection if it still exists.</summary>
+    public void UpdateFolders(IReadOnlyList<LibraryFolder> latest)
+    {
+        var previousPath = _selectedFolder.RelativePath;
+        if (!latest.SequenceEqual(_libraryFolders)) // leaves the combo box's open dropdown alone when nothing changed
+        {
+            _libraryFolders = latest;
+            Folders = [.. latest, BrowseEntry];
+            OnPropertyChanged(nameof(Folders));
+        }
+
+        SelectedFolder = LibraryFolderList.Find(_libraryFolders, previousPath);
+    }
+
+    /// <summary>Called after a folder picked via <see cref="FolderBrowseRequested"/> comes back; null means the dialog was cancelled.</summary>
+    public async Task ApplyBrowsedFolderAsync(string? pickedFullPath)
+    {
+        if (pickedFullPath is null)
+            return; // cancelled; the combo box already snapped back to the previous selection
+
+        try
+        {
+            await _options.RefreshFolders(); // the dialog may have just created the folder
+        }
+        catch (Exception e) // the view's caller is async void
+        {
+            Status = $"Couldn't list the library's folders: {e.Message}";
+        }
+
+        var (folder, warning) = LibraryFolderList.ResolvePicked(_options.LibraryRoot, _libraryFolders, pickedFullPath);
+        if (folder is not null)
+            SelectedFolder = folder;
+        if (warning is not null)
+            Status = warning;
     }
 
     /// <summary>Stops preview and any pending name suggestion; call when the editor closes.</summary>
@@ -359,7 +375,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _namer?.Dispose();
     }
 
-    private int OneSecondFrames => Session.Audio.SampleRate;
+    private int OneSecondFrames => _session.Audio.SampleRate;
 
     private async Task PlayAsync(ClipSelection range)
     {
@@ -369,11 +385,11 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 
         var cts = new CancellationTokenSource();
         _playCts = cts;
-        var selection = Session.Selection;
+        var selection = Selection;
         try
         {
-            var lufs = _selectionLufs ?? await Task.Run(() => Session.MeasureSelection(selection));
-            await _preview.PlayAsync(Session.Audio, range.Start, range.End, Session.PreviewGain(lufs, _normalize), cts.Token);
+            var lufs = _loudness.Lufs ?? await Task.Run(() => _session.MeasureSelection(selection));
+            await _preview.PlayAsync(_session.Audio, range.Start, range.End, _session.PreviewGain(lufs, _normalize), cts.Token);
             if (cts.IsCancellationRequested)
                 return;
 
@@ -407,7 +423,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         PlaybackEnded();
     }
 
-    private bool OwnsPreview => _preview.PlayingAudio == Session.Audio;
+    private bool OwnsPreview => _preview.PlayingAudio == _session.Audio;
 
     private void UpdatePlayhead()
     {
@@ -419,7 +435,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 
     private void OnPreviewStopped(EditableAudio audio, Exception? error)
     {
-        if (ReferenceEquals(audio, Session.Audio)) // the preview output is shared by every editor window
+        if (ReferenceEquals(audio, _session.Audio)) // the preview output is shared by every editor window
             _dispatcher.BeginInvoke(() => OnOwnPreviewStopped(error));
     }
 
@@ -437,49 +453,51 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         PlayheadFrame = double.NaN;
     }
 
-    private void ApplySelection(ClipSelection selection)
+    private void SetState(SelectionHistory next)
     {
-        if (!SetField(ref _selection, selection, nameof(Selection)))
-            return;
+        var previous = _state;
+        _state = next;
+        if (previous.Current != next.Current)
+        {
+            OnPropertyChanged(nameof(Selection));
+            OnPropertyChanged(nameof(SelectionStartText));
+            OnPropertyChanged(nameof(SelectionEndText));
+            OnPropertyChanged(nameof(SelectionLengthText));
+            OnPropertyChanged(nameof(CanSave));
+        }
 
-        OnPropertyChanged(nameof(SelectionStartText));
-        OnPropertyChanged(nameof(SelectionEndText));
-        OnPropertyChanged(nameof(SelectionLengthText));
-        OnPropertyChanged(nameof(CanSave));
-    }
-
-    /// <summary>Applies a selection popped off the undo history: re-measures only, no sample playback or name suggestion.</summary>
-    private void ApplyHistorySelection(ClipSelection? selection)
-    {
-        if (selection is not { } value)
-            return;
-
-        ApplySelection(Session.Select(value, snap: false));
-        MeasureSelection();
+        if (previous.Cursor != next.Cursor)
+            OnPropertyChanged(nameof(CursorFrame));
     }
 
     private async void MeasureSelection()
     {
         var version = ++_measureVersion;
-        var selection = _selection;
-        _selectionLufs = null;
-        OnPropertyChanged(nameof(LoudnessText));
+        var selection = Selection;
+        SetLoudness(LoudnessReading.Measuring);
         double lufs;
         try
         {
-            lufs = await Task.Run(() => Session.MeasureSelection(selection));
+            lufs = await Task.Run(() => _session.MeasureSelection(selection));
         }
         catch (Exception e) // async void: anything escaping would crash the app via the dispatcher
         {
             if (version == _measureVersion)
+            {
+                SetLoudness(LoudnessReading.Unavailable);
                 Status = $"Couldn't measure loudness: {e.Message}";
+            }
+
             return;
         }
 
-        if (version != _measureVersion)
-            return;
+        if (version == _measureVersion)
+            SetLoudness(LoudnessReading.Of(lufs));
+    }
 
-        _selectionLufs = lufs;
+    private void SetLoudness(LoudnessReading reading)
+    {
+        _loudness = reading;
         OnPropertyChanged(nameof(LoudnessText));
     }
 
@@ -508,44 +526,4 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     }
 
     private string FolderPath(LibraryFolder folder) => LibraryPathResolver.FullPath(_options.LibraryRoot, folder.RelativePath);
-
-    // Leaves the list (and the combo box's open dropdown) alone when nothing about the folders changed.
-    private void RebuildFolders()
-    {
-        var latest = LibraryFolderList.Build(new FileSystemFolderSource(_options.LibraryRoot));
-        if (latest.SequenceEqual(_libraryFolders))
-            return;
-
-        _libraryFolders = latest;
-        Folders = [.. latest, BrowseEntry];
-        OnPropertyChanged(nameof(Folders));
-    }
-
-    /// <summary>Called after a folder picked via <see cref="FolderBrowseRequested"/> comes back; null means the dialog was cancelled.</summary>
-    public void ApplyBrowsedFolder(string? pickedFullPath)
-    {
-        if (pickedFullPath is null)
-            return; // cancelled; the combo box already snapped back to the previous selection
-
-        var relative = LibraryPathResolver.RelativePathWithin(_options.LibraryRoot, pickedFullPath);
-        if (relative is null)
-        {
-            Status = $"Pick a folder inside your library ({_options.LibraryRoot}).";
-            return;
-        }
-
-        RebuildFolders();
-        var found = LibraryFolderList.Find(_libraryFolders, relative);
-        SelectedFolder = found;
-        if (!found.RelativePath.Equals(relative, StringComparison.OrdinalIgnoreCase))
-            Status = $"That folder isn't listed (hidden or nested too deep), so clips will go to {found.Display}.";
-    }
-
-    /// <summary>Call when the library changes on disk: rebuilds the folder list, keeping the selection if it still exists.</summary>
-    public void RefreshFolders()
-    {
-        var previousPath = _selectedFolder.RelativePath;
-        RebuildFolders();
-        SelectedFolder = LibraryFolderList.Find(_libraryFolders, previousPath);
-    }
 }
