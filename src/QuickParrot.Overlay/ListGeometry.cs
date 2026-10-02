@@ -11,6 +11,10 @@ internal static class ListGeometry
     private const float NameFont = 15;
     private const float NumberFont = 18;
 
+    public const float FirstRowCenter = PillGeometry.Margin + HeaderGeometry.TitleHeight
+        + 2 * HeaderGeometry.Padding + HeaderGap + RowHeight / 2;
+    public const float BelowFirstRow = 9 * RowHeight + 8 * RowGap - RowHeight / 2 + PillGeometry.Margin;
+
     public static OverlayLayout Compute(OverlayViewState state, float scale)
     {
         var count = state.WheelEntries.Length;
@@ -38,6 +42,6 @@ internal static class ListGeometry
         }
 
         return new OverlayLayout(OverlayLayoutKind.Wheel, canvas, scale, [panel], [], items, title, subtitle, hint, null,
-            SaveNavigationHint: saveHint);
+            SaveNavigationHint: saveHint, FirstRowCenterY: FirstRowCenter * scale);
     }
 }

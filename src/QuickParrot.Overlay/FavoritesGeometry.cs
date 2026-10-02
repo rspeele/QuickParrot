@@ -36,10 +36,12 @@ internal static class FavoritesGeometry
 
     public static float StripHeight => Padding + TitleHeight + InstructionsHeight + SlotsTop + SlotHeight + Padding;
 
+    public static float FolderTop => Margin + StripHeight + StripGap;
+
     public static OverlayLayout Compute(FavoritesPanel favorites, OverlayLayout folder, float scale)
     {
         var stripWidth = StripWidth * scale;
-        var top = (Margin + StripHeight + StripGap) * scale;
+        var top = FolderTop * scale;
         var canvas = new Size(
             Math.Max((int)MathF.Ceiling(stripWidth + 2 * Margin * scale), folder.CanvasSize.Width),
             (int)MathF.Ceiling(top) + folder.CanvasSize.Height);

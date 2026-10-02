@@ -10,6 +10,7 @@ public static class OverlayLayoutGeometry
 
     private const float MaxMonitorFraction = 0.92f;
     private const float DpiScaleWeight = 0.85f;
+    private const float FirstRowScreenFraction = 444f / ReferenceMonitorHeight;
 
     public static OverlayLayout Compute(OverlayViewState state, float scale) =>
         state.Favorites is { } favorites
@@ -24,7 +25,17 @@ public static class OverlayLayoutGeometry
     /// <summary>Lays out for a monitor (physical pixels, effective DPI), scaled to look alike at any resolution.</summary>
     public static OverlayLayout ComputeForMonitor(OverlayViewState state, Size monitorSize, int dpi)
     {
-        var baseSize = Compute(state, 1).CanvasSize;
+        var baseLayout = Compute(state, 1);
+        var baseSize = baseLayout.CanvasSize;
+        if (baseLayout.FirstRowCenterY is not null)
+        {
+            var marginFraction = (1 - MaxMonitorFraction) / 2;
+            var aboveRow = ListGeometry.FirstRowCenter + FavoritesGeometry.FolderTop;
+            var requiredHeight = MaxMonitorFraction * Math.Max(
+                aboveRow / (FirstRowScreenFraction - marginFraction),
+                ListGeometry.BelowFirstRow / (1 - FirstRowScreenFraction - marginFraction));
+            baseSize = new Size(baseSize.Width, (int)MathF.Ceiling(requiredHeight));
+        }
         return Compute(state, ChooseScale(monitorSize, dpi, baseSize));
     }
 
@@ -35,6 +46,17 @@ public static class OverlayLayoutGeometry
         var fitWidth = MaxMonitorFraction * monitorSize.Width / Math.Max(1, baseCanvasSize.Width);
         var fitHeight = MaxMonitorFraction * monitorSize.Height / Math.Max(1, baseCanvasSize.Height);
         return Math.Max(0.1f, Math.Min(desired, Math.Min(fitWidth, fitHeight)));
+    }
+
+    public static Point PositionOn(Rectangle monitor, OverlayLayout layout)
+    {
+        var centered = CenterOn(monitor, layout.CanvasSize);
+        if (layout.FirstRowCenterY is not float firstRow)
+            return centered;
+
+        var top = monitor.Y + (int)MathF.Round(
+            monitor.Height * FirstRowScreenFraction - layout.FolderOrigin.Y - firstRow);
+        return new Point(centered.X, Math.Clamp(top, monitor.Top, monitor.Top + Math.Max(0, monitor.Height - layout.CanvasSize.Height)));
     }
 
     public static Point CenterOn(Rectangle monitor, Size canvas) =>

@@ -204,7 +204,7 @@ public sealed class OverlayHost : IDisposable
     {
         UpdateMonitor();
         var layout = OverlayLayoutGeometry.ComputeForMonitor(state, _monitor.Bounds.Size, _monitor.Dpi);
-        var topLeft = OverlayLayoutGeometry.CenterOn(_monitor.Bounds, layout.CanvasSize);
+        var topLeft = OverlayLayoutGeometry.PositionOn(_monitor.Bounds, layout);
         Present(layout.CanvasSize, topLeft, g => _renderer!.Draw(g, layout));
     }
 

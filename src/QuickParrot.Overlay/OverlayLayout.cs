@@ -79,6 +79,7 @@ public sealed record FavoritesStrip(
 /// Everything the renderer draws, in canvas pixels. Drawn in order: favorites strip, panels, headers, items, labels.
 /// Everything but the favorites strip is relative to <see cref="FolderOrigin"/>.
 /// </summary>
+/// <param name="FirstRowCenterY">Folder-relative anchor, or null to center the whole canvas.</param>
 public sealed record OverlayLayout(
     OverlayLayoutKind Kind,
     Size CanvasSize,
@@ -92,4 +93,5 @@ public sealed record OverlayLayout(
     OverlayLabel? Note,
     FavoritesStrip? Favorites = null,
     PointF FolderOrigin = default,
-    OverlaySaveNavigationHint? SaveNavigationHint = null);
+    OverlaySaveNavigationHint? SaveNavigationHint = null,
+    float? FirstRowCenterY = null);

@@ -7,7 +7,7 @@ internal static class HeaderGeometry
 {
     public const float Width = 360;
     public const float Padding = 14;
-    private const float TitleHeight = 36;
+    public const float TitleHeight = 36;
     private const float SubtitleFont = 18;
     private const float SubtitleHeight = 28;
 

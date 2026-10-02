@@ -88,7 +88,7 @@ internal static class GridGeometry
 
         return new OverlayLayout(
             OverlayLayoutKind.Grid, canvas, scale, panels, headers, items, title, null, hint, note,
-            SaveNavigationHint: saveHint);
+            SaveNavigationHint: saveHint, FirstRowCenterY: (cellsTop + CellHeight / 2) * scale);
     }
 
     private static OverlayItem Cell(NumberedEntry entry, float x, float y, float width, bool zoomed, bool dimmed, float scale)
