@@ -52,6 +52,12 @@ public sealed class OverlayRenderer : IDisposable
             DrawItem(g, item, layout);
 
         DrawLabel(g, layout.Title, TextColor);
+        if (layout.SaveNavigationHint is { } saveHint)
+        {
+            var label = saveHint.Label;
+            DrawLabel(g, saveHint.Active ? label with { Text = label.Text + " ✓" } : label,
+                saveHint.Active ? Accent : Fade(MutedText));
+        }
         DrawLabel(g, layout.Subtitle, MutedText);
         DrawHint(g, layout.Hint, layout.Scale);
         DrawLabel(g, layout.Note, MutedText);

@@ -24,7 +24,7 @@ internal static class WheelGeometry
             items.Add(PillGeometry.Pill(state.WheelEntries[i], pillCenter, scale));
         }
 
-        var (panel, title, subtitle, hint) = CenterLabels(state, center, scale);
+        var (panel, title, subtitle, hint, saveHint) = CenterLabels(state, center, scale);
         return new OverlayLayout(
             OverlayLayoutKind.Wheel,
             canvas,
@@ -35,17 +35,18 @@ internal static class WheelGeometry
             title,
             subtitle,
             hint,
-            null);
+            null,
+            SaveNavigationHint: saveHint);
     }
 
-    private static (OverlayPanel, OverlayLabel, OverlayLabel?, OverlayHint?) CenterLabels(
+    private static (OverlayPanel, OverlayLabel, OverlayLabel?, OverlayHint?, OverlaySaveNavigationHint?) CenterLabels(
         OverlayViewState state, PointF center, float scale)
     {
         var panelHeight = (HeaderGeometry.ContentHeight(state) + 2 * HeaderGeometry.Padding) * scale;
         var panelBounds = new RectangleF(
             center.X - HeaderGeometry.Width * scale / 2, center.Y - panelHeight / 2, HeaderGeometry.Width * scale, panelHeight);
 
-        var (title, subtitle, hint) = HeaderGeometry.Build(state, panelBounds, scale);
-        return (new OverlayPanel(panelBounds, 16 * scale, OverlayPanelStyle.Panel), title, subtitle, hint);
+        var (title, subtitle, hint, saveHint) = HeaderGeometry.Build(state, panelBounds, scale);
+        return (new OverlayPanel(panelBounds, 16 * scale, OverlayPanelStyle.Panel), title, subtitle, hint, saveHint);
     }
 }

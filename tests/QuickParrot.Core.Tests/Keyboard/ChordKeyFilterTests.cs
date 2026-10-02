@@ -187,7 +187,7 @@ public class ChordKeyFilterTests
 
         AssertSwallowed(Down(One), new DigitPressed(1, true));
         Up(One);
-        AssertPassed(Up(ScanKey.LeftShift));
+        AssertPassed(Up(ScanKey.LeftShift), new ShiftChanged(false));
         AssertSwallowed(Down(One), new DigitPressed(1, false));
     }
 

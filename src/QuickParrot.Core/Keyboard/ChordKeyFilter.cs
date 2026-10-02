@@ -9,6 +9,9 @@ public sealed class ChordKeyFilter
     private const int SlotCount = 512; // scan codes 0-255, doubled for the extended flag
 
     private static readonly ChordEvent Pressed = new ChordPressed();
+    private static readonly ChordEvent ShiftPressed = new ChordPressed(true);
+    private static readonly ChordEvent ShiftDown = new ShiftChanged(true);
+    private static readonly ChordEvent ShiftUp = new ShiftChanged(false);
     private static readonly ChordEvent Released = new ChordReleased();
     private static readonly ChordEvent Cancelled = new ChordCancelled();
     private static readonly ChordEvent Grab = new GrabPressed();
@@ -71,6 +74,7 @@ public sealed class ChordKeyFilter
 
         if (scanCode is 0x2A or 0x36)
         {
+            var wasHeld = ShiftHeld;
             if (!isExtended) // keyboards send extended "fake" shifts around nav keys; they aren't real presses
             {
                 if (scanCode == 0x2A)
@@ -79,7 +83,9 @@ public sealed class ChordKeyFilter
                     _rightShift = isKeyDown;
             }
 
-            return KeyFilterResult.PassThrough;
+            return _chordActive && wasHeld != ShiftHeld
+                ? new KeyFilterResult(false, ShiftHeld ? ShiftDown : ShiftUp)
+                : KeyFilterResult.PassThrough;
         }
 
         // Covers Windows' own simulated shifts around Shift+numpad, reported as e.g. scan code 0x22A.
@@ -170,7 +176,7 @@ public sealed class ChordKeyFilter
         if (key == ChordKey)
         {
             _chordActive = true;
-            return new KeyFilterResult(false, Pressed);
+            return new KeyFilterResult(false, ShiftHeld ? ShiftPressed : Pressed);
         }
 
         if (key == PushToTalkKey)

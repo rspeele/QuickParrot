@@ -3,7 +3,9 @@ namespace QuickParrot.Core.Keyboard;
 /// <summary>Abstract input to the chord navigator, produced by mapping physical keys.</summary>
 public abstract record ChordEvent;
 
-public sealed record ChordPressed : ChordEvent;
+public sealed record ChordPressed(bool Shift = false) : ChordEvent;
+
+public sealed record ShiftChanged(bool Held) : ChordEvent;
 
 public sealed record ChordReleased : ChordEvent;
 

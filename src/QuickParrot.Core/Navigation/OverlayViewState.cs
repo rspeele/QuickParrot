@@ -42,4 +42,6 @@ public sealed record OverlayViewState(
     int? ZoomedColumn,
     bool Truncated,
     FavoritesPanel? Favorites = null,
-    SmallFolderLayout SmallFolderLayout = SmallFolderLayout.List);
+    SmallFolderLayout SmallFolderLayout = SmallFolderLayout.List,
+    bool ShowSaveNavigationHint = false,
+    bool ShiftHeld = false);

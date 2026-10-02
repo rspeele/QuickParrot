@@ -41,7 +41,7 @@ public sealed class ChordNavigator
     public IReadOnlyList<NavigationAction> Handle(ChordEvent evt)
     {
         var (next, actions) = Transition(_session, evt);
-        Apply(next, actions);
+        Apply(next, actions, refreshLayout: evt is not ShiftChanged);
         return actions;
     }
 
@@ -56,14 +56,16 @@ public sealed class ChordNavigator
     private (Session? Next, IReadOnlyList<NavigationAction> Actions) Transition(Session? session, ChordEvent evt) =>
         (session, evt) switch
         {
-            (null, ChordPressed) => Start(),
+            (null, ChordPressed pressed) => Start(pressed.Shift),
             (null, ChordlessFavoritePressed c) when FavoriteSlots.IsValidSlot(c.Slot) =>
                 (null, [new PlayFavorite(c.Slot)]),
             ({ AnyKeyPressed: false, Spent: false }, ChordReleased) => (null, [new StopPlayback()]), // bare tap
             (_, ChordReleased or ChordCancelled) => (null, NoActions),
-            ({ Spent: false } live, DigitPressed d) => Digit(live with { AnyKeyPressed = true }, d.Digit, d.Shift),
+            ({ Spent: false } live, ShiftChanged shift) when live.ShiftHeld != shift.Held =>
+                (live with { ShiftHeld = shift.Held }, Persist(live, shift.Held, live.CurrentPath)),
+            ({ Spent: false } live, DigitPressed d) => Digit(live with { AnyKeyPressed = true, ShiftHeld = d.Shift }, d.Digit, d.Shift),
             ({ Spent: false } live, FavoritePressed f) when FavoriteSlots.IsValidSlot(f.Slot) =>
-                Favorite(live, f.Slot, f.Shift),
+                Favorite(live with { ShiftHeld = f.Shift }, f.Slot, f.Shift),
             ({ Spent: false, AssignSlot: int slot }, FavoriteClearPressed) => (session, [new ClearFavorite(slot)]),
 
             // Like playing a clip, a grab spends the session: the overlay hides and the release won't stop playback.
@@ -73,13 +75,13 @@ public sealed class ChordNavigator
 
     // Falls back to the nearest existing ancestor (ultimately root) if PersistentPath no longer exists,
     // and persists that fallback since PersistentPath is meant to always point somewhere real.
-    private (Session?, IReadOnlyList<NavigationAction>) Start()
+    private (Session?, IReadOnlyList<NavigationAction>) Start(bool shift)
     {
         var path = PersistentPath;
         while (path.Length > 0 && _source.GetEntries(path) is null)
             path = GetParentPath(path);
 
-        return (new Session(path), path == PersistentPath ? NoActions : [new PersistPath(path)]);
+        return (new Session(path, path) { ShiftHeld = shift }, path == PersistentPath ? NoActions : [new PersistPath(path)]);
     }
 
     private (Session?, IReadOnlyList<NavigationAction>) Digit(Session session, int digit, bool shift) =>
@@ -165,7 +167,7 @@ public sealed class ChordNavigator
     }
 
     // An unchanged session keeps its view state, so the engine only republishes real changes.
-    private void Apply(Session? next, IReadOnlyList<NavigationAction> actions)
+    private void Apply(Session? next, IReadOnlyList<NavigationAction> actions, bool refreshLayout = true)
     {
         foreach (var action in actions)
         {
@@ -176,7 +178,7 @@ public sealed class ChordNavigator
         if (ReferenceEquals(next, _session))
             return;
 
-        _session = next is { Spent: false } live ? Relayout(live) : next;
+        _session = refreshLayout && next is { Spent: false } live ? Relayout(live) : next;
         _viewState = _session is { Spent: false } shown ? BuildViewState(shown) : null;
     }
 
@@ -196,7 +198,7 @@ public sealed class ChordNavigator
         {
             return new OverlayViewState(
                 session.CurrentPath, OverlayLayoutKind.Wheel, NumberEntries(layout.WheelEntries), [], null, false,
-                session.Favorites);
+                session.Favorites, ShowSaveNavigationHint: ShouldShowSaveHint(session), ShiftHeld: session.ShiftHeld);
         }
 
         var columns = layout.GridColumns
@@ -205,14 +207,18 @@ public sealed class ChordNavigator
 
         return new OverlayViewState(
             session.CurrentPath, OverlayLayoutKind.Grid, [], columns, session.ZoomedColumn, layout.Truncated,
-            session.Favorites);
+            session.Favorites, ShowSaveNavigationHint: ShouldShowSaveHint(session), ShiftHeld: session.ShiftHeld);
     }
+
+    private static bool ShouldShowSaveHint(Session session) =>
+        session.AssignSlot is null && session.CurrentPath != session.StartingPath;
 
     private static ImmutableArray<NumberedEntry> NumberEntries(ImmutableArray<FolderEntry> entries) =>
         entries.Select((e, i) => new NumberedEntry(i + 1, e.Name, e.IsFolder)).ToImmutableArray();
 
-    private sealed record Session(string CurrentPath)
+    private sealed record Session(string CurrentPath, string StartingPath)
     {
+        public bool ShiftHeld { get; init; }
         public NavigationLayout Layout { get; init; } = EmptyLayout;
         public int? ZoomedColumn { get; init; }
         public bool AnyKeyPressed { get; init; }

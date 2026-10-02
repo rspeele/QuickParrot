@@ -28,6 +28,8 @@ public sealed record OverlayLabel(string Text, RectangleF Bounds, float FontPx, 
 /// <summary>A keycap holding <see cref="Key"/>, followed by <see cref="Action"/>, e.g. "0" then "Up".</summary>
 public sealed record OverlayHint(string Key, string Action, RectangleF Bounds, float FontPx, OverlayTextAlign Align);
 
+public sealed record OverlaySaveNavigationHint(OverlayLabel Label, bool Active);
+
 /// <summary>A wheel pill or grid cell. Empty sub-rectangles mean "don't draw that part".</summary>
 public sealed record OverlayItem(
     int Number,
@@ -89,4 +91,5 @@ public sealed record OverlayLayout(
     OverlayHint? Hint,
     OverlayLabel? Note,
     FavoritesStrip? Favorites = null,
-    PointF FolderOrigin = default);
+    PointF FolderOrigin = default,
+    OverlaySaveNavigationHint? SaveNavigationHint = null);

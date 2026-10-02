@@ -25,7 +25,7 @@ internal static class ListGeometry
 
         var panelBounds = new RectangleF(
             centerX - HeaderGeometry.Width * scale / 2, PillGeometry.Margin * scale, HeaderGeometry.Width * scale, headerHeight * scale);
-        var (title, subtitle, hint) = HeaderGeometry.Build(state, panelBounds, scale);
+        var (title, subtitle, hint, saveHint) = HeaderGeometry.Build(state, panelBounds, scale);
         var panel = new OverlayPanel(panelBounds, 16 * scale, OverlayPanelStyle.Panel);
 
         var items = new List<OverlayItem>(count);
@@ -37,6 +37,7 @@ internal static class ListGeometry
             y += (RowHeight + RowGap) * scale;
         }
 
-        return new OverlayLayout(OverlayLayoutKind.Wheel, canvas, scale, [panel], [], items, title, subtitle, hint, null);
+        return new OverlayLayout(OverlayLayoutKind.Wheel, canvas, scale, [panel], [], items, title, subtitle, hint, null,
+            SaveNavigationHint: saveHint);
     }
 }

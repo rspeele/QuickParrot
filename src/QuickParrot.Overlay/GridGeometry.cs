@@ -38,7 +38,8 @@ internal static class GridGeometry
         var gridWidth = columnCount * MinColumnWidth + (columnCount - 1) * ColumnGap;
         var contentWidth = Math.Max(MinContentWidth, gridWidth);
         var columnWidth = (contentWidth - (columnCount - 1) * ColumnGap) / columnCount;
-        var headerTop = Padding + TitleHeight + TitleGap;
+        var saveHintHeight = SaveNavigationHintGeometry.HeightFor(state);
+        var headerTop = Padding + TitleHeight + saveHintHeight + TitleGap;
         var cellsTop = headerTop + HeaderHeight;
         var cellsHeight = Rows * CellHeight + (Rows - 1) * RowGap;
         var noteHeight = state.Truncated ? NoteHeight : 0;
@@ -94,6 +95,8 @@ internal static class GridGeometry
                 S(Padding + contentWidth - HintWidth, Padding, HintWidth, TitleHeight, scale),
                 HintFont * scale,
                 OverlayTextAlign.Far);
+        var saveHint = SaveNavigationHintGeometry.Build(
+            state, S(Padding, Padding + TitleHeight, contentWidth, saveHintHeight, scale), scale, OverlayTextAlign.Near);
         var note = state.Truncated
             ? new OverlayLabel(
                 $"Only the first {state.GridColumns.Sum(c => c.Entries.Length)} entries are shown",
@@ -104,7 +107,8 @@ internal static class GridGeometry
             : null;
 
         return new OverlayLayout(
-            OverlayLayoutKind.Grid, canvas, scale, panels, headers, items, title, null, hint, note);
+            OverlayLayoutKind.Grid, canvas, scale, panels, headers, items, title, null, hint, note,
+            SaveNavigationHint: saveHint);
     }
 
     private static OverlayItem Cell(NumberedEntry entry, float x, float y, float width, bool zoomed, bool dimmed, float scale)

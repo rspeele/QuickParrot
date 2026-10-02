@@ -16,10 +16,11 @@ internal static class HeaderGeometry
 
     public static float ContentHeight(OverlayViewState state) =>
         TitleHeight
+        + SaveNavigationHintGeometry.HeightFor(state)
         + (state.WheelEntries.Length == 0 ? SubtitleHeight : 0)
         + (OverlayText.HintActionFor(state) is null ? 0 : HintHeight);
 
-    public static (OverlayLabel Title, OverlayLabel? Subtitle, OverlayHint? Hint) Build(
+    public static (OverlayLabel Title, OverlayLabel? Subtitle, OverlayHint? Hint, OverlaySaveNavigationHint? SaveHint) Build(
         OverlayViewState state, RectangleF panelBounds, float scale)
     {
         var textX = panelBounds.X + Padding * scale;
@@ -36,6 +37,8 @@ internal static class HeaderGeometry
         var title = new OverlayLabel(
             OverlayText.TitleFor(state.FolderPath), Line(TitleHeight), TitleFont * scale, OverlayTextAlign.Center,
             OverlayFont.Semibold);
+        var saveHint = SaveNavigationHintGeometry.Build(
+            state, Line(SaveNavigationHintGeometry.HeightFor(state)), scale, OverlayTextAlign.Center);
         var subtitle = state.WheelEntries.Length == 0
             ? new OverlayLabel(
                 OverlayText.EmptyLabel, Line(SubtitleHeight), SubtitleFont * scale, OverlayTextAlign.Center, OverlayFont.Regular)
@@ -44,6 +47,6 @@ internal static class HeaderGeometry
             ? new OverlayHint(OverlayText.HintKey, action, Line(HintHeight), HintFont * scale, OverlayTextAlign.Center)
             : null;
 
-        return (title, subtitle, hint);
+        return (title, subtitle, hint, saveHint);
     }
 }

@@ -28,6 +28,10 @@ B+shift+numbers *persistently* navigates into a folder. If you hold B+shift+1 th
 Trump folder and will start there the next time you hit B. If you use B+shift+numbers all the way to the audio file, it
 both plays the file *and* persistently stays in the folder that contained that file.
 
+Once you leave the folder where the session began, a faint "Shift: Save Navigation" hint appears at the top of the
+overlay. Pressing Shift saves the folder you're viewing; the hint lights up with a checkmark while Shift is held.
+Further navigation while holding Shift keeps updating the saved folder. Releasing Shift keeps the saved location.
+
 B+0 goes up a folder. B+shift+(repeated 0 keypresses) can therefore return one persistently to the top folder. This
 stops at the folder QuickParrot was originally pointed at. You can't navigate up beyond that to browse the broader
 filesystem.
