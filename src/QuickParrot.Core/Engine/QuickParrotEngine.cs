@@ -103,6 +103,9 @@ public sealed class QuickParrotEngine : IDisposable
 
     public void Play(string relativePath) => Post(() => PlayRelative(relativePath));
 
+    /// <summary>Plays like <see cref="Play"/> even while playback is suppressed: the Diagnostics clip test's own play.</summary>
+    public void PlayDespiteSuppression(string relativePath) => Post(() => PlayRelative(relativePath, ignoreSuppression: true));
+
     public void Stop() => Post(_controller.Stop);
 
     public void PlayFavorite(int slot) => Post(() => PlayFavoriteSlot(slot));
@@ -115,8 +118,8 @@ public sealed class QuickParrotEngine : IDisposable
     /// <summary>Saves the replay buffer as a pending grab, like chord+Enter.</summary>
     public void Grab() => Post(StartGrab);
 
-    /// <summary>While suppressed, Play and chord PlayClip requests are ignored; chord navigation itself still works.
-    /// Used by the loopback test so it doesn't record a clip playing over itself.</summary>
+    /// <summary>While suppressed, Play, chord play and chord stop requests are ignored; chord navigation still works.
+    /// Used by the Diagnostics tests so a chord doesn't play or stop a clip under them.</summary>
     public void SuppressPlayback(bool suppress) => Post(() => _suppressPlayback = suppress);
 
     /// <summary>Call when capture devices change, e.g. a mic that couldn't be restored is plugged back in.</summary>
@@ -245,7 +248,7 @@ public sealed class QuickParrotEngine : IDisposable
                 case PlayClip play:
                     PlayRelative(play.RelativePath);
                     break;
-                case StopPlayback:
+                case StopPlayback when !_suppressPlayback: // a Diagnostics test is running and has its own Cancel
                     _controller.Stop();
                     break;
                 case GrabReplay:
@@ -273,9 +276,9 @@ public sealed class QuickParrotEngine : IDisposable
         }
     }
 
-    private void PlayRelative(string relativePath)
+    private void PlayRelative(string relativePath, bool ignoreSuppression = false)
     {
-        if (_suppressPlayback)
+        if (_suppressPlayback && !ignoreSuppression)
             return;
 
         var fullPath = _library?.GetFullPath(relativePath);

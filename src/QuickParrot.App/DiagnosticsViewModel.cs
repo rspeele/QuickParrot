@@ -25,14 +25,18 @@ public sealed class DiagnosticsViewModel : ObservableObject
     private bool _isBusy;
     private string _repairMessage = "";
 
-    public DiagnosticsViewModel(AudioDiagnostics diagnostics, LoopbackTestViewModel test, Action<Action> postToUi)
+    public DiagnosticsViewModel(
+        AudioDiagnostics diagnostics, LoopbackTestViewModel test, ClipCableTestViewModel clipTest, Action<Action> postToUi)
     {
         _diagnostics = diagnostics;
         _diagnostics.Updated += report => postToUi(() => Apply(report));
         Test = test;
+        ClipTest = clipTest;
     }
 
     public LoopbackTestViewModel Test { get; }
+
+    public ClipCableTestViewModel ClipTest { get; }
 
     /// <summary>Raised on the UI thread with every new report.</summary>
     public event Action<DiagnosticsReport>? ReportChanged;

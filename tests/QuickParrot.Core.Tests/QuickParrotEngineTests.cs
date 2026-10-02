@@ -280,6 +280,41 @@ public sealed class QuickParrotEngineTests : IDisposable
         Assert.Contains("play:fake:/wall.wav", _log);
     }
 
+    [Fact]
+    public async Task PlayDespiteSuppression_PlaysThroughTheRealPathWhileChordsStaySuppressed()
+    {
+        _library.AddFile("", "wall.wav");
+
+        _engine.SuppressPlayback(true);
+        _engine.Post(new ChordPressed());
+        _engine.Post(new DigitPressed(1, false));
+        _engine.PlayDespiteSuppression("wall.wav");
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
+        await _engine.FlushAsync();
+        _engine.Stop();
+        await _engine.FlushAsync();
+
+        Assert.Equal(["ptt:press", "prepare:fake:/wall.wav", "play:fake:/wall.wav", "stop", "ptt:release"], _log);
+    }
+
+    [Fact]
+    public async Task SuppressPlayback_IgnoresABareChordTapThatWouldStopTheTestClip()
+    {
+        _library.AddFile("", "wall.wav");
+        _engine.SuppressPlayback(true);
+        _engine.PlayDespiteSuppression("wall.wav");
+        await SettleAsync();
+        _time.Advance(PlaybackOptions.DefaultMargin);
+        await _engine.FlushAsync();
+
+        _engine.Post(new ChordPressed());
+        _engine.Post(new ChordReleased());
+        await _engine.FlushAsync();
+
+        Assert.Equal("play:fake:/wall.wav", _log[^1]);
+    }
+
     public void Dispose() => _engine.Dispose();
 
     // A finished prepare is posted back to the worker by the item that started it, so needs a second pass.

@@ -14,7 +14,6 @@ public sealed class LoopbackTester : ILoopbackTester
     private const int ChimeSampleRate = 48000;
     private static readonly TimeSpan RecordingLength = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ChimeDelay = TimeSpan.FromSeconds(0.4);
-    private static readonly TimeSpan PlaybackSlack = TimeSpan.FromSeconds(3);
 
     private readonly LoopbackTestSignal _signal = LoopbackTestSignal.Default;
 
@@ -51,10 +50,10 @@ public sealed class LoopbackTester : ILoopbackTester
         var result = LoopbackTestAnalyzer.Analyze(samples, sampleRate, _signal);
 
         if (monitorRenderId is null || string.Equals(monitorRenderId, cableRenderId, StringComparison.OrdinalIgnoreCase))
-            return result with { PlaybackError = "no headphones or speakers are selected apart from the cable." };
+            return result with { PlaybackError = CableTestMessages.NoMonitor };
 
         progress?.Report("Playing back what the game hears…");
-        var playbackError = await PlayBackAsync(monitorRenderId, samples, sampleRate, cancellationToken);
+        var playbackError = await MonoPlayback.TryPlayAsync(monitorRenderId, samples, sampleRate, cancellationToken);
         return playbackError is null ? result : result with { PlaybackError = playbackError };
     }
 
@@ -104,41 +103,9 @@ public sealed class LoopbackTester : ILoopbackTester
             if (error is not null)
                 return ([], 0, LoopbackTestResult.Failed($"Recording from CABLE Output failed: {error}"));
             if (sampleRate == 0 || samples.Length < LoopbackTestAnalyzer.MinRecordingSeconds * sampleRate)
-            {
-                return ([], 0, LoopbackTestResult.Failed(
-                    "CABLE Output didn't deliver any audio. Check that it's enabled and not in use by another app in "
-                    + "exclusive mode."));
-            }
+                return ([], 0, LoopbackTestResult.Failed(CableTestMessages.NoAudioFromCable));
 
             return (samples, sampleRate, null);
-        }
-    }
-
-    private static async Task<string?> PlayBackAsync(
-        string monitorRenderId, float[] samples, int sampleRate, CancellationToken cancellationToken)
-    {
-        WasapiOutput playback;
-        try
-        {
-            playback = WasapiOutput.Open(monitorRenderId, Mono(samples, sampleRate));
-        }
-        catch (Exception e)
-        {
-            return e.Message;
-        }
-
-        await using (playback)
-        {
-            playback.Play();
-            try
-            {
-                var duration = TimeSpan.FromSeconds(samples.Length / (double)sampleRate);
-                return (await playback.Stopped.WaitAsync(duration + PlaybackSlack, cancellationToken))?.Message;
-            }
-            catch (TimeoutException)
-            {
-                return null;
-            }
         }
     }
 

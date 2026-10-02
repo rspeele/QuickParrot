@@ -317,6 +317,33 @@
                     <TextBlock DockPanel.Dock="Top" Text="{Binding RepairMessage}" Margin="0,0,0,8" TextWrapping="Wrap"
                                FontStyle="Italic" Visibility="{Binding HasRepairMessage, Converter={StaticResource BoolToVisibility}}" />
 
+                    <GroupBox DockPanel.Dock="Bottom" Header="Hear a clip as others hear it" Margin="0,8,0,0"
+                              DataContext="{Binding ClipTest}">
+                        <StackPanel Margin="8">
+                            <TextBlock Text="{x:Static local:ClipCableTestViewModel.Note}" Foreground="Gray"
+                                       TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                            <DockPanel Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="{Binding ReplayLabel}" Padding="12,2" Margin="8,0,0,0"
+                                        IsEnabled="{Binding CanReplay}" Click="ReplayClipTest_Click" />
+                                <Button DockPanel.Dock="Right" Content="{Binding ButtonLabel}" Padding="12,2" Margin="8,0,0,0"
+                                        IsEnabled="{Binding CanRun}" Click="RunClipTest_Click" />
+                                <ComboBox ItemsSource="{Binding Clips}" SelectedItem="{Binding SelectedClip}"
+                                          IsEnabled="{Binding IsIdle}" DropDownOpened="ClipPicker_DropDownOpened">
+                                    <ComboBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VirtualizingStackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ComboBox.ItemsPanel>
+                                </ComboBox>
+                            </DockPanel>
+
+                            <TextBlock Text="{Binding Progress}" Margin="0,0,0,4" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ResultText}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </GroupBox>
+
                     <GroupBox DockPanel.Dock="Bottom" Header="Test" Margin="0,8,0,0"
                               DataContext="{Binding Test}">
                         <StackPanel Margin="8">

@@ -26,6 +26,7 @@ public sealed class MainViewModel
         Diagnostics = diagnostics;
         Editors = editors;
         Library.ContentsChanged += Favorites.Refresh; // files changed on disk, so the missing marks may be stale
+        Library.ContentsChanged += Diagnostics.ClipTest.MarkClipsStale;
     }
 
     public StatusViewModel Status { get; }

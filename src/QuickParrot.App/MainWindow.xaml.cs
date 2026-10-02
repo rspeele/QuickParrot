@@ -117,6 +117,15 @@ public partial class MainWindow : Window
     private async void RunLoopbackTest_Click(object sender, RoutedEventArgs e) =>
         await _viewModel.Diagnostics.Test.RunOrCancelAsync();
 
+    private async void ClipPicker_DropDownOpened(object? sender, EventArgs e) =>
+        await _viewModel.Diagnostics.ClipTest.LoadClipsIfStaleAsync();
+
+    private async void RunClipTest_Click(object sender, RoutedEventArgs e) =>
+        await _viewModel.Diagnostics.ClipTest.RunOrCancelAsync();
+
+    private async void ReplayClipTest_Click(object sender, RoutedEventArgs e) =>
+        await _viewModel.Diagnostics.ClipTest.ReplayOrStopAsync();
+
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) =>
         _viewModel.Hotkeys.CancelKeyCapture();
 

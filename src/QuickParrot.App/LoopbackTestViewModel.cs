@@ -1,8 +1,6 @@
 using QuickParrot.App.Mvvm;
 using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
-using QuickParrot.Core.Engine;
-using QuickParrot.Core.Settings;
 
 namespace QuickParrot.App;
 
@@ -15,45 +13,19 @@ public sealed class LoopbackTestViewModel : ObservableObject
         + "back to you. If you're in voice chat, others will hear the chime and you.";
 
     private readonly ILoopbackTester _tester;
-    private readonly IAudioDeviceCatalog _devices;
-    private readonly ICaptureDeviceCatalog _captureDevices;
-    private readonly QuickParrotEngine _engine;
-    private readonly SettingsMirror _settings;
+    private readonly CableTestRunner _runner;
     private readonly AudioDiagnostics _diagnostics;
-    private CancellationTokenSource? _cts;
     private bool _isRunning;
-    private bool _setupReady;
     private string _progress = "";
     private LoopbackTestResult? _result;
     private LoopbackTestReport? _report;
 
-    public LoopbackTestViewModel(
-        ILoopbackTester tester,
-        IAudioDeviceCatalog devices,
-        ICaptureDeviceCatalog captureDevices,
-        QuickParrotEngine engine,
-        SettingsMirror settings,
-        AudioDiagnostics diagnostics)
+    public LoopbackTestViewModel(ILoopbackTester tester, CableTestRunner runner, AudioDiagnostics diagnostics)
     {
         _tester = tester;
-        _devices = devices;
-        _captureDevices = captureDevices;
-        _engine = engine;
-        _settings = settings;
+        _runner = runner;
         _diagnostics = diagnostics;
-        _setupReady = ResolveSetup().IsReady;
-    }
-
-    /// <summary>Re-resolves whether the test is ready to run; call this when the audio setup may have changed
-    /// (e.g. a new diagnostics report arrived) rather than resolving devices on every <see cref="CanRun"/> read.</summary>
-    public void Refresh()
-    {
-        var ready = ResolveSetup().IsReady;
-        if (ready != _setupReady)
-        {
-            _setupReady = ready;
-            OnPropertyChanged(nameof(CanRun));
-        }
+        _runner.Changed += () => OnPropertyChanged(nameof(CanRun));
     }
 
     public bool IsRunning
@@ -69,7 +41,7 @@ public sealed class LoopbackTestViewModel : ObservableObject
         }
     }
 
-    public bool CanRun => IsRunning || _setupReady;
+    public bool CanRun => IsRunning || (_runner.IsSetupReady && !_runner.IsBusy);
 
     public string ButtonLabel => IsRunning ? "Cancel" : "Run test";
 
@@ -106,43 +78,39 @@ public sealed class LoopbackTestViewModel : ObservableObject
     {
         if (IsRunning)
         {
-            _cts?.Cancel();
+            _runner.Cancel();
             return;
         }
 
-        var setup = ResolveSetup();
-        if (!setup.IsReady)
+        // Stops a playing clip polluting the recording, and a chord played mid-test starting one.
+        if (_runner.TryStart(recordsCable: true) is not { } run)
             return;
 
-        _engine.Stop(); // don't let a playing clip pollute the recording
-        _engine.SuppressPlayback(true); // ...or a chord played mid-test start playing into it
-        Result = null;
-        Progress = "";
-        IsRunning = true;
-
-        var cts = new CancellationTokenSource();
-        _cts = cts;
-        var progress = new Progress<string>(text => Progress = text); // must be built on the UI thread to post back here
-        try
+        using (run)
         {
-            Result = await _tester.RunAsync(setup.CableRenderId!, setup.CableCaptureId!, setup.MonitorRenderId, progress, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            Progress = "Test cancelled";
-        }
-        finally
-        {
-            _engine.SuppressPlayback(false);
-            if (_cts == cts)
-                _cts = null;
-            cts.Dispose();
-            IsRunning = false;
-            _diagnostics.RequestCheck();
+            Result = null;
+            Progress = "";
+            IsRunning = true;
+            var progress = new Progress<string>(text => Progress = text); // must be built on the UI thread to post back here
+            try
+            {
+                var setup = run.Setup;
+                Result = await _tester.RunAsync(
+                    setup.CableRenderId!, setup.CableCaptureId!, setup.MonitorRenderId, progress, run.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Progress = "Test cancelled";
+            }
+            catch (Exception e)
+            {
+                Result = LoopbackTestResult.Failed($"The test failed: {e.Message}");
+            }
+            finally
+            {
+                IsRunning = false;
+                _diagnostics.RequestCheck();
+            }
         }
     }
-
-    private LoopbackTestSetup ResolveSetup() => LoopbackTestSetup.Resolve(
-        _devices.GetRenderDevices(), _captureDevices.GetCaptureDevices(),
-        _settings.Current.CableDeviceId, _settings.Current.MonitorDeviceId, _devices.GetDefaultRenderDeviceId());
 }

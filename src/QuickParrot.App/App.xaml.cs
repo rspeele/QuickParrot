@@ -4,6 +4,7 @@ using System.Net.Http;
 using QuickParrot.App.Editor;
 using QuickParrot.App.Library;
 using QuickParrot.Audio;
+using QuickParrot.Core.Devices;
 using QuickParrot.Core.Diagnostics;
 using QuickParrot.Core.Engine;
 using QuickParrot.Core.Favorites;
@@ -169,11 +170,20 @@ public partial class App : System.Windows.Application
         engine.GrabFailed += message => overlay.ShowToast(message, TimeSpan.FromSeconds(1.5), isError: true);
         engine.FavoritesNotice += notice => overlay.ShowToast(notice.Message, TimeSpan.FromSeconds(1.5), notice.IsError);
 
-        var loopbackTest = new LoopbackTestViewModel(new LoopbackTester(), _devices, _devices, engine, settings, diagnostics);
-        var diagnosticsViewModel = new DiagnosticsViewModel(diagnostics, loopbackTest, PostToUi);
-        // One-way: the setup test's readiness depends on the devices diagnostics already watches, but it never
-        // references DiagnosticsViewModel back.
-        diagnosticsViewModel.ReportChanged += _ => loopbackTest.Refresh();
+        var devices = _devices;
+        var testRunner = new CableTestRunner(
+            () => LoopbackTestSetup.Resolve(
+                devices.GetRenderDevices(), devices.GetCaptureDevices(), settings.Current.CableDeviceId,
+                settings.Current.MonitorDeviceId, devices.GetDefaultRenderDeviceId()),
+            engine.SuppressPlayback,
+            engine.Stop);
+        var loopbackTest = new LoopbackTestViewModel(new LoopbackTester(), testRunner, diagnostics);
+        var clipTest = new ClipCableTestViewModel(
+            new ClipCableTest(new ClipCableAudio()), testRunner, engine, settings, OpenFolderSource);
+        var diagnosticsViewModel = new DiagnosticsViewModel(diagnostics, loopbackTest, clipTest, PostToUi);
+        // One-way: the tests' readiness depends on the devices diagnostics already watches, but they never
+        // reference DiagnosticsViewModel back.
+        diagnosticsViewModel.ReportChanged += _ => testRunner.Refresh();
         diagnosticsViewModel.ReportChanged += status.ShowDiagnostics;
 
         _library = new LibraryViewModel(settings, engine, status, OpenFolderSource, WatchLibrary, OpenInExplorer, PostToUi);
