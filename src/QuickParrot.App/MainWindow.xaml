@@ -145,6 +145,14 @@
                                 </DockPanel>
 
                                 <DockPanel Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Left" Text="Save navigation key:" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Hotkeys.SaveNavigationKeyDisplay}" Margin="4,0,12,0"
+                                               VerticalAlignment="Center" FontWeight="Bold" />
+                                    <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Click="ChangeSaveNavigationKey_Click"
+                                            ToolTip="While holding the chord key, press this key to start future sessions in the current folder." />
+                                </DockPanel>
+
+                                <DockPanel Margin="0,0,0,8">
                                     <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
                                     <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
                                               ItemsSource="{Binding Settings.SmallFolderLayoutChoices}" SelectedItem="{Binding Settings.SmallFolderLayout}" />

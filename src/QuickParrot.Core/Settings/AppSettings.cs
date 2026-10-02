@@ -20,6 +20,8 @@ public sealed record AppSettings
 
     public ScanKey ChordKey { get; init; } = ScanKey.DefaultChordKey;
 
+    public ScanKey SaveNavigationKey { get; init; } = ScanKey.DefaultSaveNavigationKey;
+
     public bool HotkeysEnabled { get; init; } = true;
 
     /// <summary>Null auto-detects the virtual cable.</summary>
@@ -95,17 +97,26 @@ public sealed record AppSettings
 
     /// <summary>These settings with <paramref name="key"/> as the chord key, or unchanged with the reason it can't be.</summary>
     public (AppSettings Settings, string? Error) WithChordKey(ScanKey key) =>
-        PushToTalkBinding.ValidateChordKey(key) is { } error ? (this, error) : (this with { ChordKey = key }, null);
+        PushToTalkBinding.ValidateChordKey(key) is { } error ? (this, error)
+        : key == SaveNavigationKey ? (this, "The chord key can't be the save navigation key.")
+        : (this with { ChordKey = key }, null);
+
+    public (AppSettings Settings, string? Error) WithSaveNavigationKey(ScanKey key) =>
+        ValidateSaveNavigationKey(key, ChordKey, PushToTalkBinding) is { } error
+            ? (this, error) : (this with { SaveNavigationKey = key }, null);
 
     /// <summary>These settings with <paramref name="binding"/> for push-to-talk, or unchanged with the reason it can't be.</summary>
     public (AppSettings Settings, string? Error) WithPushToTalkBinding(PushToTalkBinding binding) =>
-        binding.Validate(ChordKey) is { } error ? (this, error) : (this with { PushToTalkBinding = binding }, null);
+        binding.Validate(ChordKey) is { } error ? (this, error)
+        : binding.Key == SaveNavigationKey ? (this, "Push-to-talk can't be the save navigation key.")
+        : (this with { PushToTalkBinding = binding }, null);
 
     /// <summary>Clamps out-of-range values, e.g. from a hand-edited settings file.</summary>
     public AppSettings Sanitized() => this with
     {
         NavigatorPersistentPath = NavigatorPersistentPath ?? "",
         ChordKey = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey,
+        SaveNavigationKey = SanitizeSaveNavigationKey(),
         CableVolume = ClampVolume(CableVolume),
         MonitorVolume = ClampVolume(MonitorVolume),
         PreRollMilliseconds = Math.Clamp(PreRollMilliseconds, 0, MaxMarginMilliseconds),
@@ -136,6 +147,28 @@ public sealed record AppSettings
     // An unusable binding is swapped for the default, but disabled so QuickParrot never presses a surprise key.
     private bool IsPushToTalkBindingValid() =>
         PushToTalkBinding.Validate(ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey) is null;
+
+    private ScanKey SanitizeSaveNavigationKey()
+    {
+        var chord = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey;
+        var pushToTalk = IsPushToTalkBindingValid() ? PushToTalkBinding : PushToTalkBinding.Default;
+        if (ValidateSaveNavigationKey(SaveNavigationKey, chord, pushToTalk) is null)
+            return SaveNavigationKey;
+
+        foreach (var candidate in new[] { ScanKey.DefaultSaveNavigationKey, new ScanKey(0x4E, false), new ScanKey(0x35, true) })
+        {
+            if (ValidateSaveNavigationKey(candidate, chord, pushToTalk) is null)
+                return candidate;
+        }
+
+        throw new InvalidOperationException("No save navigation key is available.");
+    }
+
+    private static string? ValidateSaveNavigationKey(ScanKey key, ScanKey chord, PushToTalkBinding pushToTalk) =>
+        !key.IsValidSaveNavigationKey ? $"{key} can't save navigation. Pick a key other than a chord action or modifier."
+        : key == chord ? "The save navigation key can't be the chord key."
+        : key == pushToTalk.Key ? "The save navigation key can't be the push-to-talk key."
+        : null;
 
     private static float ClampVolume(float volume) => float.IsFinite(volume) ? Math.Clamp(volume, 0f, 1f) : 1f;
 }

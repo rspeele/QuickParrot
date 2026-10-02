@@ -1,4 +1,5 @@
 using System.Drawing;
+using QuickParrot.Core.Keyboard;
 using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Overlay.Tests;
@@ -20,7 +21,7 @@ public sealed class SaveNavigationHintTests
             ShowSaveNavigationHint = true,
         };
         var inactive = OverlayLayoutGeometry.Compute(state, scale);
-        var active = OverlayLayoutGeometry.Compute(state with { ShiftHeld = true }, scale);
+        var active = OverlayLayoutGeometry.Compute(state with { SaveNavigationConfirmed = true }, scale);
         var absent = OverlayLayoutGeometry.Compute(state with { ShowSaveNavigationHint = false }, scale);
         var root = OverlayLayoutGeometry.Compute(state with { FolderPath = "", ShowSaveNavigationHint = false }, scale);
         var hint = Assert.IsType<OverlaySaveNavigationHint>(inactive.SaveNavigationHint);
@@ -37,7 +38,7 @@ public sealed class SaveNavigationHintTests
             Assert.Equal(inactive.Title.Bounds, variant.Title.Bounds);
             Assert.Equal(OverlayTextAlign.Near, variant.Title.Align);
         }
-        Assert.Equal("Shift: Save Navigation", hint.Label.Text);
+        Assert.Equal("Num *: Save Nav", hint.Label.Text);
         Assert.Equal(OverlayTextAlign.Center, hint.Label.Align);
         Assert.Equal(inactive.Title.Bounds.Top, hint.Label.Bounds.Top);
         Assert.Equal(inactive.Title.Bounds.Height, hint.Label.Bounds.Height);
@@ -60,12 +61,12 @@ public sealed class SaveNavigationHintTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void HiddenAtStartingFolder_AndDuringFavoritesAssignment(bool assigning)
+    public void HiddenAtSavedFolder_AndDuringFavoritesAssignment(bool assigning)
     {
         var state = ViewStates.Grid(18) with
         {
             ShowSaveNavigationHint = assigning,
-            ShiftHeld = true,
+            SaveNavigationConfirmed = true,
             Favorites = assigning ? ViewStates.Favorites(1) : null,
         };
 
@@ -75,17 +76,29 @@ public sealed class SaveNavigationHintTests
     [Theory]
     [InlineData(SmallFolderLayout.List)]
     [InlineData(SmallFolderLayout.Ring)]
-    public void HintCanBeShownAtRoot_WhenSessionStartedElsewhere(SmallFolderLayout small)
+    public void HintCanBeShownAtRoot_WhenSavedFolderIsElsewhere(SmallFolderLayout small)
     {
         var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(2) with
         {
             SmallFolderLayout = small,
             ShowSaveNavigationHint = true,
-            ShiftHeld = true,
+            SaveNavigationConfirmed = true,
         }, 1);
 
         Assert.NotNull(layout.SaveNavigationHint);
         Assert.Null(layout.Hint);
         Assert.True(new RectangleF(PointF.Empty, layout.CanvasSize).Contains(layout.SaveNavigationHint!.Label.Bounds));
+    }
+
+    [Fact]
+    public void HintNamesTheConfiguredSaveKey()
+    {
+        var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(18) with
+        {
+            ShowSaveNavigationHint = true,
+            SaveNavigationKey = new ScanKey(0x21, false),
+        }, 1);
+
+        Assert.Equal("F: Save Nav", layout.SaveNavigationHint!.Label.Text);
     }
 }

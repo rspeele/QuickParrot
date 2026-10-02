@@ -1,4 +1,5 @@
 using QuickParrot.Core.Navigation;
+using QuickParrot.Core.Keyboard;
 
 namespace QuickParrot.Overlay;
 
@@ -16,6 +17,9 @@ internal static class OverlayText
         var separator = folderPath.LastIndexOf('/');
         return folderPath.Length == 0 ? RootTitle : folderPath[(separator + 1)..];
     }
+
+    public static string SaveNavigationLabel(ScanKey key) =>
+        $"{key.ToString().Replace("Numpad ", "Num ", StringComparison.Ordinal)}: Save Nav";
 
     public static string DisplayName(NumberedEntry entry)
     {

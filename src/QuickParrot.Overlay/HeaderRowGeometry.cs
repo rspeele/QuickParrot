@@ -24,10 +24,12 @@ internal static class HeaderRowGeometry
         var hint = OverlayText.HintActionFor(state) is { } action
             ? new OverlayHint(OverlayText.HintKey, action, hintBounds, HintFont * scale, OverlayTextAlign.Far)
             : null;
+        var saveText = OverlayText.SaveNavigationLabel(state.SaveNavigationKey);
+        var saveFont = saveText.Length > 20 ? 9 : SaveHintFont;
         var saveHint = state.ShowSaveNavigationHint && state.Favorites is null
             ? new OverlaySaveNavigationHint(
-                new OverlayLabel("Shift: Save Navigation", saveBounds, SaveHintFont * scale, OverlayTextAlign.Center,
-                    OverlayFont.Regular), state.ShiftHeld)
+                new OverlayLabel(saveText, saveBounds, saveFont * scale, OverlayTextAlign.Center,
+                    OverlayFont.Regular), state.SaveNavigationConfirmed)
             : null;
 
         return (title, hint, saveHint);

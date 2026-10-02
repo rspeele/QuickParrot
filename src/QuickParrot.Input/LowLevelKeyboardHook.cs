@@ -25,6 +25,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
 
     // Guarded by _lock; the filter itself is only touched on the hook thread while it runs.
     private ScanKey _chordKey;
+    private ScanKey _saveNavigationKey = ScanKey.DefaultSaveNavigationKey;
     private PushToTalkBinding _pushToTalkBinding = PushToTalkBinding.Default;
     private bool _enabled = true;
 
@@ -94,6 +95,26 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
             {
                 _chordKey = value;
                 _thread.Post(() => Emit(_filter.SetChordKey(value)));
+            }
+        }
+    }
+
+    public ScanKey SaveNavigationKey
+    {
+        get
+        {
+            lock (_lock)
+                return _saveNavigationKey;
+        }
+        set
+        {
+            if (!value.IsValidSaveNavigationKey)
+                throw new ArgumentException($"{value} can't save navigation.", nameof(value));
+
+            lock (_lock)
+            {
+                _saveNavigationKey = value;
+                _thread.Post(() => _filter.SaveNavigationKey = value);
             }
         }
     }

@@ -18,6 +18,7 @@ namespace QuickParrot.Core.Engine;
 public sealed class QuickParrotEngine : IDisposable
 {
     public static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1);
+    public static readonly TimeSpan SaveNavigationConfirmationDuration = TimeSpan.FromSeconds(1);
 
     private readonly BlockingCollection<Action> _queue = new();
     private readonly Thread _thread;
@@ -34,6 +35,8 @@ public sealed class QuickParrotEngine : IDisposable
     private volatile ChordNavigator? _navigator;
     private IFolderSource? _library;
     private ITimer? _saveTimer;
+    private ITimer? _navigationConfirmationTimer;
+    private long _navigationConfirmationGeneration;
     private OverlayViewState? _publishedViewState;
     private OverlayViewState? _publishedFrom; // the navigator's state behind _publishedViewState
     private string? _lastPlayed;
@@ -213,13 +216,18 @@ public sealed class QuickParrotEngine : IDisposable
         var smallFolderLayout = _settings.SmallFolderLayout;
         // The small-folder layout only changes how a wheel folder looks.
         if (ReferenceEquals(source, _publishedFrom)
-            && (source is not { Layout: OverlayLayoutKind.Wheel } || _publishedViewState!.SmallFolderLayout == smallFolderLayout))
+            && (source is not { Layout: OverlayLayoutKind.Wheel } || _publishedViewState!.SmallFolderLayout == smallFolderLayout)
+            && (source is null || _publishedViewState!.SaveNavigationKey == _settings.SaveNavigationKey))
         {
             return;
         }
 
         _publishedFrom = source;
-        _publishedViewState = source is null ? null : source with { SmallFolderLayout = smallFolderLayout };
+        _publishedViewState = source is null ? null : source with
+        {
+            SmallFolderLayout = smallFolderLayout,
+            SaveNavigationKey = _settings.SaveNavigationKey,
+        };
         try
         {
             ViewStateChanged?.Invoke(_publishedViewState);
@@ -274,6 +282,32 @@ public sealed class QuickParrotEngine : IDisposable
                     break;
             }
         }
+
+        if (chordEvent is SaveNavigationPressed && navigator.ViewState is { SaveNavigationConfirmed: true })
+            StartNavigationConfirmationTimer(navigator);
+        else if (navigator.ViewState is not { SaveNavigationConfirmed: true })
+            CancelNavigationConfirmationTimer();
+    }
+
+    private void StartNavigationConfirmationTimer(ChordNavigator navigator)
+    {
+        CancelNavigationConfirmationTimer();
+        var generation = _navigationConfirmationGeneration;
+        _navigationConfirmationTimer = _time.CreateTimer(_ => Post(() =>
+        {
+            if (generation != _navigationConfirmationGeneration || !ReferenceEquals(navigator, _navigator))
+                return;
+
+            CancelNavigationConfirmationTimer();
+            navigator.ExpireSaveNavigationConfirmation();
+        }), null, SaveNavigationConfirmationDuration, Timeout.InfiniteTimeSpan);
+    }
+
+    private void CancelNavigationConfirmationTimer()
+    {
+        _navigationConfirmationGeneration++;
+        _navigationConfirmationTimer?.Dispose();
+        _navigationConfirmationTimer = null;
     }
 
     private void PlayRelative(string relativePath, bool ignoreSuppression = false)
@@ -419,6 +453,7 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void OpenLibrary(AppSettings settings)
     {
+        CancelNavigationConfirmationTimer();
         _lastPlayed = null; // relative to the old library
         _library = string.IsNullOrEmpty(settings.LibraryRoot) ? null : _createLibrary(settings.LibraryRoot);
         _navigator = _library is null ? null : new ChordNavigator(_library, settings.NavigatorPersistentPath);
@@ -455,6 +490,7 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void Shutdown()
     {
+        CancelNavigationConfirmationTimer();
         try
         {
             _controller.Dispose();

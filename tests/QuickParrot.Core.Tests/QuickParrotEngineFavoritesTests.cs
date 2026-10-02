@@ -112,7 +112,7 @@ public sealed class QuickParrotEngineFavoritesTests : IDisposable
         Assert.Equal(new FavoriteSlotView(1, "boom", false, null), favorites.Slots[0]);
         Assert.Equal(new FavoriteSlotView(2, "gone", true, null), favorites.Slots[1]);
         Assert.Equal("Wilhelm scream", favorites.LastPlayedName);
-        Assert.Equal("B", favorites.ChordKeyName);
+        Assert.Equal(ScanKey.DefaultChordKey.ToString(), favorites.ChordKeyName);
     }
 
     [Fact]

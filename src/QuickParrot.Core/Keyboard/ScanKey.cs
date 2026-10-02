@@ -5,7 +5,8 @@ namespace QuickParrot.Core.Keyboard;
 /// <summary>A physical key: set-1 scan code plus the E0 "extended" flag, independent of layout and NumLock.</summary>
 public readonly record struct ScanKey(int ScanCode, bool IsExtended)
 {
-    public static readonly ScanKey DefaultChordKey = new(0x30, false); // B
+    public static readonly ScanKey DefaultChordKey = new(0x4A, false);
+    public static readonly ScanKey DefaultSaveNavigationKey = new(0x37, false);
     public static readonly ScanKey Escape = new(0x01, false);
     internal static readonly ScanKey LeftShift = new(0x2A, false);
     internal static readonly ScanKey RightShift = new(0x36, false);
@@ -83,6 +84,9 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
     [JsonIgnore]
     public bool IsValidChordKey =>
         ScanCode is > 0 and <= 0xFF && Digit < 0 && !IsShift && !IsSystemModifier && !IsEnter && this != Escape;
+
+    [JsonIgnore]
+    public bool IsValidSaveNavigationKey => IsValidChordKey && FunctionKey == 0 && !IsClearKey;
 
     /// <summary>Either Ctrl, Alt or Windows key.</summary>
     [JsonIgnore]

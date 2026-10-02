@@ -6,13 +6,14 @@ namespace QuickParrot.App;
 
 public sealed record MouseButtonChoice(PushToTalkMouseButton Button, string Label);
 
-/// <summary>Rebinding the chord key and push-to-talk, validated against the current settings.</summary>
+/// <summary>Rebinding hotkeys, validated against the current settings.</summary>
 public sealed class HotkeysViewModel : ObservableObject
 {
     private static readonly (string, Func<AppSettings, object?>)[] Properties =
     [
         (nameof(ChordKeyDisplay), s => s.ChordKey),
         (nameof(GrabHotkeyDisplay), s => s.ChordKey),
+        (nameof(SaveNavigationKeyDisplay), s => s.SaveNavigationKey),
         (nameof(PushToTalkBindingDisplay), s => s.PushToTalkBinding),
         (nameof(SelectedPushToTalkMouseButton), s => s.PushToTalkBinding),
     ];
@@ -34,6 +35,8 @@ public sealed class HotkeysViewModel : ObservableObject
     public string ChordKeyDisplay => _settings.Current.ChordKey.ToString();
 
     public string GrabHotkeyDisplay => $"{ChordKeyDisplay}+Enter";
+
+    public string SaveNavigationKeyDisplay => _settings.Current.SaveNavigationKey.ToString();
 
     public string PushToTalkBindingDisplay => _settings.Current.PushToTalkBinding.ToString();
 
@@ -71,6 +74,19 @@ public sealed class HotkeysViewModel : ObservableObject
     /// <summary>Waits for the next key press and, if valid, makes it the push-to-talk binding.</summary>
     public Task ChangePushToTalkKeyAsync() => CaptureKeyAsync("push-to-talk", key =>
         TryApplyPushToTalkBinding(PushToTalkBinding.FromKey(key)));
+
+    public Task ChangeSaveNavigationKeyAsync() => CaptureKeyAsync("the save navigation key", key =>
+    {
+        if (_settings.Current.WithSaveNavigationKey(key).Error is { } error)
+        {
+            _status.Report(error);
+            return;
+        }
+
+        var before = _settings.Current.SaveNavigationKey;
+        _settings.Update(s => s.WithSaveNavigationKey(key).Settings);
+        _status.Report(before == key ? $"Save navigation is already {key}." : $"Save navigation key changed to {key}.");
+    });
 
     /// <summary>Cancels an in-progress key capture, e.g. because the window lost focus.</summary>
     public void CancelKeyCapture() => _capture.Cancel();

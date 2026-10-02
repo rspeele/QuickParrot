@@ -107,6 +107,8 @@ public partial class MainWindow : Window
 
     private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangeChordKeyAsync();
 
+    private async void ChangeSaveNavigationKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangeSaveNavigationKeyAsync();
+
     private async void ChangePushToTalkKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangePushToTalkKeyAsync();
 
     private async void Recheck_Click(object sender, RoutedEventArgs e) => await _viewModel.Diagnostics.RecheckAsync();

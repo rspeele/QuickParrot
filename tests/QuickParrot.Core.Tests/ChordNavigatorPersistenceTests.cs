@@ -7,7 +7,7 @@ namespace QuickParrot.Core.Tests;
 public class ChordNavigatorPersistenceTests
 {
     [Fact]
-    public void ShiftSelectFolder_PersistsThatFolder()
+    public void SaveNavigation_PersistsThatFolder()
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
@@ -15,6 +15,7 @@ public class ChordNavigatorPersistenceTests
 
         nav.Handle(new ChordPressed());
         nav.Handle(new DigitPressed(1, true));
+        nav.Handle(new SaveNavigationPressed());
         nav.Handle(new ChordReleased());
 
         Assert.Equal(trump, nav.PersistentPath);
@@ -35,7 +36,7 @@ public class ChordNavigatorPersistenceTests
     }
 
     [Fact]
-    public void ShiftSelectFile_PersistsContainingFolder()
+    public void PickingAFile_KeepsSavedFolder()
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
@@ -62,7 +63,7 @@ public class ChordNavigatorPersistenceTests
     }
 
     [Fact]
-    public void ShiftUp_PersistsNewFolder()
+    public void SaveNavigationAfterGoingUp_PersistsNewFolder()
     {
         var source = new FakeFolderSource();
         var trump = source.AddFolder("", "Trump");
@@ -70,6 +71,7 @@ public class ChordNavigatorPersistenceTests
 
         nav.Handle(new ChordPressed());
         nav.Handle(new DigitPressed(0, true));
+        nav.Handle(new SaveNavigationPressed());
 
         Assert.Equal("", nav.PersistentPath);
     }

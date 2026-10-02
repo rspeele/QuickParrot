@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using QuickParrot.Core.Navigation;
+using QuickParrot.Core.Keyboard;
 
 namespace QuickParrot.Overlay.Tests;
 
@@ -19,11 +20,13 @@ public sealed class OverlayRendererTests
         foreach (var folder in new[] { "But Explain", "" })
         foreach (var kind in new[] { OverlayLayoutKind.Grid, OverlayLayoutKind.Wheel })
         foreach (var small in new[] { SmallFolderLayout.List, SmallFolderLayout.Ring })
+        foreach (var key in new[] { ScanKey.DefaultSaveNavigationKey, new ScanKey(0x37, true), new ScanKey(0x3A, false), new ScanKey(0xFF, true) })
         {
             var state = (kind == OverlayLayoutKind.Grid ? ViewStates.Grid(18, folder) : ViewStates.Wheel(9, folder)) with
             {
                 ShowSaveNavigationHint = true,
-                ShiftHeld = true,
+                SaveNavigationConfirmed = true,
+                SaveNavigationKey = key,
                 SmallFolderLayout = small,
                 ZoomedColumn = kind == OverlayLayoutKind.Grid ? 1 : null,
             };
@@ -44,6 +47,34 @@ public sealed class OverlayRendererTests
         {
             using var font = new Font(family, MathF.Round(px, 1), FontStyle.Regular, GraphicsUnit.Pixel);
             Assert.True(graphics.MeasureString(text, font, PointF.Empty, format).Width <= width, $"{text} would be truncated");
+        }
+    }
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(1.37f)]
+    [InlineData(2f)]
+    public void ConfigurableSaveKeysFitTheHeader_WithConfirmation(float scale)
+    {
+        using var bitmap = new Bitmap(1, 1);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var format = new StringFormat(StringFormatFlags.NoWrap | StringFormatFlags.LineLimit);
+        foreach (var extended in new[] { false, true })
+        for (var code = 1; code <= 0xFF; code++)
+        {
+            var key = new ScanKey(code, extended);
+            if (!key.IsValidSaveNavigationKey)
+                continue;
+            var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(18, "Quotes") with
+            {
+                ShowSaveNavigationHint = true,
+                SaveNavigationConfirmed = true,
+                SaveNavigationKey = key,
+            }, scale);
+            var label = layout.SaveNavigationHint!.Label;
+            using var font = new Font("Segoe UI", MathF.Round(label.FontPx, 1), FontStyle.Regular, GraphicsUnit.Pixel);
+            Assert.True(graphics.MeasureString(label.Text + " ✓", font, PointF.Empty, format).Width <= label.Bounds.Width,
+                $"{label.Text} would be truncated");
         }
     }
 

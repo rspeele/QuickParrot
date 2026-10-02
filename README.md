@@ -10,7 +10,7 @@ it adds is:
 # The visual overlay
 
 QuickParrot displays its overlay over your game. The overlay shows nothing at all until you press and hold the *chord
-hotkey*, B by default.
+hotkey*, Numpad - by default.
 
 While you hold the chord key, your folders are displayed at the center of the screen, with numbers on each. By default
 this is a numbered list, top to bottom, so the order is obvious at a glance; a ring layout is available in settings for
@@ -21,20 +21,19 @@ Still holding the chord key, you press the number to navigate into a folder whic
 option is an audio file, rather than a folder, and you hit that key, it plays that audio file down both the virtual
 cable and your output device.
 
-Releasing B before navigating all the way to an audio file cancels the whole thing, and hitting B again starts over from
-the beginning (top level folder).
+Releasing the chord key before selecting an audio file cancels the session. The next session starts in your saved
+folder, initially the top level folder.
 
-B+shift+numbers *persistently* navigates into a folder. If you hold B+shift+1 then release B, you navigated into the
-Trump folder and will start there the next time you hit B. If you use B+shift+numbers all the way to the audio file, it
-both plays the file *and* persistently stays in the folder that contained that file.
+While holding the chord key, press Numpad * to save the folder you're viewing as the starting point for future
+sessions. This is a single press; holding the save key doesn't keep saving as you navigate. The save navigation key
+is configurable in Hotkeys settings.
 
-Once you leave the folder where the session began, a faint "Shift: Save Navigation" hint appears at the top of the
-overlay. Pressing Shift saves the folder you're viewing; the hint lights up with a checkmark while Shift is held.
-Further navigation while holding Shift keeps updating the saved folder. Releasing Shift keeps the saved location.
+When you're viewing a folder other than your saved folder, a faint "Num *: Save Nav" hint appears in the overlay's
+title row (using your configured key). Saving lights it up with a checkmark for about a second, then it disappears
+until you navigate away from the saved folder.
 
-B+0 goes up a folder. B+shift+(repeated 0 keypresses) can therefore return one persistently to the top folder. This
-stops at the folder QuickParrot was originally pointed at. You can't navigate up beyond that to browse the broader
-filesystem.
+Chord+0 goes up a folder. To return persistently to the top folder, press 0 as needed, then press the save navigation
+key. Navigation stops at the folder QuickParrot was originally pointed at; you can't browse the broader filesystem.
 
 ## Stopping and replacing clips
 
@@ -52,21 +51,21 @@ overlay silently shows only the first 81.
 
 ## Favorites (F1–F12)
 
-The clips you use constantly can live on the F-keys. B+F3 plays whatever is on F3, with the same push-to-talk and
+The clips you use constantly can live on the F-keys. Chord+F3 plays whatever is on F3, with the same push-to-talk and
 replace-the-current-clip behavior as any other clip.
 
-To assign, press B+shift+F3. The overlay switches to the favorites panel: all twelve slots across the top with F3
+To assign, press chord+Shift+F3. The overlay switches to the favorites panel: all twelve slots across the top with F3
 highlighted ("Assigning F3"), and your folders below.
 
 * Pick a clip with the number keys as usual: it goes on F3 without playing.
-* Press F3 again to put the last-played clip on it. (Heard something funny? B+shift+F3, F3.)
+* Press F3 again to put the last-played clip on it. (Heard something funny? Chord+Shift+F3, F3.)
 * Press Delete or Backspace to clear F3.
 * Press a different F-key to switch which slot you're assigning, so you can edit several in one go.
-* Release B to back out without changing anything. This also makes B+shift+F-key the way to just look at your favorites.
+* Release the chord key to back out without changing anything. Chord+Shift+F-key also lets you look at your favorites.
 
-A setting lets the plain F-key play its favorite without holding B, for games that don't use the F-keys. To keep F5
+A setting lets the plain F-key play its favorite without holding the chord key, for games that don't use the F-keys. To keep F5
 refreshing your browser and F2 renaming files, plain F-keys only fire for slots that have a clip, and only while the
-focused window covers the whole screen (i.e. you're in a fullscreen or borderless game). The default is to require B.
+focused window covers the whole screen (i.e. you're in a fullscreen or borderless game). The default is to require the chord.
 
 Favorites can also be managed from the desktop app. If a favorite's file is moved or deleted, its slot shows as missing.
 
@@ -76,10 +75,9 @@ Like number keys, F-keys, Delete and Backspace are swallowed while the chord key
 ## Choosing a chord key
 
 The chord key is configurable. The game still sees the chord key itself, so typing it in chat works, but that means it
-should be a key your game doesn't bind; keys pressed while it's held are taken by QuickParrot. B is the default because
-the number row is easy to reach with one hand, but it conflicts with some games (e.g. the Counter-Strike buy menu). A
-more conservative choice is "-", which pairs well with the numpad for right-handed use. Keys are matched by physical
-position, so the numpad works regardless of NumLock.
+should be a key your game doesn't bind; keys pressed while it's held are taken by QuickParrot. Numpad - is the default
+because the numpad digits and Numpad * save key are easy to reach with one hand. Existing configured chord keys stay
+as they are. Keys are matched by physical position, so the numpad works regardless of NumLock.
 
 Number keys pressed while the chord key is held are also swallowed, so they don't switch weapons in-game.
 
@@ -104,7 +102,7 @@ grab it after the fact. Nothing is written to disk until you grab, and the repla
 
 There are two ways to grab:
 
-* In-game, press chord+Enter (B+Enter by default). The last 30 seconds are saved to a *pending grabs* list, and the
+* In-game, press chord+Enter (Numpad - + Enter by default). The last 30 seconds are saved to a *pending grabs* list, and the
   overlay briefly confirms it. You can keep playing and deal with it later.
 * Out of game, hit "Grab" in the app.
 
@@ -169,8 +167,8 @@ It's modelled on Autodesk-style "marking menus":
 * Crossing a folder's outer edge enters it, and its ring re-centers at the cursor. So one zigzag stroke ("up, then
   right") navigates into a folder and picks a clip within it. A reserved direction (e.g. straight down) goes back up.
 * Releasing the chord key over a file plays it. Releasing back in the current ring's dead zone cancels. A bare tap
-  (never leaving the first dead zone) still stops the playing clip. Shift+release could persist the folder like
-  Shift+number does.
+  (never leaving the first dead zone) still stops the playing clip. The save navigation key could save the current
+  folder during a gesture, just as it does during keyboard navigation.
 * Keyboard digits keep working in the same chord session.
 
 Limits: 8 directions per ring (7 in subfolders, with one reserved for "back"), and accuracy drops past two levels deep,

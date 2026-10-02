@@ -255,12 +255,12 @@ public class ChordNavigatorFavoritesTests
     }
 
     [Fact]
-    public void NormalSession_ShiftDigit_StillPersists()
+    public void NormalSession_ShiftDigit_DoesNotPersist()
     {
         Handle(new ChordPressed());
 
         Handle(new DigitPressed(1, true)); // shift+1 into Trump, outside assign mode
 
-        Assert.Equal("Trump", _nav.PersistentPath);
+        Assert.Equal("", _nav.PersistentPath);
     }
 }

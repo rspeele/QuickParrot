@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using QuickParrot.Core.Favorites;
+using QuickParrot.Core.Keyboard;
 
 namespace QuickParrot.Core.Navigation;
 
@@ -44,4 +45,7 @@ public sealed record OverlayViewState(
     FavoritesPanel? Favorites = null,
     SmallFolderLayout SmallFolderLayout = SmallFolderLayout.List,
     bool ShowSaveNavigationHint = false,
-    bool ShiftHeld = false);
+    bool SaveNavigationConfirmed = false)
+{
+    public ScanKey SaveNavigationKey { get; init; } = ScanKey.DefaultSaveNavigationKey;
+}

@@ -103,6 +103,7 @@ public sealed class QuickParrotEngineTests : IDisposable
 
         _engine.Post(new ChordPressed());
         _engine.Post(new DigitPressed(1, true));
+        _engine.Post(new SaveNavigationPressed());
         await _engine.FlushAsync();
         Assert.Equal(trump, _engine.Settings.NavigatorPersistentPath);
         Assert.Empty(_store.Saved);

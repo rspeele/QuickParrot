@@ -28,6 +28,7 @@ public class ChordNavigatorCancelTests
 
         nav.Handle(new ChordPressed());
         nav.Handle(new DigitPressed(1, true));
+        nav.Handle(new SaveNavigationPressed());
         nav.Handle(new ChordCancelled());
         nav.Handle(new ChordPressed());
 
