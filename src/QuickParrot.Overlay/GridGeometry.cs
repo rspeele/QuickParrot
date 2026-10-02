@@ -9,9 +9,6 @@ internal static class GridGeometry
     private const float Padding = 12;
     private const float TitleHeight = 32;
     private const float TitleGap = 4;
-    private const float TitleFont = 22;
-    private const float HintWidth = 96;
-    private const float HintFont = 14;
     private const float HeaderHeight = 28;
     private const float HeaderFont = 22;
     private const float MinColumnWidth = 160;
@@ -38,8 +35,7 @@ internal static class GridGeometry
         var gridWidth = columnCount * MinColumnWidth + (columnCount - 1) * ColumnGap;
         var contentWidth = Math.Max(MinContentWidth, gridWidth);
         var columnWidth = (contentWidth - (columnCount - 1) * ColumnGap) / columnCount;
-        var saveHintHeight = SaveNavigationHintGeometry.HeightFor(state);
-        var headerTop = Padding + TitleHeight + saveHintHeight + TitleGap;
+        var headerTop = Padding + TitleHeight + TitleGap;
         var cellsTop = headerTop + HeaderHeight;
         var cellsHeight = Rows * CellHeight + (Rows - 1) * RowGap;
         var noteHeight = state.Truncated ? NoteHeight : 0;
@@ -79,24 +75,8 @@ internal static class GridGeometry
             }
         }
 
-        var hintAction = OverlayText.HintActionFor(state);
-        var titleWidth = contentWidth - (hintAction is null ? 0 : HintWidth);
-        var title = new OverlayLabel(
-            OverlayText.TitleFor(state.FolderPath),
-            S(Padding, Padding, titleWidth, TitleHeight, scale),
-            TitleFont * scale,
-            OverlayTextAlign.Near,
-            OverlayFont.Semibold);
-        var hint = hintAction is null
-            ? null
-            : new OverlayHint(
-                OverlayText.HintKey,
-                hintAction,
-                S(Padding + contentWidth - HintWidth, Padding, HintWidth, TitleHeight, scale),
-                HintFont * scale,
-                OverlayTextAlign.Far);
-        var saveHint = SaveNavigationHintGeometry.Build(
-            state, S(Padding, Padding + TitleHeight, contentWidth, saveHintHeight, scale), scale, OverlayTextAlign.Near);
+        var (title, hint, saveHint) = HeaderRowGeometry.Build(
+            state, S(Padding, Padding, contentWidth, TitleHeight, scale), scale);
         var note = state.Truncated
             ? new OverlayLabel(
                 $"Only the first {state.GridColumns.Sum(c => c.Entries.Length)} entries are shown",

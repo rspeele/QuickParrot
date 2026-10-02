@@ -42,10 +42,9 @@ public sealed class GridGeometryTests
     {
         var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(count), scale);
         var contentLeft = layout.Title.Bounds.Left;
-        var contentRight = layout.Title.Bounds.Right;
 
         Assert.Equal(contentLeft, layout.Headers[0].Bounds.Left, 0.01f);
-        Assert.Equal(contentRight, layout.Headers[^1].Bounds.Right, 0.01f);
+        Assert.InRange(layout.CanvasSize.Width - layout.Headers[^1].Bounds.Right, contentLeft, contentLeft + 1);
         Assert.All(layout.Headers, h => Assert.Equal(layout.Headers[0].Bounds.Width, h.Bounds.Width));
         Assert.All(layout.Items, i => Assert.Equal(layout.Headers[0].Bounds.Width, i.Bounds.Width));
     }

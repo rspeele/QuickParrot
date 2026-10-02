@@ -116,7 +116,8 @@ public sealed class ListGeometryTests
 
         Assert.Equal("The Office", layout.Title.Text);
         Assert.Equal(OverlayText.UpAction, layout.Hint?.Action);
-        Assert.True(layout.Hint!.Bounds.Top >= layout.Title.Bounds.Bottom);
+        Assert.Equal(layout.Title.Bounds.Top, layout.Hint!.Bounds.Top);
+        Assert.True(layout.Hint.Bounds.Left > layout.Title.Bounds.Right);
     }
 
     [Fact]

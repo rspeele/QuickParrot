@@ -1,11 +1,52 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using QuickParrot.Core.Navigation;
 
 namespace QuickParrot.Overlay.Tests;
 
 public sealed class OverlayRendererTests
 {
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(1.37f)]
+    [InlineData(2f)]
+    public void HeaderTextFitsItsSlots_IncludingTheActiveSaveCheckmark(float scale)
+    {
+        using var bitmap = new Bitmap(1, 1);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var format = new StringFormat(StringFormatFlags.NoWrap | StringFormatFlags.LineLimit);
+        foreach (var folder in new[] { "But Explain", "" })
+        foreach (var kind in new[] { OverlayLayoutKind.Grid, OverlayLayoutKind.Wheel })
+        foreach (var small in new[] { SmallFolderLayout.List, SmallFolderLayout.Ring })
+        {
+            var state = (kind == OverlayLayoutKind.Grid ? ViewStates.Grid(18, folder) : ViewStates.Wheel(9, folder)) with
+            {
+                ShowSaveNavigationHint = true,
+                ShiftHeld = true,
+                SmallFolderLayout = small,
+                ZoomedColumn = kind == OverlayLayoutKind.Grid ? 1 : null,
+            };
+            var layout = OverlayLayoutGeometry.Compute(state, scale);
+            var save = layout.SaveNavigationHint!.Label;
+
+            AssertFits(layout.Title.Text, "Segoe UI Semibold", layout.Title.FontPx, layout.Title.Bounds.Width);
+            AssertFits(save.Text + " ✓", "Segoe UI", save.FontPx, save.Bounds.Width);
+            if (layout.Hint is { } hint)
+            {
+                using var font = new Font("Segoe UI", MathF.Round(hint.FontPx, 1), FontStyle.Regular, GraphicsUnit.Pixel);
+                var actionWidth = graphics.MeasureString(hint.Action, font, PointF.Empty, format).Width;
+                Assert.True(hint.FontPx * 1.8f + actionWidth <= hint.Bounds.Width);
+            }
+        }
+
+        void AssertFits(string text, string family, float px, float width)
+        {
+            using var font = new Font(family, MathF.Round(px, 1), FontStyle.Regular, GraphicsUnit.Pixel);
+            Assert.True(graphics.MeasureString(text, font, PointF.Empty, format).Width <= width, $"{text} would be truncated");
+        }
+    }
+
     // UpdateLayeredWindow blends premultiplied pixels; a color channel above alpha would glow or fringe.
     [Theory]
     [InlineData(false)]
