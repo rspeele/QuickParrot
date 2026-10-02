@@ -35,6 +35,22 @@ public sealed class GridGeometryTests
     }
 
     [Theory]
+    [InlineData(10, 1f)]
+    [InlineData(18, 1.37f)]
+    [InlineData(27, 2f)]
+    public void Columns_UseTheFullContentWidth(int count, float scale)
+    {
+        var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(count), scale);
+        var contentLeft = layout.Title.Bounds.Left;
+        var contentRight = layout.Title.Bounds.Right;
+
+        Assert.Equal(contentLeft, layout.Headers[0].Bounds.Left, 0.01f);
+        Assert.Equal(contentRight, layout.Headers[^1].Bounds.Right, 0.01f);
+        Assert.All(layout.Headers, h => Assert.Equal(layout.Headers[0].Bounds.Width, h.Bounds.Width));
+        Assert.All(layout.Items, i => Assert.Equal(layout.Headers[0].Bounds.Width, i.Bounds.Width));
+    }
+
+    [Theory]
     [InlineData(10)]
     [InlineData(81)]
     public void CellsAndHeaders_FitTheCanvasWithoutOverlapping(int count)
@@ -80,6 +96,34 @@ public sealed class GridGeometryTests
         var highlight = Assert.Single(layout.Panels, p => p.Style == OverlayPanelStyle.HighlightedColumn).Bounds;
         Assert.All(zoomed, i => Assert.True(highlight.Contains(i.Bounds)));
         Assert.All(zoomed, i => Assert.True(i.NameBounds.Left >= i.NumberBounds.Right));
+    }
+
+    [Theory]
+    [InlineData(12, 1, 0.5f)]
+    [InlineData(18, 2, 1.37f)]
+    [InlineData(81, 9, 2f)]
+    public void Zoomed_BadgesAndFolderIconsFit_WithoutOverlappingNames(int count, int column, float scale)
+    {
+        var layout = OverlayLayoutGeometry.Compute(ViewStates.Grid(count, zoomedColumn: column), scale);
+        var canvas = new RectangleF(PointF.Empty, layout.CanvasSize);
+
+        Assert.All(layout.Panels, p => Assert.True(canvas.Contains(p.Bounds)));
+        Assert.All(layout.Items, item =>
+        {
+            Assert.True(item.Bounds.Contains(item.NameBounds));
+            Assert.True(item.NameBounds.Width > 0);
+            if (!item.NumberBounds.IsEmpty)
+            {
+                Assert.True(item.Bounds.Contains(item.NumberBounds));
+                Assert.True(item.NumberBounds.Right <= item.NameBounds.Left);
+            }
+            if (!item.IconBounds.IsEmpty)
+            {
+                Assert.True(item.Bounds.Contains(item.IconBounds));
+                Assert.True(item.IconBounds.Right <= item.NameBounds.Left);
+                Assert.True(item.NumberBounds.IsEmpty || item.NumberBounds.Right <= item.IconBounds.Left);
+            }
+        });
     }
 
     [Fact]

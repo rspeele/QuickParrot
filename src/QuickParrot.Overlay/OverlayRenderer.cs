@@ -10,7 +10,7 @@ namespace QuickParrot.Overlay;
 /// </summary>
 public sealed class OverlayRenderer : IDisposable
 {
-    private static readonly Color Accent = Color.FromArgb(67, 224, 160);
+    private static readonly Color Accent = Color.FromArgb(164, 207, 176);
     private static readonly Color FolderColor = Color.FromArgb(246, 196, 83);
     private static readonly Color TextColor = Color.FromArgb(244, 246, 250);
     private static readonly Color MutedText = Color.FromArgb(170, 178, 192);
@@ -18,7 +18,7 @@ public sealed class OverlayRenderer : IDisposable
     private static readonly Color PanelBorder = Color.FromArgb(46, 255, 255, 255);
     private static readonly Color PillFill = Color.FromArgb(240, 16, 18, 24);
     private static readonly Color CellFill = Color.FromArgb(160, 40, 44, 54);
-    private static readonly Color HighlightFill = Color.FromArgb(46, 67, 224, 160);
+    private static readonly Color HighlightFill = Color.FromArgb(36, Accent);
     private static readonly Color ErrorColor = Color.FromArgb(255, 122, 89);
     private static readonly Color GlyphInk = Color.FromArgb(14, 16, 22);
     private const int DimmedAlpha = 105;

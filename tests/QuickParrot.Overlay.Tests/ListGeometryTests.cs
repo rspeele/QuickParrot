@@ -27,6 +27,22 @@ public sealed class ListGeometryTests
     }
 
     [Theory]
+    [InlineData(1f)]
+    [InlineData(1.37f)]
+    [InlineData(2f)]
+    public void Rows_UseTheHeaderWidth(float scale)
+    {
+        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(9), scale);
+        var header = layout.Panels.Single().Bounds;
+
+        Assert.All(layout.Items, item =>
+        {
+            Assert.Equal(header.Left, item.Bounds.Left, 0.01f);
+            Assert.Equal(header.Right, item.Bounds.Right, 0.01f);
+        });
+    }
+
+    [Theory]
     [InlineData(1, 1f)]
     [InlineData(2, 1f)]
     [InlineData(5, 1f)]
