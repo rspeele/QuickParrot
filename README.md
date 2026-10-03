@@ -63,11 +63,19 @@ so favorites don't even require hitting the chord key to play, but that might co
 
 ## Search
 
-`Chord+Numpad /` opens a search. `Esc` exits. Search always spans your whole sound library, it's not limited to your
-current `*` folder.
+`Chord+Numpad /` opens a search. `Esc` exits. Search always spans your whole sound library regardless of what subfolder
+you're in.
 
 When searching, if you enter "multiple words" that searches for sound filenames that contain "multiple" and contain
 "words", not necessarily in that order.
+
+## Push to Talk
+
+On the settings tab, you can enable "hold push-to-talk while clips play". QP will send a simulated keystroke holding
+down the key or mouse button you select for the duration of any clip that plays. Pre-roll and post-roll are extra
+margins of push-to-talk time before and after the clip to make sure it gets through in its entirety.
+
+Some games might not accept this fake keyboard input. 🤷‍♂️
 
 ## Grabbing Clips
 
@@ -95,7 +103,7 @@ of setting off anticheat was too high. That's why my overlay only works with win
 Yep, it's AI slop. This is an objectively silly toy and I would not bother making it at all, let alone to this level of
 polish, if I were writing it myself. It's free, take it or leave it.
 
-I did write this README, because AI struggles to get to the point. If you want to read the AI readme, which I originally
-wrote as a design doc but allowed to be edited by agents along the way, it's at [READSLOP.md](READSLOP.md).
+I did write this README, because I don't like reading AI text. There's another one that started as my design doc but
+over time had AI edits accumulate, over at [READSLOP.md](READSLOP.md). I haven't read it, it might be good.
 
 
