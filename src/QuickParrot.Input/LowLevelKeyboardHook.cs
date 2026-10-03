@@ -22,10 +22,13 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
     private readonly Action<ChordEvent> _onChordEvent;
     private readonly HookThread _thread = new("QuickParrot keyboard hook");
     private readonly Lock _lock = new();
+    private readonly KeyboardTextTranslator _text = new();
 
     // Guarded by _lock; the filter itself is only touched on the hook thread while it runs.
     private ScanKey _chordKey;
     private ScanKey _saveNavigationKey = ScanKey.DefaultSaveNavigationKey;
+    private ScanKey _searchKey = ScanKey.DefaultSearchKey;
+    private string? _searchLibrary;
     private PushToTalkBinding _pushToTalkBinding = PushToTalkBinding.Default;
     private bool _enabled = true;
 
@@ -42,6 +45,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
         _filter = new ChordKeyFilter(chordKey, ForegroundWindow.IsFullscreenGame)
         {
             PushToTalkKey = PushToTalkBinding.Default.Key,
+            SearchEnabled = false,
         };
         _chordKey = chordKey;
         _onChordEvent = onChordEvent;
@@ -119,6 +123,40 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
         }
     }
 
+    public ScanKey SearchKey
+    {
+        get { lock (_lock) return _searchKey; }
+        set
+        {
+            if (!value.IsValidSearchKey)
+                throw new ArgumentException($"{value} can't search.", nameof(value));
+            lock (_lock)
+            {
+                _searchKey = value;
+                _thread.Post(() =>
+                {
+                    Emit(_filter.CancelSession());
+                    _filter.SearchKey = value;
+                });
+            }
+        }
+    }
+
+    public void SetSearchLibrary(string? root)
+    {
+        lock (_lock)
+        {
+            if (_searchLibrary == root)
+                return;
+            _searchLibrary = root;
+            _thread.Post(() =>
+            {
+                Emit(_filter.CancelSession());
+                _filter.SearchEnabled = !string.IsNullOrEmpty(root);
+            });
+        }
+    }
+
     /// <summary>
     /// When false every key passes through, except the ups of keys already hidden and push-to-talk merging.
     /// Re-enabling reinstalls the keyboard hook, as manual recovery if Windows silently dropped it.
@@ -178,6 +216,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
             {
                 _capture?.TrySetResult(null);
                 _capture = capture;
+                Emit(_filter.CancelSession());
                 _filter.BeginCapture();
             });
         }
@@ -296,13 +335,23 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
         var isExtended = (flags & LLKHF_EXTENDED) != 0;
         var isKeyDown = (flags & LLKHF_UP) == 0;
         var isInjected = (flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0;
-        if (PushToTalk.HandleKey(scanCode, isExtended, isKeyDown, isInjected))
-            return true;
+        if (!isInjected)
+            _text.Update(key->vkCode, isKeyDown);
 
         var result = _filter.Process(
             scanCode, isExtended, isKeyDown, isInjected, captureAllowed: !_filter.Capturing || OwnsForeground());
 
-        Emit(result.Event);
+        if (result.Event is SearchPressed)
+        {
+            _text.Reset();
+            _text.Update(key->vkCode, isKeyDown);
+        }
+
+        if (!result.Swallow && PushToTalk.HandleKey(scanCode, isExtended, isKeyDown, isInjected))
+            return true;
+
+        Emit(result.Event is SearchKeyPressed
+            ? new SearchTextEntered(_text.Translate(key->vkCode, key->scanCode)) : result.Event);
         if (result.CaptureEnded)
         {
             _capture?.TrySetResult(result.CapturedKey);
@@ -341,7 +390,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
         }
         else
         {
-            current.Emit(current._filter.ResetIfChordActive(current.IsChordKeyDown()));
+            current.Emit(current._filter.ResetIfChordActive(current.IsChordKeyDown(), current.PushToTalk.PhysicallyHeld));
             current.PushToTalk.OnForegroundChanged();
         }
     }
@@ -379,8 +428,9 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
 
     private void ResetFilter()
     {
+        _text.Reset();
         PushToTalk.Resync();
-        Emit(_filter.Reset(IsChordKeyDown()));
+        Emit(_filter.Reset(IsChordKeyDown(), PushToTalk.PhysicallyHeld));
     }
 
     // The hook never hides the chord key, so the async key state tracks it even when the hook missed its events.
@@ -391,6 +441,9 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
     {
         if (chordEvent is null)
             return;
+
+        if (chordEvent is ChordCancelled or SearchSelectionPressed or SearchBackspacePressed)
+            _text.ClearDeadKey();
 
         try
         {

@@ -89,6 +89,8 @@ public sealed unsafe class SendInputPushToTalk : IPushToTalk
 
     internal void Resync() => _merger.SyncPhysical(SystemSeesDown(_merger.Binding));
 
+    internal bool PhysicallyHeld => _merger.PhysicallyHeld;
+
     /// <summary>A failed up may get through to the newly focused window.</summary>
     internal void OnForegroundChanged()
     {

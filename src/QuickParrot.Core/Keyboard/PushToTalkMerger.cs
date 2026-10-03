@@ -27,7 +27,7 @@ public sealed class PushToTalkMerger
     public bool Holding { get; private set; }
 
     /// <summary>The user is physically holding the binding, as far as is known.</summary>
-    internal bool PhysicallyHeld { get; private set; }
+    public bool PhysicallyHeld { get; private set; }
 
     /// <summary>Whether the game should currently see the binding as down.</summary>
     internal bool GameSeesDown => Holding || PhysicallyHeld;

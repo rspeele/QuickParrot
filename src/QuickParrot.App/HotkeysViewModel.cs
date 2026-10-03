@@ -14,6 +14,7 @@ public sealed class HotkeysViewModel : ObservableObject
         (nameof(ChordKeyDisplay), s => s.ChordKey),
         (nameof(GrabHotkeyDisplay), s => s.ChordKey),
         (nameof(SaveNavigationKeyDisplay), s => s.SaveNavigationKey),
+        (nameof(SearchKeyDisplay), s => s.SearchKey),
         (nameof(PushToTalkBindingDisplay), s => s.PushToTalkBinding),
         (nameof(SelectedPushToTalkMouseButton), s => s.PushToTalkBinding),
     ];
@@ -37,6 +38,8 @@ public sealed class HotkeysViewModel : ObservableObject
     public string GrabHotkeyDisplay => $"{ChordKeyDisplay}+Enter";
 
     public string SaveNavigationKeyDisplay => _settings.Current.SaveNavigationKey.ToString();
+
+    public string SearchKeyDisplay => _settings.Current.SearchKey.ToString();
 
     public string PushToTalkBindingDisplay => _settings.Current.PushToTalkBinding.ToString();
 
@@ -86,6 +89,18 @@ public sealed class HotkeysViewModel : ObservableObject
         var before = _settings.Current.SaveNavigationKey;
         _settings.Update(s => s.WithSaveNavigationKey(key).Settings);
         _status.Report(before == key ? $"Save navigation is already {key}." : $"Save navigation key changed to {key}.");
+    });
+
+    public Task ChangeSearchKeyAsync() => CaptureKeyAsync("the search key", key =>
+    {
+        if (_settings.Current.WithSearchKey(key).Error is { } error)
+        {
+            _status.Report(error);
+            return;
+        }
+        var before = _settings.Current.SearchKey;
+        _settings.Update(s => s.WithSearchKey(key).Settings);
+        _status.Report(before == key ? $"Search is already {key}." : $"Search key changed to {key}.");
     });
 
     /// <summary>Cancels an in-progress key capture, e.g. because the window lost focus.</summary>

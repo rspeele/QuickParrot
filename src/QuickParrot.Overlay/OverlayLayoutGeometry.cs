@@ -13,7 +13,8 @@ public static class OverlayLayoutGeometry
     private const float FirstRowScreenFraction = 444f / ReferenceMonitorHeight;
 
     public static OverlayLayout Compute(OverlayViewState state, float scale) =>
-        state.Favorites is { } favorites
+        state.SearchQuery is not null ? SearchGeometry.Compute(state, scale)
+        : state.Favorites is { } favorites
             ? FavoritesGeometry.Compute(favorites, ComputeFolder(state, scale), scale)
             : ComputeFolder(state, scale);
 

@@ -48,4 +48,5 @@ public sealed record OverlayViewState(
     bool SaveNavigationConfirmed = false)
 {
     public ScanKey SaveNavigationKey { get; init; } = ScanKey.DefaultSaveNavigationKey;
+    public string? SearchQuery { get; init; }
 }

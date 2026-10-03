@@ -2,7 +2,7 @@ namespace QuickParrot.Core.Keyboard;
 
 /// <summary>
 /// Turns raw key events into <see cref="ChordEvent"/>s and hides keys pressed while the chord is held (the chord key
-/// itself passes through). Runs inside the low-level hook, so it never allocates per event. Not thread-safe.
+/// itself passes through). Search captures text after the chord is released. Not thread-safe.
 /// </summary>
 public sealed class ChordKeyFilter
 {
@@ -30,6 +30,13 @@ public sealed class ChordKeyFilter
     private bool _rightShift;
     private bool _chordActive;
     private bool _capturing;
+    private int? _searchTriggerSlot;
+
+    public bool SearchActive { get; private set; }
+
+    public bool SearchEnabled { get; set; } = true;
+
+    public ScanKey SearchKey { get; set; } = ScanKey.DefaultSearchKey;
 
     /// <param name="isGameFocused">
     /// Whether a fullscreen game has focus; asked only when a plain F-key with a chordless favorite goes down.
@@ -82,7 +89,15 @@ public sealed class ChordKeyFilter
                     _rightShift = isKeyDown;
             }
 
-            return KeyFilterResult.PassThrough;
+            if (isExtended)
+                return KeyFilterResult.PassThrough;
+
+            var shiftSlot = SlotOf(scanCode, false);
+            if (!SearchActive && !_swallowed[shiftSlot])
+            {
+                _held[shiftSlot] = isKeyDown;
+                return KeyFilterResult.PassThrough;
+            }
         }
 
         // Covers Windows' own simulated shifts around Shift+numpad, reported as e.g. scan code 0x22A.
@@ -98,6 +113,8 @@ public sealed class ChordKeyFilter
     public void BeginCapture() => _capturing = true;
 
     public void CancelCapture() => _capturing = false;
+
+    public ChordEvent? CancelSession() => EndChord();
 
     /// <summary>Returns <see cref="ChordCancelled"/> if this ends an active chord.</summary>
     public ChordEvent? SetChordKey(ScanKey chordKey)
@@ -124,7 +141,7 @@ public sealed class ChordKeyFilter
     /// Forgets key state after events may have been missed; if <paramref name="chordKeyDown"/>, it's still
     /// physically held, so its repeats don't start a chord. Returns <see cref="ChordCancelled"/> if a chord was active.
     /// </summary>
-    public ChordEvent? Reset(bool chordKeyDown = false)
+    public ChordEvent? Reset(bool chordKeyDown = false, bool pushToTalkDown = false)
     {
         Array.Clear(_held);
         Array.Clear(_swallowed);
@@ -132,6 +149,8 @@ public sealed class ChordKeyFilter
         _rightShift = false;
         if (chordKeyDown)
             _held[SlotOf(ChordKey.ScanCode, ChordKey.IsExtended)] = true;
+        if (pushToTalkDown && PushToTalkKey is { } pushToTalk)
+            _held[SlotOf(pushToTalk.ScanCode, pushToTalk.IsExtended)] = true;
 
         return EndChord();
     }
@@ -140,7 +159,8 @@ public sealed class ChordKeyFilter
     /// <see cref="Reset"/>s only if a chord is active, for when its release may have gone missing (focus
     /// switch); otherwise hidden keys stay hidden through their up.
     /// </summary>
-    public ChordEvent? ResetIfChordActive(bool chordKeyDown) => _chordActive ? Reset(chordKeyDown) : null;
+    public ChordEvent? ResetIfChordActive(bool chordKeyDown, bool pushToTalkDown = false) =>
+        _chordActive || SearchActive ? Reset(chordKeyDown, pushToTalkDown) : null;
 
     public static void ThrowIfInvalid(ScanKey chordKey)
     {
@@ -151,7 +171,9 @@ public sealed class ChordKeyFilter
     private KeyFilterResult KeyDown(int slot, ScanKey key, bool captureAllowed)
     {
         if (_held[slot]) // auto-repeat: treat it like the original press
-            return _swallowed[slot] ? KeyFilterResult.SwallowSilently : KeyFilterResult.PassThrough;
+            return SearchActive && _swallowed[slot] && slot != _searchTriggerSlot && key.Digit < 0 && !key.IsEnter
+                ? SearchInput(key)
+                : _swallowed[slot] ? KeyFilterResult.SwallowSilently : KeyFilterResult.PassThrough;
 
         _held[slot] = true;
         if (!_capturing)
@@ -170,6 +192,12 @@ public sealed class ChordKeyFilter
         if (!Enabled)
             return KeyFilterResult.PassThrough;
 
+        if (SearchActive)
+        {
+            _swallowed[slot] = true;
+            return SearchInput(key);
+        }
+
         if (key == ChordKey)
         {
             _chordActive = true;
@@ -178,6 +206,14 @@ public sealed class ChordKeyFilter
 
         if (key == PushToTalkKey)
             return KeyFilterResult.PassThrough;
+
+        if (_chordActive && SearchEnabled && key == SearchKey)
+        {
+            _swallowed[slot] = true;
+            SearchActive = true;
+            _searchTriggerSlot = slot;
+            return new KeyFilterResult(true, new SearchPressed());
+        }
 
         if (_chordActive && key == SaveNavigationKey)
         {
@@ -228,6 +264,8 @@ public sealed class ChordKeyFilter
         _held[slot] = false;
         var swallow = _swallowed[slot];
         _swallowed[slot] = false;
+        if (_searchTriggerSlot == slot)
+            _searchTriggerSlot = null;
         if (_chordActive && key == ChordKey)
         {
             _chordActive = false;
@@ -239,11 +277,31 @@ public sealed class ChordKeyFilter
 
     private ChordEvent? EndChord()
     {
-        if (!_chordActive)
+        if (!_chordActive && !SearchActive)
             return null;
 
+        SearchActive = false;
+        _searchTriggerSlot = null;
         _chordActive = false;
         return Cancelled;
+    }
+
+    private KeyFilterResult SearchInput(ScanKey key)
+    {
+        if (key == ScanKey.Escape)
+            return new KeyFilterResult(true, EndChord());
+
+        if (key.IsEnter || key.Digit is >= 1 and <= 9)
+        {
+            SearchActive = false;
+            return new KeyFilterResult(true, new SearchSelectionPressed(key.IsEnter ? 1 : key.Digit));
+        }
+
+        if (key.Digit == 0)
+            return KeyFilterResult.SwallowSilently;
+
+        return new KeyFilterResult(true, key.ScanCode == 0x0E && !key.IsExtended
+            ? new SearchBackspacePressed() : new SearchKeyPressed(key));
     }
 
     private static int SlotOf(int scanCode, bool isExtended) => scanCode | (isExtended ? 0x100 : 0);

@@ -210,6 +210,12 @@ internal static unsafe partial class NativeMethods
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int vKey);
 
+    [LibraryImport("user32.dll")]
+    public static partial short GetKeyState(int nVirtKey);
+
+    [LibraryImport("user32.dll")]
+    public static partial int ToUnicodeEx(uint virtualKey, uint scanCode, byte* state, char* text, int capacity, uint flags, nint layout);
+
     [LibraryImport("user32.dll", SetLastError = true)]
     public static partial uint SendInput(uint cInputs, INPUT* pInputs, int cbSize);
 

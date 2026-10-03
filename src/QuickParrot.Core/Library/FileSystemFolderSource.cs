@@ -56,6 +56,35 @@ public sealed class FileSystemFolderSource : IFolderSource
     public bool ClipExists(string relativePath) =>
         GetFullPath(relativePath) is { } fullPath && IsAudioFile(Path.GetExtension(fullPath)) && File.Exists(fullPath);
 
+    public IReadOnlyList<FolderEntry> GetAllClips()
+    {
+        var clips = new List<FolderEntry>();
+        var folders = new Stack<string>();
+        folders.Push(_root);
+        var options = new EnumerationOptions
+        {
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
+            IgnoreInaccessible = true,
+        };
+        while (folders.TryPop(out var folder))
+        {
+            try
+            {
+                foreach (var info in new DirectoryInfo(folder).EnumerateFileSystemInfos("*", options))
+                {
+                    if (info is DirectoryInfo)
+                        folders.Push(info.FullName);
+                    else if (IsAudioFile(info.Extension))
+                        clips.Add(new FolderEntry(info.Name, false, Path.GetRelativePath(_root, info.FullName).Replace('\\', '/')));
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+        return clips;
+    }
+
     // Resolves a "/"-separated relative path under the root, returning null if it would escape the root.
     private string? ResolvePath(string relativePath)
     {

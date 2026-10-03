@@ -234,6 +234,9 @@ public partial class App : System.Windows.Application
             hook.ChordKey = settings.ChordKey;
         if (hook.SaveNavigationKey != settings.SaveNavigationKey)
             hook.SaveNavigationKey = settings.SaveNavigationKey;
+        if (hook.SearchKey != settings.SearchKey)
+            hook.SearchKey = settings.SearchKey;
+        hook.SetSearchLibrary(settings.LibraryRoot);
         if (hook.PushToTalkBinding != settings.PushToTalkBinding)
             hook.PushToTalkBinding = settings.PushToTalkBinding;
         if (hook.Enabled != settings.HotkeysEnabled)

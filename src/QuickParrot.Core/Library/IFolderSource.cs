@@ -14,4 +14,6 @@ public interface IFolderSource
 
     /// <summary>Whether <paramref name="relativePath"/> is an audio file inside the library (not a folder).</summary>
     bool ClipExists(string relativePath);
+
+    IReadOnlyList<FolderEntry> GetAllClips() => LibrarySearch.Collect(this);
 }

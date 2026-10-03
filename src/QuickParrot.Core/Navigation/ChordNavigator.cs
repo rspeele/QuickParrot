@@ -18,6 +18,7 @@ public sealed class ChordNavigator
 
     private readonly IFolderSource _source;
     private Session? _session;
+    private SearchSession? _search;
     private volatile OverlayViewState? _viewState;
 
     public ChordNavigator(IFolderSource source, string persistentPath = "")
@@ -40,9 +41,56 @@ public sealed class ChordNavigator
 
     public IReadOnlyList<NavigationAction> Handle(ChordEvent evt)
     {
+        if (evt is SearchPressed && _session is not null)
+        {
+            _session = null;
+            _search = new SearchSession(_source.GetAllClips(), "", []);
+            UpdateSearch("");
+            return NoActions;
+        }
+
+        if (_search is not null)
+            return HandleSearch(evt);
+
         var (next, actions) = Transition(_session, evt);
         Apply(next, actions, refreshLayout: evt is not SaveNavigationPressed);
         return actions;
+    }
+
+    private IReadOnlyList<NavigationAction> HandleSearch(ChordEvent evt)
+    {
+        var search = _search!;
+        switch (evt)
+        {
+            case SearchTextEntered text:
+                UpdateSearch(search.Query + string.Concat(text.Text.Where(c => !char.IsControl(c) && !char.IsDigit(c))));
+                break;
+            case SearchBackspacePressed when search.Query.Length > 0:
+                var elements = System.Globalization.StringInfo.ParseCombiningCharacters(search.Query);
+                UpdateSearch(search.Query[..elements[^1]]);
+                break;
+            case SearchSelectionPressed select:
+                _search = null;
+                _viewState = null;
+                var index = select.Number - 1;
+                return index >= 0 && index < search.Matches.Length
+                    ? [new PlayClip(search.Matches[index].RelativePath)] : NoActions;
+            case ChordCancelled:
+                _search = null;
+                _viewState = null;
+                break;
+        }
+        return NoActions;
+    }
+
+    private void UpdateSearch(string query)
+    {
+        var search = _search!;
+        var matches = LibrarySearch.Match(search.Clips, query);
+        _search = search with { Query = query, Matches = matches };
+        _viewState = new OverlayViewState("", OverlayLayoutKind.Wheel,
+            matches.Select((entry, index) => new NumberedEntry(index + 1, entry.Name, false)).ToImmutableArray(),
+            [], null, false) { SearchQuery = query };
     }
 
     internal void ExpireSaveNavigationConfirmation()
@@ -231,4 +279,6 @@ public sealed class ChordNavigator
         /// <summary>Set only in assign mode, once the engine supplies it.</summary>
         public FavoritesPanel? Favorites { get; init; }
     }
+
+    private sealed record SearchSession(IReadOnlyList<FolderEntry> Clips, string Query, FolderEntry[] Matches);
 }

@@ -22,6 +22,8 @@ public sealed record AppSettings
 
     public ScanKey SaveNavigationKey { get; init; } = ScanKey.DefaultSaveNavigationKey;
 
+    public ScanKey SearchKey { get; init; } = ScanKey.DefaultSearchKey;
+
     public bool HotkeysEnabled { get; init; } = true;
 
     /// <summary>Null auto-detects the virtual cable.</summary>
@@ -99,16 +101,24 @@ public sealed record AppSettings
     public (AppSettings Settings, string? Error) WithChordKey(ScanKey key) =>
         PushToTalkBinding.ValidateChordKey(key) is { } error ? (this, error)
         : key == SaveNavigationKey ? (this, "The chord key can't be the save navigation key.")
+        : key == SearchKey ? (this, "The chord key can't be the search key.")
         : (this with { ChordKey = key }, null);
 
     public (AppSettings Settings, string? Error) WithSaveNavigationKey(ScanKey key) =>
         ValidateSaveNavigationKey(key, ChordKey, PushToTalkBinding) is { } error
-            ? (this, error) : (this with { SaveNavigationKey = key }, null);
+            ? (this, error)
+            : key == SearchKey ? (this, "The save navigation key can't be the search key.")
+            : (this with { SaveNavigationKey = key }, null);
+
+    public (AppSettings Settings, string? Error) WithSearchKey(ScanKey key) =>
+        ValidateSearchKey(key, ChordKey, PushToTalkBinding, SaveNavigationKey) is { } error
+            ? (this, error) : (this with { SearchKey = key }, null);
 
     /// <summary>These settings with <paramref name="binding"/> for push-to-talk, or unchanged with the reason it can't be.</summary>
     public (AppSettings Settings, string? Error) WithPushToTalkBinding(PushToTalkBinding binding) =>
         binding.Validate(ChordKey) is { } error ? (this, error)
         : binding.Key == SaveNavigationKey ? (this, "Push-to-talk can't be the save navigation key.")
+        : binding.Key == SearchKey ? (this, "Push-to-talk can't be the search key.")
         : (this with { PushToTalkBinding = binding }, null);
 
     /// <summary>Clamps out-of-range values, e.g. from a hand-edited settings file.</summary>
@@ -117,6 +127,7 @@ public sealed record AppSettings
         NavigatorPersistentPath = NavigatorPersistentPath ?? "",
         ChordKey = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey,
         SaveNavigationKey = SanitizeSaveNavigationKey(),
+        SearchKey = SanitizeSearchKey(),
         CableVolume = ClampVolume(CableVolume),
         MonitorVolume = ClampVolume(MonitorVolume),
         PreRollMilliseconds = Math.Clamp(PreRollMilliseconds, 0, MaxMarginMilliseconds),
@@ -168,6 +179,28 @@ public sealed record AppSettings
         !key.IsValidSaveNavigationKey ? $"{key} can't save navigation. Pick a key other than a chord action or modifier."
         : key == chord ? "The save navigation key can't be the chord key."
         : key == pushToTalk.Key ? "The save navigation key can't be the push-to-talk key."
+        : null;
+
+    private ScanKey SanitizeSearchKey()
+    {
+        var chord = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey;
+        var pushToTalk = IsPushToTalkBindingValid() ? PushToTalkBinding : PushToTalkBinding.Default;
+        var save = SanitizeSaveNavigationKey();
+        if (ValidateSearchKey(SearchKey, chord, pushToTalk, save) is null)
+            return SearchKey;
+        foreach (var candidate in new[] { ScanKey.DefaultSearchKey, new ScanKey(0x4E, false), new ScanKey(0x53, false), new ScanKey(0x35, false) })
+        {
+            if (ValidateSearchKey(candidate, chord, pushToTalk, save) is null)
+                return candidate;
+        }
+        throw new InvalidOperationException("No search key is available.");
+    }
+
+    private static string? ValidateSearchKey(ScanKey key, ScanKey chord, PushToTalkBinding pushToTalk, ScanKey save) =>
+        !key.IsValidSearchKey ? $"{key} can't search. Pick a key other than a chord action or modifier."
+        : key == chord ? "The search key can't be the chord key."
+        : key == pushToTalk.Key ? "The search key can't be the push-to-talk key."
+        : key == save ? "The search key can't be the save navigation key."
         : null;
 
     private static float ClampVolume(float volume) => float.IsFinite(volume) ? Math.Clamp(volume, 0f, 1f) : 1f;

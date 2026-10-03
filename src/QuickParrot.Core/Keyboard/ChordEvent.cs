@@ -25,3 +25,13 @@ public sealed record FavoriteClearPressed : ChordEvent;
 
 /// <summary>A plain F-key, without the chord, in a fullscreen game: play that favorite outside any session.</summary>
 public sealed record ChordlessFavoritePressed(int Slot) : ChordEvent;
+
+public sealed record SearchPressed : ChordEvent;
+
+public sealed record SearchTextEntered(string Text) : ChordEvent;
+
+public sealed record SearchBackspacePressed : ChordEvent;
+
+public sealed record SearchSelectionPressed(int Number) : ChordEvent;
+
+public sealed record SearchKeyPressed(ScanKey Key) : ChordEvent;
