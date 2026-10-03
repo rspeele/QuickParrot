@@ -1,7 +1,8 @@
-QuickParrot is a soundboard for Windows gaming that lets you pull up the exact clip you want in a few keystrokes,
-without manually assigning a ton of hotkeys and trying to remember them. It relies on [VB Audio virtual
-cable](https://vb-audio.com/Cable/) to play sounds into your programs like a microphone. It can display an overlay, as
-long as your game runs in a borderless window instead of true exclusive fullscreen.
+[QuickParrot](https://github.com/rspeele/QuickParrot/releases/download/v0.1/QuickParrot.App.exe) is a soundboard for
+Windows gaming that lets you pull up the exact clip you want in a few keystrokes, without manually assigning a ton of
+hotkeys and trying to remember them. It relies on [VB Audio virtual cable](https://vb-audio.com/Cable/) to play sounds
+into your programs like a microphone. It can display an overlay, as long as your game runs in a borderless window
+instead of true exclusive fullscreen.
 
 You pick a sound, potentially from subfolders, by holding down a chord key (default `Num-`) while hitting number keys.
 
@@ -22,8 +23,9 @@ especially since in the modern era our beloved ol' Control Panel has been hidden
 # Installing
 
 First you have to install [VB Audio virtual cable](https://vb-audio.com/Cable/). Confirm that you now have an audio
-device called "Cable Input (VB-Audio Virtual Cable). Then run QuickParrot and go to the diagnostics tab and it'll help
-you set up the rest.
+device called "Cable Input (VB-Audio Virtual Cable). Then [get and run
+QuickParrot](https://github.com/rspeele/QuickParrot/releases/download/v0.1/QuickParrot.App.exe) and go to the
+diagnostics tab and it'll help you set up the rest.
 
 If you want to understand this: the way it works is that you'll set your microphone in games, mumble, etc to "VB
 Output". Yes, it's confusing that you select "output" for an "input device". But from another angle it makes sense:
@@ -61,11 +63,23 @@ so favorites don't even require hitting the chord key to play, but that might co
 
 ## Search
 
-Chord+`Numpad /` opens a search. `Esc` exits. Search always spans your whole sound library, it's not limited to your
+`Chord+Numpad /` opens a search. `Esc` exits. Search always spans your whole sound library, it's not limited to your
 current `*` folder.
 
 When searching, if you enter "multiple words" that searches for sound filenames that contain "multiple" and contain
 "words", not necessarily in that order.
+
+## Grabbing Clips
+
+`Chord+Enter` grabs a clip of the last 30 seconds. This goes in the "pending grabs" on the library tab. Double-clicking
+that opens it and you can save snippets from that 30-second buffer by dragging the start and end segments, then typing a
+name for the file and hitting save.
+
+I recomment using `Ctrl+S` after you've dragged the boundaries of the clip where you want. That focuses the textbox,
+replays the chosen clip so you can hear it while you type, and enter saves it.
+
+You can hook up an AI via the LiteLLM API in the settings tab. After doing that you can suggest a name for the clip with
+`Ctrl+E`. But it's kind of a waste of time when you could just type it in 2 seconds. This was less cool than I imagined.
 
 # Anticheat
 
