@@ -43,7 +43,12 @@ public sealed record OverlayItem(
     float NameFontPx,
     float NumberFontPx,
     bool Highlighted,
-    bool Dimmed);
+    bool Dimmed)
+{
+    public OverlayLabel? TopFolder { get; init; }
+    public OverlayLabel? ParentFolder { get; init; }
+    public Color? TopFolderColor { get; init; }
+}
 
 public sealed record OverlayColumnHeader(int Number, RectangleF Bounds, float FontPx, bool Dimmed);
 
@@ -94,4 +99,7 @@ public sealed record OverlayLayout(
     FavoritesStrip? Favorites = null,
     PointF FolderOrigin = default,
     OverlaySaveNavigationHint? SaveNavigationHint = null,
-    float? FirstRowCenterY = null);
+    float? FirstRowCenterY = null)
+{
+    public IReadOnlyList<OverlayLabel> ColumnLabels { get; init; } = [];
+}

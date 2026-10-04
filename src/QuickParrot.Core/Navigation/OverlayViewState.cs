@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Keyboard;
+using QuickParrot.Core.Library;
 
 namespace QuickParrot.Core.Navigation;
 
@@ -17,7 +18,10 @@ public enum SmallFolderLayout
     Ring,
 }
 
-public sealed record NumberedEntry(int Number, string Name, bool IsFolder);
+public sealed record NumberedEntry(int Number, string Name, bool IsFolder)
+{
+    public LibrarySearchFolderContext? FolderContext { get; init; }
+}
 
 public sealed record GridColumn(int Number, ImmutableArray<NumberedEntry> Entries);
 

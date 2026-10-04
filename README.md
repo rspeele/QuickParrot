@@ -66,8 +66,11 @@ so favorites don't even require hitting the chord key to play, but that might co
 `Chord+Numpad /` opens a search. `Esc` exits. Search always spans your whole sound library regardless of what subfolder
 you're in.
 
-When searching, if you enter "multiple words" that searches for sound filenames that contain "multiple" and contain
-"words", not necessarily in that order.
+Search matches filenames (without their extensions) and all folder names relative to the library root, ignoring case.
+If you enter "multiple words", both words must appear, in any order, and can be spread across the filename and folders.
+Each result shows its top-level folder and immediate parent folder in fixed columns to the right of the clip name.
+Clips directly in the library root leave both folder columns blank.
+Top-level folders use consistent colors during a search, and compact folder columns leave more room for long clip names.
 
 ## Push to Talk
 

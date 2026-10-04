@@ -51,6 +51,9 @@ public sealed class OverlayRenderer : IDisposable
         foreach (var item in layout.Items)
             DrawItem(g, item, layout);
 
+        foreach (var column in layout.ColumnLabels)
+            DrawLabel(g, column, MutedText);
+
         DrawLabel(g, layout.Title, TextColor);
         if (layout.SaveNavigationHint is { } saveHint)
         {
@@ -138,6 +141,9 @@ public sealed class OverlayRenderer : IDisposable
 
         var nameColor = item.Dimmed ? Fade(TextColor) : TextColor;
         DrawText(g, item.Name, item.NameBounds, Font(TextFamily, item.NameFontPx, FontStyle.Regular), nameColor, OverlayTextAlign.Near);
+        var topFolderColor = item.TopFolderColor ?? MutedText;
+        DrawLabel(g, item.TopFolder, item.Dimmed ? Fade(topFolderColor) : topFolderColor);
+        DrawLabel(g, item.ParentFolder, item.Dimmed ? Fade(MutedText) : MutedText);
     }
 
     private void DrawFavorites(Graphics g, FavoritesStrip strip, float scale)

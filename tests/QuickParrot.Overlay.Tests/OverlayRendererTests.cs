@@ -3,11 +3,73 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using QuickParrot.Core.Navigation;
 using QuickParrot.Core.Keyboard;
+using QuickParrot.Core.Library;
 
 namespace QuickParrot.Overlay.Tests;
 
 public sealed class OverlayRendererTests
 {
+    [Theory]
+    [InlineData(0.5f)]
+    [InlineData(1f)]
+    [InlineData(1.37f)]
+    [InlineData(2f)]
+    public void CompactFolderColumnsFitFreeRealEstate(float scale)
+    {
+        var entry = new NumberedEntry(1, "Clip.wav", false)
+        {
+            FolderContext = new LibrarySearchFolderContext("Free Real Estate", "Free Real Estate"),
+        };
+        var layout = OverlayLayoutGeometry.Compute(ViewStates.Wheel(1) with
+        {
+            SearchQuery = "", WheelEntries = [entry],
+        }, scale);
+        using var bitmap = new Bitmap(1, 1);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var format = new StringFormat(StringFormatFlags.NoWrap | StringFormatFlags.LineLimit);
+        foreach (var label in new[] { layout.Items[0].TopFolder!, layout.Items[0].ParentFolder! })
+        {
+            using var font = new Font(label.Font == OverlayFont.Semibold ? "Segoe UI Semibold" : "Segoe UI",
+                MathF.Round(label.FontPx, 1), FontStyle.Regular, GraphicsUnit.Pixel);
+            Assert.True(graphics.MeasureString(label.Text, font, PointF.Empty, format).Width <= label.Bounds.Width,
+                $"{label.Text} would be truncated in the {label.Font} folder column");
+        }
+    }
+
+    [Theory]
+    [InlineData(0.5f)]
+    [InlineData(1f)]
+    [InlineData(2f)]
+    public void OverflowingFolderContextKeepsTheParentVisible(float scale)
+    {
+        var entry = new NumberedEntry(1, "Clip.wav", false)
+        {
+            FolderContext = new LibrarySearchFolderContext(new string('A', 300), "ParentAAAA"),
+        };
+        var state = ViewStates.Wheel(1) with { SearchQuery = "clip", WheelEntries = [entry] };
+        var first = OverlayLayoutGeometry.Compute(state, scale);
+        var second = OverlayLayoutGeometry.Compute(state with
+        {
+            WheelEntries = [entry with { FolderContext = new LibrarySearchFolderContext(new string('A', 300), "ParentZZZZ") }],
+        }, scale);
+        using var firstBitmap = Render(first);
+        using var secondBitmap = Render(second);
+        var contextBounds = Rectangle.Ceiling(first.Items[0].ParentFolder!.Bounds);
+        Assert.True(Enumerable.Range(contextBounds.Top, contextBounds.Height).Any(y =>
+            Enumerable.Range(contextBounds.Left, contextBounds.Width).Any(x =>
+                firstBitmap.GetPixel(x, y) != secondBitmap.GetPixel(x, y))),
+            "Changing the parent folder must affect visible text even when the top folder overflows.");
+
+        static Bitmap Render(OverlayLayout layout)
+        {
+            var bitmap = new Bitmap(layout.CanvasSize.Width, layout.CanvasSize.Height, PixelFormat.Format32bppPArgb);
+            using var renderer = new OverlayRenderer();
+            using var graphics = Graphics.FromImage(bitmap);
+            renderer.Draw(graphics, layout);
+            return bitmap;
+        }
+    }
+
     [Theory]
     [InlineData(1f)]
     [InlineData(1.37f)]
