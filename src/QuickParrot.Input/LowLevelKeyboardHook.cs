@@ -28,6 +28,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
     private ScanKey _chordKey;
     private ScanKey _saveNavigationKey = ScanKey.DefaultSaveNavigationKey;
     private ScanKey _searchKey = ScanKey.DefaultSearchKey;
+    private ScanKey _fragmentsKey = ScanKey.DefaultFragmentsKey;
     private string? _searchLibrary;
     private PushToTalkBinding _pushToTalkBinding = PushToTalkBinding.Default;
     private bool _enabled = true;
@@ -156,6 +157,31 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
             });
         }
     }
+
+    public ScanKey FragmentsKey
+    {
+        get { lock (_lock) return _fragmentsKey; }
+        set
+        {
+            if (!value.IsValidSearchKey)
+                throw new ArgumentException($"{value} can't search fragments.", nameof(value));
+            lock (_lock)
+            {
+                _fragmentsKey = value;
+                _thread.Post(() =>
+                {
+                    Emit(_filter.CancelSession());
+                    _filter.FragmentsKey = value;
+                });
+            }
+        }
+    }
+
+    public void CompleteFragmentsSession(long sessionId) => _thread.Post(() =>
+    {
+        if (_filter.CompleteFragmentsSession(sessionId))
+            _text.ClearDeadKey();
+    });
 
     /// <summary>
     /// When false every key passes through, except the ups of keys already hidden and push-to-talk merging.
@@ -341,7 +367,7 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
         var result = _filter.Process(
             scanCode, isExtended, isKeyDown, isInjected, captureAllowed: !_filter.Capturing || OwnsForeground());
 
-        if (result.Event is SearchPressed)
+        if (result.Event is SearchPressed or FragmentsPressed)
         {
             _text.Reset();
             _text.Update(key->vkCode, isKeyDown);
@@ -442,7 +468,8 @@ public sealed unsafe class LowLevelKeyboardHook : IDisposable
         if (chordEvent is null)
             return;
 
-        if (chordEvent is ChordCancelled or SearchSelectionPressed or SearchBackspacePressed)
+        if (chordEvent is ChordCancelled or SearchSelectionPressed or SearchBackspacePressed
+            or FragmentSelectionPressed or FragmentEnterReleased or FragmentBackspacePressed)
             _text.ClearDeadKey();
 
         try

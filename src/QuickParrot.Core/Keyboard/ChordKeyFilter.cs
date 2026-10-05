@@ -31,12 +31,19 @@ public sealed class ChordKeyFilter
     private bool _chordActive;
     private bool _capturing;
     private int? _searchTriggerSlot;
+    private readonly bool[] _fragmentSelections = new bool[SlotCount];
+    private int? _fragmentEnterSlot;
+    private long _fragmentSessionId;
 
     public bool SearchActive { get; private set; }
+
+    public bool FragmentsActive { get; private set; }
 
     public bool SearchEnabled { get; set; } = true;
 
     public ScanKey SearchKey { get; set; } = ScanKey.DefaultSearchKey;
+
+    public ScanKey FragmentsKey { get; set; } = ScanKey.DefaultFragmentsKey;
 
     /// <param name="isGameFocused">
     /// Whether a fullscreen game has focus; asked only when a plain F-key with a chordless favorite goes down.
@@ -116,6 +123,15 @@ public sealed class ChordKeyFilter
 
     public ChordEvent? CancelSession() => EndChord();
 
+    public bool CompleteFragmentsSession(long sessionId)
+    {
+        if (!FragmentsActive || sessionId != _fragmentSessionId)
+            return false;
+
+        EndChord();
+        return true;
+    }
+
     /// <summary>Returns <see cref="ChordCancelled"/> if this ends an active chord.</summary>
     public ChordEvent? SetChordKey(ScanKey chordKey)
     {
@@ -172,7 +188,7 @@ public sealed class ChordKeyFilter
     {
         if (_held[slot]) // auto-repeat: treat it like the original press
             return SearchActive && _swallowed[slot] && slot != _searchTriggerSlot && key.Digit < 0 && !key.IsEnter
-                ? SearchInput(key)
+                ? SearchInput(key, isRepeat: true)
                 : _swallowed[slot] ? KeyFilterResult.SwallowSilently : KeyFilterResult.PassThrough;
 
         _held[slot] = true;
@@ -213,6 +229,15 @@ public sealed class ChordKeyFilter
             SearchActive = true;
             _searchTriggerSlot = slot;
             return new KeyFilterResult(true, new SearchPressed());
+        }
+
+        if (_chordActive && SearchEnabled && key == FragmentsKey)
+        {
+            _swallowed[slot] = true;
+            SearchActive = true;
+            FragmentsActive = true;
+            _searchTriggerSlot = slot;
+            return new KeyFilterResult(true, new FragmentsPressed(++_fragmentSessionId));
         }
 
         if (_chordActive && key == SaveNavigationKey)
@@ -266,6 +291,18 @@ public sealed class ChordKeyFilter
         _swallowed[slot] = false;
         if (_searchTriggerSlot == slot)
             _searchTriggerSlot = null;
+        if (_fragmentEnterSlot == slot)
+        {
+            _fragmentEnterSlot = null;
+            if (FragmentsActive)
+                return new KeyFilterResult(swallow, new FragmentEnterReleased());
+        }
+        if (_fragmentSelections[slot])
+        {
+            _fragmentSelections[slot] = false;
+            if (FragmentsActive)
+                return new KeyFilterResult(swallow, new FragmentSelectionPressed(key.Digit));
+        }
         if (_chordActive && key == ChordKey)
         {
             _chordActive = false;
@@ -281,15 +318,39 @@ public sealed class ChordKeyFilter
             return null;
 
         SearchActive = false;
+        FragmentsActive = false;
+        _fragmentEnterSlot = null;
+        Array.Clear(_fragmentSelections);
         _searchTriggerSlot = null;
         _chordActive = false;
         return Cancelled;
     }
 
-    private KeyFilterResult SearchInput(ScanKey key)
+    private KeyFilterResult SearchInput(ScanKey key, bool isRepeat = false)
     {
         if (key == ScanKey.Escape)
             return new KeyFilterResult(true, EndChord());
+
+        if (FragmentsActive)
+        {
+            if (key.IsEnter)
+            {
+                if (_fragmentEnterSlot is not null)
+                    return KeyFilterResult.SwallowSilently;
+
+                _fragmentEnterSlot = SlotOf(key.ScanCode, key.IsExtended);
+                return new KeyFilterResult(true, new FragmentEnterPressed());
+            }
+
+            if (key.Digit is >= 1 and <= 9)
+            {
+                _fragmentSelections[SlotOf(key.ScanCode, key.IsExtended)] = true;
+                return KeyFilterResult.SwallowSilently;
+            }
+
+            if (key.ScanCode == 0x0E && !key.IsExtended)
+                return new KeyFilterResult(true, new FragmentBackspacePressed(isRepeat));
+        }
 
         if (key.IsEnter || key.Digit is >= 1 and <= 9)
         {

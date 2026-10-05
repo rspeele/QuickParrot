@@ -27,6 +27,8 @@ public sealed class FakeClipPlayer(List<string> log) : IClipPlayer
     /// <summary>The cancellation token of every prepare, in request order.</summary>
     public List<(string Path, CancellationToken Token)> Prepares { get; } = [];
 
+    public List<IReadOnlyList<string>> Phrases { get; } = [];
+
     public long? CurrentPlayId { get; private set; }
 
     public OutputSettings? Settings { get; private set; }
@@ -45,6 +47,15 @@ public sealed class FakeClipPlayer(List<string> log) : IClipPlayer
             Complete(pending);
 
         return pending.Source.Task;
+    }
+
+    public Task<IPreparedClip> PreparePhraseAsync(IReadOnlyList<string> fullPaths, CancellationToken cancellationToken)
+    {
+        Phrases.Add(fullPaths);
+        if (fullPaths.Any(UnloadablePaths.Contains))
+            return Task.FromException<IPreparedClip>(new FileNotFoundException("File not found."));
+
+        return PrepareAsync(fullPaths[0], cancellationToken);
     }
 
     /// <summary>Finishes the oldest in-flight prepare of <paramref name="path"/>, failing it if the path is unloadable.</summary>

@@ -35,7 +35,7 @@ public sealed class ChordKeyFilterSaveNavigationTests
     [Fact]
     public void ConfiguredKeyReplacesDefault_AndShiftDoesNotAffectSaving()
     {
-        _filter.SaveNavigationKey = new ScanKey(0x4E, false);
+        _filter.SaveNavigationKey = new ScanKey(0x29, false);
         Process(ScanKey.DefaultChordKey, true);
         Process(ScanKey.LeftShift, true);
         Assert.Equal(KeyFilterResult.PassThrough, Process(ScanKey.DefaultSaveNavigationKey, true));

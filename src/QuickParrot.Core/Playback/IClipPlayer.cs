@@ -15,6 +15,8 @@ public interface IClipPlayer
     /// </summary>
     Task<IPreparedClip> PrepareAsync(string fullPath, CancellationToken cancellationToken);
 
+    Task<IPreparedClip> PreparePhraseAsync(IReadOnlyList<string> fullPaths, CancellationToken cancellationToken);
+
     /// <summary>Starts <paramref name="clip"/>, replacing anything playing. Takes ownership of the clip, even if it throws.</summary>
     void Play(IPreparedClip clip, long playId);
 

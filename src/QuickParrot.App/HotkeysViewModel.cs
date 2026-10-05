@@ -15,6 +15,7 @@ public sealed class HotkeysViewModel : ObservableObject
         (nameof(GrabHotkeyDisplay), s => s.ChordKey),
         (nameof(SaveNavigationKeyDisplay), s => s.SaveNavigationKey),
         (nameof(SearchKeyDisplay), s => s.SearchKey),
+        (nameof(FragmentsKeyDisplay), s => s.FragmentsKey),
         (nameof(PushToTalkBindingDisplay), s => s.PushToTalkBinding),
         (nameof(SelectedPushToTalkMouseButton), s => s.PushToTalkBinding),
     ];
@@ -40,6 +41,8 @@ public sealed class HotkeysViewModel : ObservableObject
     public string SaveNavigationKeyDisplay => _settings.Current.SaveNavigationKey.ToString();
 
     public string SearchKeyDisplay => _settings.Current.SearchKey.ToString();
+
+    public string FragmentsKeyDisplay => _settings.Current.FragmentsKey.ToString();
 
     public string PushToTalkBindingDisplay => _settings.Current.PushToTalkBinding.ToString();
 
@@ -101,6 +104,18 @@ public sealed class HotkeysViewModel : ObservableObject
         var before = _settings.Current.SearchKey;
         _settings.Update(s => s.WithSearchKey(key).Settings);
         _status.Report(before == key ? $"Search is already {key}." : $"Search key changed to {key}.");
+    });
+
+    public Task ChangeFragmentsKeyAsync() => CaptureKeyAsync("the fragments key", key =>
+    {
+        if (_settings.Current.WithFragmentsKey(key).Error is { } error)
+        {
+            _status.Report(error);
+            return;
+        }
+        var before = _settings.Current.FragmentsKey;
+        _settings.Update(s => s.WithFragmentsKey(key).Settings);
+        _status.Report(before == key ? $"Fragments is already {key}." : $"Fragments key changed to {key}.");
     });
 
     /// <summary>Cancels an in-progress key capture, e.g. because the window lost focus.</summary>

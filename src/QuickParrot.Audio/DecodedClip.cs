@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using QuickParrot.Core.Playback;
 
 namespace QuickParrot.Audio;
 
@@ -32,6 +33,29 @@ internal sealed class DecodedClip
         {
             throw new InvalidDataException("The file isn't a supported audio format.", e); // e.g. raw COM/MF errors
         }
+    }
+
+    public static DecodedClip DecodePhrase(IReadOnlyList<string> fullPaths, CancellationToken cancellationToken)
+    {
+        if (fullPaths.Count == 0)
+            throw new ArgumentException("A phrase must contain at least one fragment.", nameof(fullPaths));
+
+        var parts = new List<AudioPhrasePart>();
+        var duration = 0d;
+        foreach (var fullPath in fullPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var clip = Decode(fullPath, cancellationToken);
+            duration += (double)(clip.Samples.Length / clip.Format.Channels) / clip.Format.SampleRate;
+            if (duration > AudioPhraseComposer.MaxDuration.TotalSeconds)
+                throw new InvalidDataException($"Phrases longer than {AudioPhraseComposer.MaxDuration.TotalMinutes:0} minutes aren't supported.");
+
+            parts.Add(new AudioPhrasePart(clip.Samples, clip.Format.SampleRate, clip.Format.Channels));
+        }
+
+        var phrase = AudioPhraseComposer.Compose(parts, cancellationToken);
+        return new DecodedClip(fullPaths[0], phrase.Samples,
+            WaveFormat.CreateIeeeFloatWaveFormat(phrase.SampleRate, phrase.Channels));
     }
 
     /// <summary>Decodes silent MP3 from memory, loading the same Media Foundation decoder a real clip needs.</summary>

@@ -19,6 +19,7 @@ public sealed class ChordNavigator
     private readonly IFolderSource _source;
     private Session? _session;
     private SearchSession? _search;
+    private FragmentComposer? _fragments;
     private volatile OverlayViewState? _viewState;
 
     public ChordNavigator(IFolderSource source, string persistentPath = "")
@@ -41,10 +42,27 @@ public sealed class ChordNavigator
 
     public IReadOnlyList<NavigationAction> Handle(ChordEvent evt)
     {
+        if (evt is FragmentsPressed && _session is not null)
+        {
+            _session = null;
+            _fragments = new FragmentComposer(_source.GetAllClips());
+            _viewState = _fragments.ViewState;
+            return NoActions;
+        }
+
+        if (_fragments is not null)
+        {
+            var fragmentActions = _fragments.Handle(evt);
+            _viewState = _fragments.Closed ? null : _fragments.ViewState;
+            if (_fragments.Closed)
+                _fragments = null;
+            return fragmentActions;
+        }
+
         if (evt is SearchPressed && _session is not null)
         {
             _session = null;
-            var clips = _source.GetAllClips();
+            var clips = _source.GetAllClips().Where(clip => !FragmentLibrary.IsFragmentPath(clip.RelativePath)).ToArray();
             _search = new SearchSession(clips, LibrarySearch.CreateFolderContexts(clips), "", []);
             UpdateSearch("");
             return NoActions;
@@ -137,7 +155,7 @@ public sealed class ChordNavigator
     private (Session?, IReadOnlyList<NavigationAction>) Start()
     {
         var path = PersistentPath;
-        while (path.Length > 0 && _source.GetEntries(path) is null)
+        while (path.Length > 0 && (FragmentLibrary.IsFragmentPath(path) || _source.GetEntries(path) is null))
             path = GetParentPath(path);
 
         return (new Session(path), path == PersistentPath ? NoActions : [new PersistPath(path)]);
@@ -239,7 +257,9 @@ public sealed class ChordNavigator
 
     private Session Relayout(Session session)
     {
-        var layout = LayoutBuilder.Build(_source.GetEntries(session.CurrentPath) ?? []);
+        var entries = (_source.GetEntries(session.CurrentPath) ?? [])
+            .Where(entry => !FragmentLibrary.IsFragmentPath(entry.RelativePath)).ToArray();
+        var layout = LayoutBuilder.Build(entries);
         var zoomedColumn = session.ZoomedColumn > layout.GridColumns.Length
             ? null // column vanished on disk (or folder shrank to a wheel)
             : session.ZoomedColumn;

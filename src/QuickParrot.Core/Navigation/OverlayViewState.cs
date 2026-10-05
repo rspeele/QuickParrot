@@ -53,4 +53,8 @@ public sealed record OverlayViewState(
 {
     public ScanKey SaveNavigationKey { get; init; } = ScanKey.DefaultSaveNavigationKey;
     public string? SearchQuery { get; init; }
+    public bool IsFragmentSearch { get; init; }
+    public string? FragmentSpeaker { get; init; }
+    public ImmutableArray<string> FragmentNames { get; init; } = [];
+    public double FragmentHoldProgress { get; init; }
 }

@@ -5,6 +5,8 @@ public abstract record NavigationAction;
 
 public sealed record PlayClip(string RelativePath) : NavigationAction;
 
+public sealed record PlayPhrase(IReadOnlyList<string> RelativePaths) : NavigationAction;
+
 public sealed record StopPlayback : NavigationAction;
 
 public sealed record GrabReplay : NavigationAction;

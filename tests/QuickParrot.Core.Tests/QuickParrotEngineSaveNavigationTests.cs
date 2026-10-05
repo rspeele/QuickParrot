@@ -84,7 +84,7 @@ public sealed class QuickParrotEngineSaveNavigationTests
         engine.Post(new ChordPressed());
         await engine.FlushAsync();
         Assert.Equal(ScanKey.DefaultSaveNavigationKey, states[^1]!.SaveNavigationKey);
-        var key = new ScanKey(0x4E, false);
+        var key = new ScanKey(0x29, false);
         engine.UpdateSettings(s => s.WithSaveNavigationKey(key).Settings);
         await engine.FlushAsync();
         Assert.Equal(key, states[^1]!.SaveNavigationKey);

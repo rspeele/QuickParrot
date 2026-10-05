@@ -11,13 +11,15 @@ public static class AudioResampler
 
     private static readonly double[] Kernel = BuildKernel();
 
-    public static float[] Resample(ReadOnlySpan<float> source, int sourceSampleRate, int targetSampleRate)
+    public static float[] Resample(ReadOnlySpan<float> source, int sourceSampleRate, int targetSampleRate,
+        CancellationToken cancellationToken = default)
     {
         if (sourceSampleRate <= 0)
             throw new ArgumentOutOfRangeException(nameof(sourceSampleRate));
         if (targetSampleRate <= 0)
             throw new ArgumentOutOfRangeException(nameof(targetSampleRate));
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (source.Length == 0)
             return [];
 
@@ -28,7 +30,11 @@ public static class AudioResampler
         var scale = Math.Min(1.0, 1 / step);
         var output = new float[Math.Max((int)Math.Round(source.Length / step), 0)];
         for (var i = 0; i < output.Length; i++)
+        {
+            if (i % 4096 == 0)
+                cancellationToken.ThrowIfCancellationRequested();
             output[i] = InterpolateAt(source, i * step, scale);
+        }
 
         return output;
     }

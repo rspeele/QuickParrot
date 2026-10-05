@@ -57,6 +57,22 @@ public sealed class PlaybackController : IDisposable
     /// done; otherwise it replaces whatever is pending or playing as soon as it's prepared.
     /// </summary>
     public void Play(string fullPath)
+        => PlayRequest(fullPath, token => _player.PrepareAsync(fullPath, token));
+
+    public void PlayPhrase(IReadOnlyList<string> fullPaths)
+    {
+        ArgumentNullException.ThrowIfNull(fullPaths);
+        if (fullPaths.Count == 0)
+            return;
+
+        var paths = fullPaths.ToArray();
+        if (paths.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("Every fragment must have a file path.", nameof(fullPaths));
+
+        PlayRequest(paths[0], token => _player.PreparePhraseAsync(paths, token));
+    }
+
+    private void PlayRequest(string fullPath, Func<CancellationToken, Task<IPreparedClip>> prepare)
     {
         Engage();
         CancelPending();
@@ -73,7 +89,7 @@ public sealed class PlaybackController : IDisposable
             CancelTimer(); // keep the key held for the replacement
         }
 
-        BeginPrepare(fullPath);
+        BeginPrepare(fullPath, prepare);
     }
 
     /// <summary>Cuts playback off and releases immediately; no post-roll is needed after an abrupt stop.</summary>
@@ -96,7 +112,7 @@ public sealed class PlaybackController : IDisposable
         }
     }
 
-    private void BeginPrepare(string fullPath)
+    private void BeginPrepare(string fullPath, Func<CancellationToken, Task<IPreparedClip>> prepare)
     {
         var request = new PrepareRequest(fullPath);
         _request = request;
@@ -104,7 +120,7 @@ public sealed class PlaybackController : IDisposable
         Task<IPreparedClip> task;
         try
         {
-            task = _player.PrepareAsync(fullPath, request.Token);
+            task = prepare(request.Token);
         }
         catch (Exception e)
         {
@@ -214,7 +230,8 @@ public sealed class PlaybackController : IDisposable
         }
         finally
         {
-            _failed(new PlaybackError(clipPath, Describe(error)));
+            var failedPath = error is FileNotFoundException { FileName: { Length: > 0 } path } ? path : clipPath;
+            _failed(new PlaybackError(failedPath, Describe(error)));
         }
     }
 

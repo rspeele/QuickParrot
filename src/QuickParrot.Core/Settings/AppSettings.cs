@@ -24,6 +24,8 @@ public sealed record AppSettings
 
     public ScanKey SearchKey { get; init; } = ScanKey.DefaultSearchKey;
 
+    public ScanKey FragmentsKey { get; init; } = ScanKey.DefaultFragmentsKey;
+
     public bool HotkeysEnabled { get; init; } = true;
 
     /// <summary>Null auto-detects the virtual cable.</summary>
@@ -102,23 +104,32 @@ public sealed record AppSettings
         PushToTalkBinding.ValidateChordKey(key) is { } error ? (this, error)
         : key == SaveNavigationKey ? (this, "The chord key can't be the save navigation key.")
         : key == SearchKey ? (this, "The chord key can't be the search key.")
+        : key == FragmentsKey ? (this, "The chord key can't be the fragments key.")
         : (this with { ChordKey = key }, null);
 
     public (AppSettings Settings, string? Error) WithSaveNavigationKey(ScanKey key) =>
         ValidateSaveNavigationKey(key, ChordKey, PushToTalkBinding) is { } error
             ? (this, error)
             : key == SearchKey ? (this, "The save navigation key can't be the search key.")
+            : key == FragmentsKey ? (this, "The save navigation key can't be the fragments key.")
             : (this with { SaveNavigationKey = key }, null);
 
     public (AppSettings Settings, string? Error) WithSearchKey(ScanKey key) =>
         ValidateSearchKey(key, ChordKey, PushToTalkBinding, SaveNavigationKey) is { } error
-            ? (this, error) : (this with { SearchKey = key }, null);
+            ? (this, error)
+            : key == FragmentsKey ? (this, "The search key can't be the fragments key.")
+            : (this with { SearchKey = key }, null);
+
+    public (AppSettings Settings, string? Error) WithFragmentsKey(ScanKey key) =>
+        ValidateFragmentsKey(key, ChordKey, PushToTalkBinding, SaveNavigationKey, SearchKey) is { } error
+            ? (this, error) : (this with { FragmentsKey = key }, null);
 
     /// <summary>These settings with <paramref name="binding"/> for push-to-talk, or unchanged with the reason it can't be.</summary>
     public (AppSettings Settings, string? Error) WithPushToTalkBinding(PushToTalkBinding binding) =>
         binding.Validate(ChordKey) is { } error ? (this, error)
         : binding.Key == SaveNavigationKey ? (this, "Push-to-talk can't be the save navigation key.")
         : binding.Key == SearchKey ? (this, "Push-to-talk can't be the search key.")
+        : binding.Key == FragmentsKey ? (this, "Push-to-talk can't be the fragments key.")
         : (this with { PushToTalkBinding = binding }, null);
 
     /// <summary>Clamps out-of-range values, e.g. from a hand-edited settings file.</summary>
@@ -128,6 +139,7 @@ public sealed record AppSettings
         ChordKey = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey,
         SaveNavigationKey = SanitizeSaveNavigationKey(),
         SearchKey = SanitizeSearchKey(),
+        FragmentsKey = SanitizeFragmentsKey(),
         CableVolume = ClampVolume(CableVolume),
         MonitorVolume = ClampVolume(MonitorVolume),
         PreRollMilliseconds = Math.Clamp(PreRollMilliseconds, 0, MaxMarginMilliseconds),
@@ -204,4 +216,28 @@ public sealed record AppSettings
         : null;
 
     private static float ClampVolume(float volume) => float.IsFinite(volume) ? Math.Clamp(volume, 0f, 1f) : 1f;
+
+    private ScanKey SanitizeFragmentsKey()
+    {
+        var chord = ChordKey.IsValidChordKey ? ChordKey : ScanKey.DefaultChordKey;
+        var pushToTalk = IsPushToTalkBindingValid() ? PushToTalkBinding : PushToTalkBinding.Default;
+        var save = SanitizeSaveNavigationKey();
+        var search = SanitizeSearchKey();
+        if (ValidateFragmentsKey(FragmentsKey, chord, pushToTalk, save, search) is null)
+            return FragmentsKey;
+
+        foreach (var candidate in new[] { ScanKey.DefaultFragmentsKey, new ScanKey(0x53, false), new ScanKey(0x35, false), new ScanKey(0x29, false), new ScanKey(0x0C, false) })
+            if (ValidateFragmentsKey(candidate, chord, pushToTalk, save, search) is null)
+                return candidate;
+
+        throw new InvalidOperationException("No fragments key is available.");
+    }
+
+    private static string? ValidateFragmentsKey(ScanKey key, ScanKey chord, PushToTalkBinding pushToTalk, ScanKey save, ScanKey search) =>
+        !key.IsValidSearchKey ? $"{key} can't search fragments. Pick a key other than a chord action or modifier."
+        : key == chord ? "The fragments key can't be the chord key."
+        : key == pushToTalk.Key ? "The fragments key can't be the push-to-talk key."
+        : key == save ? "The fragments key can't be the save navigation key."
+        : key == search ? "The fragments key can't be the search key."
+        : null;
 }

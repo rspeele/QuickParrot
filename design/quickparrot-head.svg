@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">QuickParrot head</title>
+  <desc id="desc">A green parrot in profile with a cream face, golden hooked beak, and bright eye. Drawn with six paths.</desc>
+  <path fill="#159B69" d="M179 73C159 32 102 24 62 53L29 44L44 76C25 102 26 154 56 185C79 210 115 225 155 224L144 188C174 167 188 125 179 73Z"/>
+  <path fill="#5BDD83" d="M44 76C67 48 111 42 143 57C104 55 73 77 62 110C52 141 60 174 80 198C44 176 27 121 44 76Z"/>
+  <path fill="#FFF2D5" d="M176 76C154 64 128 72 121 95C113 120 128 143 151 149L169 174C185 158 196 134 193 111C191 95 185 83 176 76Z"/>
+  <path fill="#FFB52E" d="M185 104C214 100 237 120 234 147C232 167 219 183 202 190C211 165 203 149 182 144L173 124Z"/>
+  <path fill="#123F3A" d="M182 144C194 147 201 155 201 166C190 175 175 179 160 173L151 149C161 153 172 151 182 144Z"/>
+  <path fill="#123F3A" fill-rule="evenodd" d="M169 102A11 11 0 1 1 147 102A11 11 0 1 1 169 102ZM161 98A3 3 0 1 0 155 98A3 3 0 1 0 161 98Z"/>
+</svg>

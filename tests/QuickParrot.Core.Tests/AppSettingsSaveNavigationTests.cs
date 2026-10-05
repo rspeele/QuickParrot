@@ -18,7 +18,7 @@ public sealed class AppSettingsSaveNavigationTests
     [Fact]
     public void SaveKeyRoundTripsThroughJson()
     {
-        var settings = new AppSettings { SaveNavigationKey = new ScanKey(0x4E, false) };
+        var settings = new AppSettings { SaveNavigationKey = new ScanKey(0x4E, false) }.Sanitized();
         Assert.Equal(settings, JsonSettingsStore.Deserialize(JsonSettingsStore.Serialize(settings)));
     }
 

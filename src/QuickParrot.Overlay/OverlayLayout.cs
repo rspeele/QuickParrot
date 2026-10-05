@@ -102,4 +102,6 @@ public sealed record OverlayLayout(
     float? FirstRowCenterY = null)
 {
     public IReadOnlyList<OverlayLabel> ColumnLabels { get; init; } = [];
+    public IReadOnlyList<OverlayLabel> PhraseLabels { get; init; } = [];
+    public RectangleF HoldProgressBounds { get; init; }
 }

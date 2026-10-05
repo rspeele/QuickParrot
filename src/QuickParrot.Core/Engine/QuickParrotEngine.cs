@@ -19,6 +19,7 @@ public sealed class QuickParrotEngine : IDisposable
 {
     public static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(1);
     public static readonly TimeSpan SaveNavigationConfirmationDuration = TimeSpan.FromSeconds(1);
+    public static readonly TimeSpan FragmentSubmitHoldDuration = TimeSpan.FromMilliseconds(500);
 
     private readonly BlockingCollection<Action> _queue = new();
     private readonly Thread _thread;
@@ -37,6 +38,12 @@ public sealed class QuickParrotEngine : IDisposable
     private ITimer? _saveTimer;
     private ITimer? _navigationConfirmationTimer;
     private long _navigationConfirmationGeneration;
+    private ITimer? _fragmentHoldTimer;
+    private long _fragmentHoldGeneration;
+    private long _fragmentSessionId;
+    private long _fragmentHoldStart;
+    private bool _fragmentEnterHeld;
+    private bool _fragmentEnterSubmitted;
     private OverlayViewState? _publishedViewState;
     private OverlayViewState? _publishedFrom; // the navigator's state behind _publishedViewState
     private string? _lastPlayed;
@@ -89,6 +96,8 @@ public sealed class QuickParrotEngine : IDisposable
 
     /// <summary>Raised on the worker thread when a favorite is played, assigned or cleared, or that fails.</summary>
     public event Action<FavoriteNotice>? FavoritesNotice;
+
+    public event Action<long>? FragmentSessionEnded;
 
     public AppSettings Settings => _settings;
 
@@ -249,12 +258,42 @@ public sealed class QuickParrotEngine : IDisposable
             return;
         }
 
+        if (chordEvent is FragmentsPressed fragments)
+        {
+            CancelFragmentHoldTimer();
+            _fragmentSessionId = fragments.SessionId;
+        }
+        else if (chordEvent is FragmentEnterPressed)
+        {
+            if (navigator.ViewState is { IsFragmentSearch: true } && !_fragmentEnterHeld)
+                StartFragmentHoldTimer(navigator);
+            return;
+        }
+        else if (chordEvent is FragmentEnterReleased)
+        {
+            if (!_fragmentEnterHeld)
+                return;
+
+            var submitted = _fragmentEnterSubmitted;
+            var elapsed = _time.GetElapsedTime(_fragmentHoldStart);
+            CancelFragmentHoldTimer();
+            HandleChordEvent(new FragmentHoldProgressChanged(0));
+            if (submitted)
+                return;
+            chordEvent = elapsed >= FragmentSubmitHoldDuration
+                ? new FragmentSubmitPressed() : new FragmentSelectionPressed(1);
+        }
+
         foreach (var action in navigator.Handle(chordEvent))
         {
             switch (action)
             {
                 case PlayClip play:
                     PlayRelative(play.RelativePath);
+                    break;
+                case PlayPhrase phrase:
+                    PlayPhraseRelative(phrase.RelativePaths);
+                    FragmentSessionEnded?.Invoke(_fragmentSessionId);
                     break;
                 case StopPlayback when !_suppressPlayback: // a Diagnostics test is running and has its own Cancel
                     _controller.Stop();
@@ -283,10 +322,47 @@ public sealed class QuickParrotEngine : IDisposable
             }
         }
 
+        if (navigator.ViewState is not { IsFragmentSearch: true })
+            CancelFragmentHoldTimer();
+
         if (chordEvent is SaveNavigationPressed && navigator.ViewState is { SaveNavigationConfirmed: true })
             StartNavigationConfirmationTimer(navigator);
         else if (navigator.ViewState is not { SaveNavigationConfirmed: true })
             CancelNavigationConfirmationTimer();
+    }
+
+    private void StartFragmentHoldTimer(ChordNavigator navigator)
+    {
+        CancelFragmentHoldTimer();
+        _fragmentEnterHeld = true;
+        _fragmentHoldStart = _time.GetTimestamp();
+        var generation = _fragmentHoldGeneration;
+        _fragmentHoldTimer = _time.CreateTimer(_ => Post(() =>
+        {
+            if (generation != _fragmentHoldGeneration || !ReferenceEquals(navigator, _navigator))
+                return;
+
+            var progress = Math.Clamp(_time.GetElapsedTime(_fragmentHoldStart).TotalMilliseconds
+                / FragmentSubmitHoldDuration.TotalMilliseconds, 0, 1);
+            HandleChordEvent(new FragmentHoldProgressChanged(progress));
+            if (progress < 1)
+                return;
+
+            _fragmentEnterSubmitted = true;
+            _fragmentHoldGeneration++;
+            _fragmentHoldTimer?.Dispose();
+            _fragmentHoldTimer = null;
+            HandleChordEvent(new FragmentSubmitPressed());
+        }), null, TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50));
+    }
+
+    private void CancelFragmentHoldTimer()
+    {
+        _fragmentHoldGeneration++;
+        _fragmentHoldTimer?.Dispose();
+        _fragmentHoldTimer = null;
+        _fragmentEnterHeld = false;
+        _fragmentEnterSubmitted = false;
     }
 
     private void StartNavigationConfirmationTimer(ChordNavigator navigator)
@@ -324,6 +400,25 @@ public sealed class QuickParrotEngine : IDisposable
 
         _lastPlayed = relativePath;
         _controller.Play(fullPath);
+    }
+
+    private void PlayPhraseRelative(IReadOnlyList<string> relativePaths)
+    {
+        if (_suppressPlayback || relativePaths.Count == 0)
+            return;
+
+        var fullPaths = new List<string>(relativePaths.Count);
+        foreach (var relativePath in relativePaths)
+        {
+            var fullPath = _library?.GetFullPath(relativePath);
+            if (fullPath is null || _library?.ClipExists(relativePath) != true)
+            {
+                ErrorOccurred?.Invoke($"Couldn't play phrase: {relativePath} is missing from the sound library.");
+                return;
+            }
+            fullPaths.Add(fullPath);
+        }
+        _controller.PlayPhrase(fullPaths);
     }
 
     private void PlayFavoriteSlot(int slot)
@@ -453,6 +548,7 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void OpenLibrary(AppSettings settings)
     {
+        CancelFragmentHoldTimer();
         CancelNavigationConfirmationTimer();
         _lastPlayed = null; // relative to the old library
         _library = string.IsNullOrEmpty(settings.LibraryRoot) ? null : _createLibrary(settings.LibraryRoot);
@@ -490,6 +586,7 @@ public sealed class QuickParrotEngine : IDisposable
 
     private void Shutdown()
     {
+        CancelFragmentHoldTimer();
         CancelNavigationConfirmationTimer();
         try
         {

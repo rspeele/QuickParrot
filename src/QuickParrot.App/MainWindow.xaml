@@ -161,6 +161,14 @@
                                 </DockPanel>
 
                                 <DockPanel Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Left" Text="Fragments key:" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Hotkeys.FragmentsKeyDisplay}" Margin="4,0,12,0"
+                                               VerticalAlignment="Center" FontWeight="Bold" />
+                                    <Button DockPanel.Dock="Left" Content="Change…" Padding="8,2" Click="ChangeFragmentsKey_Click"
+                                            ToolTip="Hold the chord key and press this key to compose a phrase. Tap Enter or 1–9 to add fragments; hold Enter for half a second to play. Escape cancels." />
+                                </DockPanel>
+
+                                <DockPanel Margin="0,0,0,8">
                                     <TextBlock DockPanel.Dock="Left" Text="Folders with 9 or fewer items:" VerticalAlignment="Center" />
                                     <ComboBox DockPanel.Dock="Left" Width="80" Margin="4,0,0,0"
                                               ItemsSource="{Binding Settings.SmallFolderLayoutChoices}" SelectedItem="{Binding Settings.SmallFolderLayout}" />

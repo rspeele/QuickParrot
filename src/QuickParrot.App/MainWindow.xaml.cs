@@ -111,6 +111,8 @@ public partial class MainWindow : Window
 
     private async void ChangeSearchKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangeSearchKeyAsync();
 
+    private async void ChangeFragmentsKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangeFragmentsKeyAsync();
+
     private async void ChangePushToTalkKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangePushToTalkKeyAsync();
 
     private async void Recheck_Click(object sender, RoutedEventArgs e) => await _viewModel.Diagnostics.RecheckAsync();

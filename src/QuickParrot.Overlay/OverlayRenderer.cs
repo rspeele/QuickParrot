@@ -54,6 +54,15 @@ public sealed class OverlayRenderer : IDisposable
         foreach (var column in layout.ColumnLabels)
             DrawLabel(g, column, MutedText);
 
+        foreach (var fragment in layout.PhraseLabels)
+            DrawLabel(g, fragment, TextColor);
+
+        if (!layout.HoldProgressBounds.IsEmpty)
+        {
+            using var progress = new SolidBrush(Accent);
+            g.FillRectangle(progress, layout.HoldProgressBounds);
+        }
+
         DrawLabel(g, layout.Title, TextColor);
         if (layout.SaveNavigationHint is { } saveHint)
         {

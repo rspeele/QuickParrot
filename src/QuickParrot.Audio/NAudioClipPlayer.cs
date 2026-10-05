@@ -38,12 +38,22 @@ public sealed class NAudioClipPlayer : IClipPlayer, IDisposable
     });
 
     public Task<IPreparedClip> PrepareAsync(string fullPath, CancellationToken cancellationToken)
+        => PrepareAsync(() => DecodedClip.Decode(fullPath, cancellationToken), cancellationToken);
+
+    public Task<IPreparedClip> PreparePhraseAsync(IReadOnlyList<string> fullPaths, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(fullPaths);
+        var paths = fullPaths.ToArray();
+        return PrepareAsync(() => DecodedClip.DecodePhrase(paths, cancellationToken), cancellationToken);
+    }
+
+    private Task<IPreparedClip> PrepareAsync(Func<DecodedClip> decode, CancellationToken cancellationToken)
     {
         var settings = _settings;
         return Task.Run<IPreparedClip>(
             () =>
             {
-                var clip = DecodedClip.Decode(fullPath, cancellationToken);
+                var clip = decode();
                 cancellationToken.ThrowIfCancellationRequested();
                 return Open(clip, settings);
             },

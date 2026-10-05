@@ -35,3 +35,17 @@ public sealed record SearchBackspacePressed : ChordEvent;
 public sealed record SearchSelectionPressed(int Number) : ChordEvent;
 
 public sealed record SearchKeyPressed(ScanKey Key) : ChordEvent;
+
+public sealed record FragmentsPressed(long SessionId = 0) : ChordEvent;
+
+public sealed record FragmentSelectionPressed(int Number) : ChordEvent;
+
+public sealed record FragmentSubmitPressed : ChordEvent;
+
+public sealed record FragmentHoldProgressChanged(double Progress) : ChordEvent;
+
+public sealed record FragmentEnterPressed : ChordEvent;
+
+public sealed record FragmentEnterReleased : ChordEvent;
+
+public sealed record FragmentBackspacePressed(bool IsRepeat = false) : ChordEvent;

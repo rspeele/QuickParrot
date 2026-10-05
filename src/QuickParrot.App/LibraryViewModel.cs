@@ -74,7 +74,12 @@ public sealed class LibraryViewModel : ObservableObject, IDisposable
         private set => SetField(ref _entries, value);
     }
 
-    public string Warning => OverlayCapacity.TruncationWarning(_library?.View.Entries.Count ?? 0) ?? "";
+    public string Warning => _library is { } library &&
+        library.View.Entries.Any(entry => !entry.IsFolder && FragmentLibrary.IsFragmentPath(entry.RelativePath)
+            && FragmentLibrary.GetSpeaker(entry.RelativePath) is null)
+        ? FragmentLibrary.RootClipHint
+        : FragmentLibrary.IsFragmentPath(Folder) ? ""
+        : OverlayCapacity.TruncationWarning(_library?.View.Entries.Count ?? 0) ?? "";
 
     public bool HasWarning => Warning.Length > 0;
 

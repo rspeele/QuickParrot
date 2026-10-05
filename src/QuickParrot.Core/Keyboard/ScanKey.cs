@@ -8,6 +8,7 @@ public readonly record struct ScanKey(int ScanCode, bool IsExtended)
     public static readonly ScanKey DefaultChordKey = new(0x4A, false);
     public static readonly ScanKey DefaultSaveNavigationKey = new(0x37, false);
     public static readonly ScanKey DefaultSearchKey = new(0x35, true);
+    public static readonly ScanKey DefaultFragmentsKey = new(0x4E, false);
     public static readonly ScanKey Escape = new(0x01, false);
     internal static readonly ScanKey LeftShift = new(0x2A, false);
     internal static readonly ScanKey RightShift = new(0x36, false);

@@ -25,20 +25,27 @@ internal static class SearchGeometry
 
     public static OverlayLayout Compute(OverlayViewState state, float scale)
     {
+        var fragments = state.IsFragmentSearch;
+        var headerHeight = fragments ? 276 : HeaderHeight;
         var canvas = new Size((int)MathF.Ceiling((Width + 2 * Margin) * scale),
-            (int)MathF.Ceiling((2 * Margin + HeaderHeight + 9 * (RowHeight + Gap)) * scale));
-        var header = new RectangleF(Margin * scale, Margin * scale, Width * scale, HeaderHeight * scale);
+            (int)MathF.Ceiling((2 * Margin + headerHeight + 9 * (RowHeight + Gap)) * scale));
+        var header = new RectangleF(Margin * scale, Margin * scale, Width * scale, headerHeight * scale);
         OverlayLabel Label(string text, float top, float height, float font, OverlayFont weight) =>
             new(text, new RectangleF((Margin + 14) * scale, (Margin + top) * scale,
                 (Width - 28) * scale, height * scale), font * scale, OverlayTextAlign.Near, weight);
 
-        var title = Label("Search library", 10, 28, 18, OverlayFont.Semibold);
+        var title = Label(fragments
+            ? $"Compose phrase · {state.FragmentSpeaker ?? "All speakers"} · {state.FragmentNames.Length} fragments" +
+                (state.FragmentNames.Length > 9 ? $" ({state.FragmentNames.Length - 9} earlier)" : "")
+            : "Search library", 10, 28, 18, OverlayFont.Semibold);
         var query = Label(state.SearchQuery!.Length == 0 ? "Type a clip or folder name…" : state.SearchQuery + "▏",
-            40, 36, 22, OverlayFont.Regular);
-        var instructions = Label(state.WheelEntries.IsEmpty
-            ? "No matches · Esc cancels" : "1–9 play · Enter plays 1 · Esc cancels", 84, 26, 14, OverlayFont.Regular);
+            fragments ? 145 : 40, 36, 22, OverlayFont.Regular);
+        var instructions = Label(fragments
+            ? (state.WheelEntries.IsEmpty ? "No matches · " : "Tap Enter or 1–9 to add · ") + "Hold Enter 0.5s to play · Esc cancels"
+            : state.WheelEntries.IsEmpty ? "No matches · Esc cancels" : "1–9 play · Enter plays 1 · Esc cancels",
+            fragments ? 186 : 84, 26, 14, OverlayFont.Regular);
         var items = state.WheelEntries.Select((entry, index) => SearchItem(entry,
-            new PointF((Margin + Width / 2) * scale, (Margin + HeaderHeight + Gap + index * (RowHeight + Gap) + RowHeight / 2) * scale),
+            new PointF((Margin + Width / 2) * scale, (Margin + headerHeight + Gap + index * (RowHeight + Gap) + RowHeight / 2) * scale),
             scale)).ToArray();
         return new OverlayLayout(OverlayLayoutKind.Wheel, canvas, scale,
             [new OverlayPanel(header, 16 * scale, OverlayPanelStyle.Panel)], [], items, title, query, null, instructions)
@@ -46,14 +53,41 @@ internal static class SearchGeometry
             ColumnLabels =
             [
                 ColumnLabel("Clip", NameLeft, NameWidth),
-                ColumnLabel("Top folder", TopFolderLeft, TopFolderWidth),
+                ColumnLabel(fragments ? "Speaker" : "Top folder", TopFolderLeft, TopFolderWidth),
                 ColumnLabel("Parent folder", ParentFolderLeft, ParentFolderWidth),
             ],
+            PhraseLabels = fragments ? PhraseLabels(state, scale).Append(
+                Label("Backspace twice with an empty search removes the last fragment", 212, 24, 13, OverlayFont.Regular)).ToArray() : [],
+            HoldProgressBounds = fragments && state.FragmentHoldProgress > 0
+                ? new RectangleF(header.Left + 14 * scale, header.Bottom - 5 * scale,
+                    (Width - 28) * scale * (float)Math.Clamp(state.FragmentHoldProgress, 0, 1), 3 * scale)
+                : RectangleF.Empty,
         };
 
         OverlayLabel ColumnLabel(string text, float left, float width) =>
-            new(text, new RectangleF((Margin + left) * scale, (Margin + 124) * scale,
+            new(text, new RectangleF((Margin + left) * scale, (Margin + (fragments ? 242 : 124)) * scale,
                 width * scale, 24 * scale), 13 * scale, OverlayTextAlign.Near, OverlayFont.Regular);
+    }
+
+    private static IEnumerable<OverlayLabel> PhraseLabels(OverlayViewState state, float scale)
+    {
+        if (state.FragmentNames.IsEmpty)
+        {
+            yield return new OverlayLabel("Search and add your first fragment to choose a speaker",
+                new RectangleF((Margin + 14) * scale, (Margin + 42) * scale, (Width - 28) * scale, 28 * scale),
+                16 * scale, OverlayTextAlign.Near, OverlayFont.Regular);
+            yield break;
+        }
+
+        var names = state.FragmentNames.TakeLast(9).ToArray();
+        for (var index = 0; index < names.Length; index++)
+        {
+            var number = state.FragmentNames.Length - names.Length + index + 1;
+            yield return new OverlayLabel($"{number}. {names[index]}",
+                new RectangleF((Margin + 14 + index % 3 * 326) * scale,
+                    (Margin + 42 + index / 3 * 32) * scale, 314 * scale, 28 * scale),
+                16 * scale, OverlayTextAlign.Near, OverlayFont.Semibold);
+        }
     }
 
     private static OverlayItem SearchItem(NumberedEntry entry, PointF center, float scale)

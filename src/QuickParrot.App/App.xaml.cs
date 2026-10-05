@@ -143,6 +143,7 @@ public partial class App : System.Windows.Application
         }
 
         engine.ViewStateChanged += overlay.Show;
+        engine.FragmentSessionEnded += hook.CompleteFragmentsSession;
         engine.Start();
         _devices.DevicesChanged += engine.RetryMicRestore;
         _devices.SetupChanged += diagnostics.RequestCheck;
@@ -236,6 +237,8 @@ public partial class App : System.Windows.Application
             hook.SaveNavigationKey = settings.SaveNavigationKey;
         if (hook.SearchKey != settings.SearchKey)
             hook.SearchKey = settings.SearchKey;
+        if (hook.FragmentsKey != settings.FragmentsKey)
+            hook.FragmentsKey = settings.FragmentsKey;
         hook.SetSearchLibrary(settings.LibraryRoot);
         if (hook.PushToTalkBinding != settings.PushToTalkBinding)
             hook.PushToTalkBinding = settings.PushToTalkBinding;

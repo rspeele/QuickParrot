@@ -9,7 +9,7 @@ public sealed class AppSettingsSearchTests
     public void SearchDefaultsToNumpadDivideAndRoundTrips()
     {
         Assert.Equal(new ScanKey(0x35, true), JsonSettingsStore.Deserialize("{}").SearchKey);
-        var settings = new AppSettings { SearchKey = new ScanKey(0x4E, false) };
+        var settings = new AppSettings { SearchKey = new ScanKey(0x4E, false) }.Sanitized();
         Assert.Equal(settings, JsonSettingsStore.Deserialize(JsonSettingsStore.Serialize(settings)));
     }
 
