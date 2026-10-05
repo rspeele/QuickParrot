@@ -20,6 +20,7 @@ public enum SmallFolderLayout
 
 public sealed record NumberedEntry(int Number, string Name, bool IsFolder)
 {
+    public string? DisplayName { get; init; }
     public LibrarySearchFolderContext? FolderContext { get; init; }
 }
 

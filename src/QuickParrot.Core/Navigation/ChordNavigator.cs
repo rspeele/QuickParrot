@@ -17,14 +17,16 @@ public sealed class ChordNavigator
     private static readonly NavigationLayout EmptyLayout = LayoutBuilder.Build([]);
 
     private readonly IFolderSource _source;
+    private readonly Func<int, int> _randomIndex;
     private Session? _session;
     private SearchSession? _search;
     private FragmentComposer? _fragments;
     private volatile OverlayViewState? _viewState;
 
-    public ChordNavigator(IFolderSource source, string persistentPath = "")
+    public ChordNavigator(IFolderSource source, string persistentPath = "", Func<int, int>? randomIndex = null)
     {
         _source = source;
+        _randomIndex = randomIndex ?? Random.Shared.Next;
         PersistentPath = string.Join('/', persistentPath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries));
     }
 
@@ -45,7 +47,7 @@ public sealed class ChordNavigator
         if (evt is FragmentsPressed && _session is not null)
         {
             _session = null;
-            _fragments = new FragmentComposer(_source.GetAllClips());
+            _fragments = new FragmentComposer(_source.GetAllClips(), _randomIndex);
             _viewState = _fragments.ViewState;
             return NoActions;
         }
@@ -63,7 +65,7 @@ public sealed class ChordNavigator
         {
             _session = null;
             var clips = _source.GetAllClips().Where(clip => !FragmentLibrary.IsFragmentPath(clip.RelativePath)).ToArray();
-            _search = new SearchSession(clips, LibrarySearch.CreateFolderContexts(clips), "", []);
+            _search = new SearchSession(LibrarySearch.CreateResults(clips), LibrarySearch.CreateFolderContexts(clips), "", []);
             UpdateSearch("");
             return NoActions;
         }
@@ -93,7 +95,7 @@ public sealed class ChordNavigator
                 _viewState = null;
                 var index = select.Number - 1;
                 return index >= 0 && index < search.Matches.Length
-                    ? [new PlayClip(search.Matches[index].RelativePath)] : NoActions;
+                    ? [new PlayClip(search.Matches[index].SelectClip(_randomIndex).RelativePath)] : NoActions;
             case ChordCancelled:
                 _search = null;
                 _viewState = null;
@@ -105,12 +107,13 @@ public sealed class ChordNavigator
     private void UpdateSearch(string query)
     {
         var search = _search!;
-        var matches = LibrarySearch.Match(search.Clips, query);
+        var matches = LibrarySearch.Match(search.Results, query);
         _search = search with { Query = query, Matches = matches };
         _viewState = new OverlayViewState("", OverlayLayoutKind.Wheel,
             matches.Select((entry, index) => new NumberedEntry(index + 1, entry.Name, false)
             {
-                FolderContext = search.FolderContexts[entry.RelativePath],
+                DisplayName = entry.PhraseName,
+                FolderContext = search.FolderContexts[entry.RepresentativeClip.RelativePath],
             }).ToImmutableArray(),
             [], null, false) { SearchQuery = query };
     }
@@ -304,6 +307,6 @@ public sealed class ChordNavigator
         public FavoritesPanel? Favorites { get; init; }
     }
 
-    private sealed record SearchSession(IReadOnlyList<FolderEntry> Clips,
-        IReadOnlyDictionary<string, LibrarySearchFolderContext?> FolderContexts, string Query, FolderEntry[] Matches);
+    private sealed record SearchSession(IReadOnlyList<LibrarySearchResult> Results,
+        IReadOnlyDictionary<string, LibrarySearchFolderContext?> FolderContexts, string Query, LibrarySearchResult[] Matches);
 }

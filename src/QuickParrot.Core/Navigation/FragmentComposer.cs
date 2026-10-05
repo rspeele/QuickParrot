@@ -6,19 +6,22 @@ namespace QuickParrot.Core.Navigation;
 
 internal sealed class FragmentComposer
 {
-    private readonly FolderEntry[] _clips;
+    private readonly LibrarySearchResult[] _results;
+    private readonly Func<int, int> _randomIndex;
     private readonly IReadOnlyDictionary<string, LibrarySearchFolderContext?> _contexts;
-    private readonly List<FolderEntry> _phrase = [];
-    private FolderEntry[] _matches = [];
+    private readonly List<(FolderEntry Clip, string Name)> _phrase = [];
+    private LibrarySearchResult[] _matches = [];
     private string _query = "";
     private string? _speaker;
     private bool _emptyBackspace;
     private double _holdProgress;
 
-    public FragmentComposer(IReadOnlyList<FolderEntry> clips)
+    public FragmentComposer(IReadOnlyList<FolderEntry> clips, Func<int, int> randomIndex)
     {
-        _clips = clips.Where(clip => !clip.IsFolder && FragmentLibrary.GetSpeaker(clip.RelativePath) is not null).ToArray();
-        _contexts = FragmentLibrary.CreateFolderContexts(_clips);
+        var fragments = clips.Where(clip => !clip.IsFolder && FragmentLibrary.GetSpeaker(clip.RelativePath) is not null).ToArray();
+        _results = LibrarySearch.CreateResults(fragments);
+        _randomIndex = randomIndex;
+        _contexts = FragmentLibrary.CreateFolderContexts(fragments);
         UpdateSearch();
     }
 
@@ -45,8 +48,9 @@ internal sealed class FragmentComposer
                 var index = select.Number - 1;
                 if (index >= 0 && index < _matches.Length)
                 {
-                    var clip = _matches[index];
-                    _phrase.Add(clip);
+                    var match = _matches[index];
+                    var clip = match.SelectClip(_randomIndex);
+                    _phrase.Add((clip, match.PhraseName));
                     _speaker ??= FragmentLibrary.GetSpeaker(clip.RelativePath);
                     _query = "";
                     _holdProgress = 0;
@@ -58,7 +62,7 @@ internal sealed class FragmentComposer
                 Publish();
                 break;
             case FragmentSubmitPressed when _phrase.Count > 0:
-                var paths = _phrase.Select(clip => clip.RelativePath).ToArray();
+                var paths = _phrase.Select(fragment => fragment.Clip.RelativePath).ToArray();
                 Closed = true;
                 _phrase.Clear();
                 return [new PlayPhrase(paths)];
@@ -95,22 +99,23 @@ internal sealed class FragmentComposer
 
     private void UpdateSearch()
     {
-        var clips = _speaker is null ? _clips : _clips.Where(clip =>
-            string.Equals(FragmentLibrary.GetSpeaker(clip.RelativePath), _speaker, StringComparison.OrdinalIgnoreCase)).ToArray();
-        _matches = LibrarySearch.Match(clips, _query);
+        var results = _speaker is null ? _results : _results.Where(result =>
+            string.Equals(FragmentLibrary.GetSpeaker(result.RepresentativeClip.RelativePath), _speaker, StringComparison.OrdinalIgnoreCase)).ToArray();
+        _matches = LibrarySearch.Match(results, _query);
         Publish();
     }
 
     private void Publish() => ViewState = new OverlayViewState("", OverlayLayoutKind.Wheel,
-        _matches.Select((clip, index) => new NumberedEntry(index + 1, clip.Name, false)
+        _matches.Select((result, index) => new NumberedEntry(index + 1, result.Name, false)
         {
-            FolderContext = _contexts[clip.RelativePath],
+            DisplayName = result.PhraseName,
+            FolderContext = _contexts[result.RepresentativeClip.RelativePath],
         }).ToImmutableArray(), [], null, false)
     {
         SearchQuery = _query,
         IsFragmentSearch = true,
         FragmentSpeaker = _speaker,
-        FragmentNames = _phrase.Select(clip => Path.GetFileNameWithoutExtension(clip.Name)).ToImmutableArray(),
+        FragmentNames = _phrase.Select(fragment => fragment.Name).ToImmutableArray(),
         FragmentHoldProgress = _holdProgress,
     };
 }

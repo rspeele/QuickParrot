@@ -74,14 +74,45 @@ Like number keys, F-keys, Delete and Backspace are swallowed while the chord key
 ## Searching the library
 
 Hold the chord key (Numpad - by default), tap Numpad /, then release the chord key and type a clip name.
-The overlay stays open while you search all library folders. Search ignores case, and space-separated words each
-have to appear somewhere in the clip name: `number one` also finds `One very large number`.
+The overlay stays open while you search library folders, excluding the special top-level `Fragments` folder.
+Search ignores case and matches filenames without their extensions and folder names relative to the library root.
+Space-separated words each have to appear somewhere in that text: `number one` also finds `One very large number`.
 
 The first nine matches appear below the query, ordered by name. Press 1–9 to play that match, or Enter to play the
 first match. Either action closes search; Escape cancels it. Backspace edits the query. Digits are reserved for
 selection, so use names such as `He was Number One` if you need to search for them. After releasing the chord key
 the first time, that key works as ordinary text too, including when your chord key is a letter. The search key is
 configurable in Settings.
+
+### Numbered variants
+
+Multiple clips in the same folder named `Word_1.mp3`, `Word_2.mp3`, `Word_3.mp3`, and so on appear as one `Word`
+search result. Selecting that result randomly chooses one of its variants, with an equal chance for each clip.
+This applies to ordinary library search and fragment search. Every selection rolls again; a fragment's chosen
+clip is fixed when you add it to the phrase. The queued phrase displays `Word` without its variant number.
+
+The final underscore followed by digits marks a variant, regardless of audio extension. Variants are grouped
+within their folder, so matching names in different folders or speakers stay separate. A lone numbered clip
+keeps its original name, and an unnumbered `Word.mp3` remains a separate result. Grouping happens before the
+nine-result limit; browsing folders or playing favorites still selects the individual files.
+
+## Fragments
+
+Put word or phrase clips in `Fragments/<Speaker>/` under your library root. Each immediate subfolder is a speaker;
+you can organize clips into deeper folders within it. Clips directly inside `Fragments` need to be moved into a
+speaker folder before they can be composed. Fragments stay out of ordinary search and chord folder navigation,
+but remain accessible in the Library tab and clip editor.
+
+`Chord+Numpad +` opens the phrase composer; release the chord and type to search. Tap and release Enter to add
+result 1, or a number 1–9 to add that result. Each addition clears the search box. The first fragment locks search
+to its speaker. The overlay shows the speaker and queued fragments in order.
+
+Hold Enter for half a second to play the queued phrase as continuous audio, then close the composer. This does
+not add the current search result. Push-to-talk and mic ducking cover the entire phrase, with pre/post-roll once.
+Two distinct Backspace presses while the search box is empty remove the last fragment; deleting the final one
+unlocks the speaker. Escape discards the phrase and closes. Reopening always starts fresh.
+
+The Fragments key can be rebound in Settings. Fragment timing is preserved, so trim unwanted silence in your clips.
 
 ## Choosing a chord key
 

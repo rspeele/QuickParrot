@@ -8,6 +8,16 @@ namespace QuickParrot.Overlay.Tests;
 public sealed class SearchGeometryTests
 {
     [Theory]
+    [InlineData("Word")]
+    [InlineData("well.done")]
+    public void VariantDisplayNamesAreRenderedVerbatim(string displayName)
+    {
+        var entry = new NumberedEntry(1, displayName, false) { DisplayName = displayName };
+        var state = ViewStates.Wheel(1) with { SearchQuery = "", WheelEntries = [entry] };
+        Assert.Equal(displayName, Assert.Single(OverlayLayoutGeometry.Compute(state, 1).Items).Name);
+    }
+
+    [Theory]
     [InlineData(SmallFolderLayout.List)]
     [InlineData(SmallFolderLayout.Ring)]
     public void SearchAlwaysShowsQueryAboveANumberedList(SmallFolderLayout preference)

@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace QuickParrot.Core.Library;
 
 public static class LibrarySearch
@@ -25,17 +27,57 @@ public static class LibrarySearch
         return clips;
     }
 
-    public static FolderEntry[] Match(IReadOnlyList<FolderEntry> clips, string query)
+    public static LibrarySearchResult[] CreateResults(IReadOnlyList<FolderEntry> clips)
+    {
+        var results = new List<LibrarySearchResult>();
+        var variants = new Dictionary<string, List<FolderEntry>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var clip in clips.Where(clip => !clip.IsFolder))
+        {
+            var stem = Path.GetFileNameWithoutExtension(clip.Name);
+            var separator = stem.LastIndexOf('_');
+            var numbered = separator > 0 && separator < stem.Length - 1 &&
+                stem[(separator + 1)..].All(character => character is >= '0' and <= '9');
+            if (!numbered)
+            {
+                results.Add(new LibrarySearchResult(clip.Name, stem, [clip]));
+                continue;
+            }
+
+            var key = ParentPath(clip.RelativePath).Replace('\\', '/') + "/" + stem[..separator];
+            if (!variants.TryGetValue(key, out var group))
+                variants[key] = group = [];
+            group.Add(clip);
+        }
+
+        foreach (var group in variants.Values)
+        {
+            var members = group.OrderBy(clip => clip.RelativePath, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(clip => clip.RelativePath, StringComparer.Ordinal)
+                .DistinctBy(clip => clip.RelativePath.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+                .ToImmutableArray();
+            var representative = members[0];
+            var stem = Path.GetFileNameWithoutExtension(representative.Name);
+            var name = members.Length > 1 ? stem[..stem.LastIndexOf('_')] : representative.Name;
+            var phraseName = members.Length > 1 ? name : stem;
+            results.Add(new LibrarySearchResult(name, phraseName, members));
+        }
+        return results.ToArray();
+    }
+
+    public static LibrarySearchResult[] Match(IReadOnlyList<FolderEntry> clips, string query) =>
+        Match(CreateResults(clips), query);
+
+    public static LibrarySearchResult[] Match(IReadOnlyList<LibrarySearchResult> results, string query)
     {
         var words = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        return clips.Where(clip =>
+        return results.Where(result =>
             {
-                var searchableText = Path.GetFileNameWithoutExtension(clip.Name) + " " + ParentPath(clip.RelativePath);
+                var searchableText = result.PhraseName + " " + ParentPath(result.RepresentativeClip.RelativePath);
                 return words.All(word => searchableText.Contains(word, StringComparison.OrdinalIgnoreCase));
             })
-            .OrderBy(clip => clip.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(clip => clip.RelativePath, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(clip => clip.RelativePath, StringComparer.Ordinal)
+            .OrderBy(result => result.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(result => result.RepresentativeClip.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(result => result.RepresentativeClip.RelativePath, StringComparer.Ordinal)
             .Take(9).ToArray();
     }
 

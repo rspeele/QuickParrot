@@ -7,6 +7,9 @@ code that are written inline and can be broken out into their own small utility 
 
 Write code that is unit-testable. Keep complex logic out of the UI code, move it a layer down.
 
+Put AI-written feature documentation and documentation updates in READSLOP.md, not README.md.
+README.md is maintained by the human author; do not edit it unless the user explicitly requests a README edit.
+
 Tests should be kept fast so running the test suite doesn't slow down iterative development. Minimize IO during tests as
 it can be a slowdown source.
 

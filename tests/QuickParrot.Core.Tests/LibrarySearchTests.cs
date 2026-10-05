@@ -49,7 +49,7 @@ public sealed class LibrarySearchTests
     public void MatchesFilenameAndEveryRelativeFolder(string query)
     {
         var clip = new FolderEntry("Spoken.wav", false, "Category/Shared/Parent/Spoken.wav");
-        Assert.Equal(clip, Assert.Single(LibrarySearch.Match([clip], query)));
+        Assert.Equal(clip, Assert.Single(LibrarySearch.Match([clip], query)).RepresentativeClip);
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public sealed class LibrarySearchTests
     {
         var rootClip = new FolderEntry("Spoken.wav", false, "Spoken.wav");
         var folderClip = new FolderEntry("Spoken.mp3", false, "Wav clips/Spoken.mp3");
-        Assert.Equal(folderClip, Assert.Single(LibrarySearch.Match([rootClip, folderClip], "wav")));
+        Assert.Equal(folderClip, Assert.Single(LibrarySearch.Match([rootClip, folderClip], "wav")).RepresentativeClip);
     }
 
     [Theory]

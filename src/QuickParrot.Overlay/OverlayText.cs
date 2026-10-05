@@ -23,6 +23,9 @@ internal static class OverlayText
 
     public static string DisplayName(NumberedEntry entry)
     {
+        if (entry.DisplayName is { } displayName)
+            return displayName;
+
         var name = entry.IsFolder ? entry.Name : Path.GetFileNameWithoutExtension(entry.Name);
         return name.Length > 0 ? name : entry.Name;
     }
