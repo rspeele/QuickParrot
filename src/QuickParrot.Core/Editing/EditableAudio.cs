@@ -46,14 +46,6 @@ public sealed class EditableAudio
         return Samples.Span.Slice(startFrame * Channels, (endFrame - startFrame) * Channels);
     }
 
-    /// <summary>Frames [start, end) as audio with the same format and labels, sharing this audio's buffer.</summary>
-    public EditableAudio Slice(int startFrame, int endFrame)
-    {
-        CheckRange(startFrame, endFrame);
-        var samples = Samples.Slice(startFrame * Channels, (endFrame - startFrame) * Channels);
-        return new EditableAudio(samples, SampleRate, Channels, SuggestedTitle, SourceLabel);
-    }
-
     private void CheckRange(int startFrame, int endFrame)
     {
         if (startFrame < 0 || endFrame > FrameCount || startFrame > endFrame)

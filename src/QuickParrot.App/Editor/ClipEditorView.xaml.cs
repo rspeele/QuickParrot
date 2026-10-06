@@ -58,8 +58,6 @@ public partial class ClipEditorView : UserControl
 
     private void SelectAll_Click(object sender, RoutedEventArgs e) => Vm.SelectAll();
 
-    private void SuggestName_Click(object sender, RoutedEventArgs e) => _ = Vm.SuggestNameAsync();
-
     private void Save_Click(object sender, RoutedEventArgs e) => _ = Vm.SaveAsync();
 
     private void Done_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(ClipEditorOutcome.Done);

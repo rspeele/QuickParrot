@@ -7,7 +7,6 @@ namespace QuickParrot.App;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
-    private bool _apiKeyDirty;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -71,39 +70,6 @@ public partial class MainWindow : Window
 
     private Task OpenSelectedGrabAsync() =>
         PendingGrabsList.SelectedItem is PendingGrabItem item ? _viewModel.Editors.EditAsync(item.Grab) : Task.CompletedTask;
-
-    // Committing on every keystroke would DPAPI-encrypt and save a partial key after each one; commit once instead,
-    // on LostFocus or Enter.
-    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) => _apiKeyDirty = true;
-
-    private void ApiKeyBox_LostFocus(object sender, RoutedEventArgs e) => CommitApiKeyIfDirty();
-
-    private void ApiKeyBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter)
-            return;
-
-        CommitApiKeyIfDirty();
-        e.Handled = true;
-    }
-
-    private void ClearApiKey_Click(object sender, RoutedEventArgs e)
-    {
-        _apiKeyDirty = false;
-        ApiKeyBox.Clear();
-        _viewModel.LiteLlm.SetApiKey("");
-    }
-
-    private void CommitApiKeyIfDirty()
-    {
-        if (!_apiKeyDirty)
-            return;
-
-        _apiKeyDirty = false;
-        _viewModel.LiteLlm.SetApiKey(ApiKeyBox.Password);
-    }
-
-    private async void TestLiteLlmConnection_Click(object sender, RoutedEventArgs e) => await _viewModel.LiteLlm.TestConnectionAsync();
 
     private async void ChangeChordKey_Click(object sender, RoutedEventArgs e) => await _viewModel.Hotkeys.ChangeChordKeyAsync();
 

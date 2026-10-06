@@ -9,14 +9,12 @@ namespace QuickParrot.App;
 
 /// <summary>What editing a grab needs beyond the library, settings and status line.</summary>
 /// <param name="OpenFolderSource">Opens a library root for reading; folder scans run off the UI thread.</param>
-/// <param name="CreateNamer">The editor's "Suggest name" function, or null when naming isn't configured.</param>
 /// <param name="ShowWindow">Shows an editor window for a view model.</param>
 public sealed record GrabEditorServices(
     IPendingGrabStore GrabStore,
     IEditorPreview Preview,
     IClipEncoder Encoder,
     Func<string, IFolderSource> OpenFolderSource,
-    Func<Func<EditableAudio, CancellationToken, Task<NameSuggestion>>?> CreateNamer,
     Func<ClipEditorViewModel, IClipEditorWindow> ShowWindow);
 
 /// <summary>
@@ -101,7 +99,6 @@ public sealed class GrabEditorCoordinator
             Folders = folders,
             RefreshFolders = RefreshFoldersAsync,
             InitialFolder = _library.Folder,
-            SuggestName = _services.CreateNamer(),
             PlaySampleOnDrag = _settings.Current.EditorPlaySampleOnDrag,
             PlaySampleOnDragChanged = value => _settings.Update(s => s with { EditorPlaySampleOnDrag = value }),
         });

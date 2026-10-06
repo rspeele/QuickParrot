@@ -65,8 +65,6 @@ public sealed class ClipEditorSession
     public float PreviewGain(double measuredLufs, bool normalize) =>
         normalize ? (float)Decibels.ToAmplitude(LoudnessNormalizer.GainDbFor(measuredLufs, Loudness)) : 1f;
 
-    public EditableAudio SelectionAudio(ClipSelection selection) => Audio.Slice(selection.Start, selection.End);
-
     /// <summary>Where the selection should move after saving <paramref name="saved"/>; see <see cref="PlaybackPlanner.PostSaveSelection"/>.</summary>
     public ClipSelection PostSaveSelection(ClipSelection saved) =>
         PlaybackPlanner.PostSaveSelection(saved, Audio.FrameCount, MinSelectionFrames);

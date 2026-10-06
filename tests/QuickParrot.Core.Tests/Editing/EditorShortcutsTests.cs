@@ -22,7 +22,6 @@ public class EditorShortcutsTests
     [InlineData(OpenBracket, NoMods, SetSelectionStart)]
     [InlineData(CloseBracket, NoMods, SetSelectionEnd)]
     [InlineData(S, Ctrl, PlayAndFocusName)]
-    [InlineData(E, Ctrl, SuggestName)]
     [InlineData(Z, Ctrl, Undo)]
     [InlineData(Z, CtrlShift, Redo)]
     [InlineData(Y, Ctrl, Redo)]
@@ -48,7 +47,6 @@ public class EditorShortcutsTests
     [InlineData(Enter, NoMods, Save)]
     [InlineData(Escape, NoMods, Close)]
     [InlineData(S, Ctrl, PlayAndFocusName)]
-    [InlineData(E, Ctrl, SuggestName)]
     public void Map_WhileTyping_LeavesEditingKeysToTheTextBox(EditorKey key, EditorModifiers mods, EditorShortcut expected)
     {
         Assert.Equal(expected, Map(key, mods, typing: true));
@@ -62,10 +60,9 @@ public class EditorShortcutsTests
     [InlineData(OpenBracket, NoMods, false, Swallow)]
     [InlineData(CloseBracket, NoMods, true, EditorShortcut.None)]
     [InlineData(S, Ctrl, true, Swallow)]
-    [InlineData(E, Ctrl, true, Swallow)]
     [InlineData(S, NoMods, false, Swallow)]
     [InlineData(S, NoMods, true, EditorShortcut.None)]
-    [InlineData(E, EditorModifiers.Shift, true, EditorShortcut.None)]
+    [InlineData(S, EditorModifiers.Shift, true, EditorShortcut.None)]
     [InlineData(Escape, NoMods, false, Close)]
     [InlineData(Z, Ctrl, false, Undo)]
     public void Map_HeldKeys_DoNotRepeatTheirAction(EditorKey key, EditorModifiers mods, bool typing, EditorShortcut expected)

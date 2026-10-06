@@ -84,7 +84,7 @@ public class ClipEditorSessionTests
 
         session.Save(new ClipSelection(48000, 96000), "x", "f", normalize: false, CancellationToken.None);
 
-        Assert.Equal(Lufs(Capture.Slice(48000, 96000)), Lufs(encoder.Saves[0].Audio), 0.05);
+        Assert.Equal(Lufs(Audio(Capture.Frames(48000, 96000).ToArray())), Lufs(encoder.Saves[0].Audio), 0.05);
     }
 
     [Fact]
@@ -115,109 +115,5 @@ public class ClipEditorSessionTests
         var saved = new ClipSelection(0, Capture.FrameCount);
 
         Assert.Equal(saved, session.PostSaveSelection(saved));
-    }
-}
-
-public class NameSuggesterTests
-{
-    private static readonly EditableAudio Clip = Audio(Silence(0.1));
-
-    private static Task<NameSuggestion> Named(string name) => Task.FromResult(new NameSuggestion(name));
-
-    [Fact]
-    public async Task SuggestNow_Sanitizes()
-    {
-        using var suggester = new NameSuggester((_, _) => Named("\"Hasta la vista?\""));
-
-        Assert.Equal(new NameSuggestion("Hasta la vista"), await suggester.SuggestNowAsync(Clip));
-    }
-
-    [Fact]
-    public async Task Failures_AreReported_AndBlankNamesAreNull()
-    {
-        using var failing = new NameSuggester((_, _) => throw new HttpRequestException("offline"));
-        using var blank = new NameSuggester((_, _) => Named("  "));
-
-        Assert.Equal(new NameSuggestion(null, "offline"), await failing.SuggestNowAsync(Clip));
-        Assert.Equal(new NameSuggestion(null), await blank.SuggestNowAsync(Clip));
-    }
-
-    [Fact]
-    public async Task ANamersOwnError_PassesStraightThrough()
-    {
-        using var suggester = new NameSuggester((_, _) => Task.FromResult(new NameSuggestion(null, "No speech")));
-
-        Assert.Equal(new NameSuggestion(null, "No speech"), await suggester.SuggestNowAsync(Clip));
-    }
-
-    [Fact]
-    public async Task ASecondRequest_CancelsTheFirst()
-    {
-        var firstRelease = new TaskCompletionSource<NameSuggestion>();
-        CancellationToken firstToken = default;
-        var callCount = 0;
-        using var suggester = new NameSuggester((_, token) =>
-        {
-            if (++callCount == 1)
-            {
-                firstToken = token;
-                return firstRelease.Task;
-            }
-
-            return Named("Second");
-        });
-
-        var first = suggester.SuggestNowAsync(Clip);
-        Assert.True(suggester.IsBusy);
-        var second = await suggester.SuggestNowAsync(Clip); // immediately cancels the first
-        firstRelease.SetResult(new("Too late"));
-
-        Assert.Null(await first);
-        Assert.True(firstToken.IsCancellationRequested);
-        Assert.Equal(new NameSuggestion("Second"), second);
-    }
-
-    [Fact]
-    public async Task Cancel_AbandonsAnInFlightSuggestion()
-    {
-        var release = new TaskCompletionSource<NameSuggestion>();
-        CancellationToken seen = default;
-        using var suggester = new NameSuggester((_, token) =>
-        {
-            seen = token;
-            return release.Task;
-        });
-
-        var pending = suggester.SuggestNowAsync(Clip);
-        Assert.True(suggester.IsBusy);
-        suggester.Cancel();
-        release.SetResult(new("Too late"));
-
-        Assert.Null(await pending);
-        Assert.True(seen.IsCancellationRequested);
-        Assert.False(suggester.IsBusy);
-    }
-
-    [Fact]
-    public async Task ACancelledRequestFinishingLate_LeavesANewerOneBusy()
-    {
-        var releases = new List<TaskCompletionSource<NameSuggestion>>();
-        using var suggester = new NameSuggester((_, _) =>
-        {
-            var release = new TaskCompletionSource<NameSuggestion>();
-            releases.Add(release);
-            return release.Task;
-        });
-
-        var first = suggester.SuggestNowAsync(Clip);
-        suggester.Cancel(); // e.g. a save
-        var second = suggester.SuggestNowAsync(Clip);
-        releases[0].SetResult(new("Too late"));
-
-        Assert.Null(await first);
-        Assert.True(suggester.IsBusy);
-        releases[1].SetResult(new("Fresh"));
-        Assert.Equal(new NameSuggestion("Fresh"), await second);
-        Assert.False(suggester.IsBusy);
     }
 }

@@ -123,8 +123,7 @@ in voice chat, then saved into the library folder of your choice. Several sound 
 
 Noise removal (e.g. laugh tracks, wind) is out of scope for now.
 
-If you configure QuickParrot with a LiteLLM endpoint, it will attempt to automatically name the clip based on
-speech-to-text + AI summary. Otherwise you are prompted to enter the name.
+You type a name for each clip as you save it.
 
 The replay buffer records what plays through your output device, so it also catches other people's voices on calls and
 QuickParrot's own clips. It stays in memory unless you grab it, but recording-consent rules vary by place.

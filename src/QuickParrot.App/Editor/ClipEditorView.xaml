@@ -4,7 +4,6 @@
              xmlns:editor="clr-namespace:QuickParrot.App.Editor"
              Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <Style x:Key="Readout" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Consolas" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -62,9 +61,6 @@
                 <TextBlock Text="Name" Style="{StaticResource Label}" Margin="0,0,10,6" />
                 <TextBox x:Name="NameBox" Grid.Column="1" Margin="0,0,6,6" Padding="2,2" VerticalContentAlignment="Center"
                          Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Grid.Column="2" Margin="0,0,0,6" Content="{Binding SuggestButtonText}" IsEnabled="{Binding CanSuggestName}"
-                        Visibility="{Binding HasNamer, Converter={StaticResource BoolToVisibility}}" Click="SuggestName_Click"
-                        ToolTip="Ctrl+E" />
 
                 <TextBlock Grid.Row="1" Text="Folder" Style="{StaticResource Label}" Margin="0,0,10,6" />
                 <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,6,6" ItemsSource="{Binding Folders}"
@@ -107,7 +103,7 @@
         </DockPanel>
 
         <TextBlock DockPanel.Dock="Bottom" Margin="0,4,0,0" Style="{StaticResource Label}" FontSize="11"
-                   Text="Shortcuts: Space play/stop selection  ·  [ set selection start  ·  ] set selection end  ·  Ctrl+A select all  ·  Ctrl+S play &amp; name this bite  ·  Ctrl+E suggest name  ·  Ctrl+Z / Ctrl+Y undo/redo selection" />
+                   Text="Shortcuts: Space play/stop selection  ·  [ set selection start  ·  ] set selection end  ·  Ctrl+A select all  ·  Ctrl+S play &amp; name this bite  ·  Ctrl+Z / Ctrl+Y undo/redo selection" />
 
         <ScrollBar DockPanel.Dock="Bottom" Orientation="Horizontal" Minimum="0" SmallChange="1"
                    Maximum="{Binding ScrollMaximum, ElementName=Wave}"

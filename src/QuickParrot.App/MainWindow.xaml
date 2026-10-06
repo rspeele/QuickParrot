@@ -273,52 +273,6 @@
                                 </DockPanel>
                             </StackPanel>
                         </GroupBox>
-
-                        <GroupBox Header="AI clip naming (LiteLLM)" Margin="0,0,0,8">
-                            <Grid Margin="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition />
-                                    <RowDefinition />
-                                    <RowDefinition />
-                                    <RowDefinition />
-                                    <RowDefinition />
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0" Text="Base URL:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                                <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4"
-                                         Text="{Binding LiteLlm.BaseUrl, UpdateSourceTrigger=LostFocus}" />
-
-                                <TextBlock Grid.Row="1" Text="API key:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                                <DockPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,4">
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding LiteLlm.ApiKeyPlaceholder}" Foreground="Gray"
-                                               Margin="8,0,0,0" VerticalAlignment="Center" />
-                                    <Button DockPanel.Dock="Right" Content="Clear key" Padding="6,1" Margin="8,0,0,0"
-                                            Click="ClearApiKey_Click" />
-                                    <PasswordBox x:Name="ApiKeyBox" PasswordChanged="ApiKeyBox_PasswordChanged"
-                                                 LostFocus="ApiKeyBox_LostFocus" PreviewKeyDown="ApiKeyBox_PreviewKeyDown" />
-                                </DockPanel>
-
-                                <TextBlock Grid.Row="2" Text="Transcription model:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                                <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,4"
-                                         Text="{Binding LiteLlm.TranscriptionModel, UpdateSourceTrigger=LostFocus}" />
-
-                                <TextBlock Grid.Row="3" Text="Chat model:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                                <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,4"
-                                         Text="{Binding LiteLlm.ChatModel, UpdateSourceTrigger=LostFocus}" />
-
-                                <DockPanel Grid.Row="4" Grid.Column="1">
-                                    <Button DockPanel.Dock="Left" Content="{Binding LiteLlm.TestConnectionLabel}" Padding="8,2"
-                                            IsEnabled="{Binding LiteLlm.CanTestConnection}" Click="TestLiteLlmConnection_Click" />
-                                    <TextBlock Text="{Binding LiteLlm.ConnectionTestResult}" Margin="8,0,0,0"
-                                               VerticalAlignment="Center" TextWrapping="Wrap" />
-                                </DockPanel>
-                            </Grid>
-                        </GroupBox>
-
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

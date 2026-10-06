@@ -31,10 +31,10 @@ public class SettingsMirrorTests
     [Fact]
     public void Update_IsSanitizedLocally()
     {
-        _mirror.Update(s => s with { PreRollMilliseconds = 99_999, LiteLlmBaseUrl = "  http://llm  " });
+        _mirror.Update(s => s with { PreRollMilliseconds = 99_999, MicDeviceId = "" });
 
         Assert.Equal(AppSettings.MaxMarginMilliseconds, _mirror.Current.PreRollMilliseconds);
-        Assert.Equal("http://llm", _mirror.Current.LiteLlmBaseUrl);
+        Assert.Null(_mirror.Current.MicDeviceId);
     }
 
     [Fact]

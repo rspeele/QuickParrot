@@ -7,7 +7,7 @@ namespace QuickParrot.App.Editor;
 
 /// <summary>
 /// The trim editor's view model, a thin binding layer over <see cref="ClipEditorSession"/>: selection readouts, preview,
-/// loudness display, naming (optionally AI-suggested) and saving. Create and use it on the UI thread.
+/// loudness display, naming and saving. Create and use it on the UI thread.
 /// </summary>
 public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 {
@@ -23,7 +23,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     private readonly ClipEditorSession _session;
     private readonly IEditorPreview _preview;
     private readonly ClipEditorOptions _options;
-    private readonly NameSuggester? _namer;
     private readonly DispatcherTimer _playheadTimer;
     private readonly Dispatcher _dispatcher;
     private SelectionHistory _state;
@@ -35,8 +34,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     private LoudnessReading _loudness;
     private int _measureVersion;
     private string _name = "";
-    private bool _nameEditedByUser;
-    private bool _isSuggesting;
     private bool _isSaving;
     private string _status = "";
     private LibraryFolder _selectedFolder;
@@ -56,9 +53,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         _libraryFolders = options.Folders;
         Folders = [.. _libraryFolders, BrowseEntry];
         _selectedFolder = LibraryFolderList.Find(_libraryFolders, options.InitialFolder);
-
-        if (options.SuggestName is { } suggest)
-            _namer = new NameSuggester(suggest);
 
         _playheadTimer = new DispatcherTimer(DispatcherPriority.Render, _dispatcher) { Interval = PlayheadInterval };
         _playheadTimer.Tick += (_, _) => UpdatePlayhead();
@@ -152,30 +146,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     public string Name
     {
         get => _name;
-        set
-        {
-            if (SetField(ref _name, value))
-                _nameEditedByUser = value.Length > 0;
-        }
-    }
-
-    public bool CanSuggestName => _namer is not null && !_isSuggesting;
-
-    public bool HasNamer => _namer is not null;
-
-    public string SuggestButtonText => _isSuggesting ? "Suggesting…" : "Suggest name";
-
-    public bool IsSuggesting
-    {
-        get => _isSuggesting;
-        private set
-        {
-            if (SetField(ref _isSuggesting, value))
-            {
-                OnPropertyChanged(nameof(CanSuggestName));
-                OnPropertyChanged(nameof(SuggestButtonText));
-            }
-        }
+        set => SetField(ref _name, value);
     }
 
     public IReadOnlyList<LibraryFolder> Folders { get; private set; }
@@ -207,7 +178,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Called when a selection drag ends: snaps its edges to quiet points, records an undo step, re-measures, and (if
-    /// enabled) plays a 1 s sample of the edge the drag touched. Naming is manual — see <see cref="SuggestNameAsync"/>.
+    /// enabled) plays a 1 s sample of the edge the drag touched.
     /// </summary>
     public void CommitSelection(SelectionDragTarget target, int anchorFrame)
     {
@@ -224,7 +195,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         MeasureSelection();
     }
 
-    /// <summary>Ctrl+Z: steps back to the previous selection, if any. Re-measures but doesn't play a sample or suggest a name.</summary>
+    /// <summary>Ctrl+Z: steps back to the previous selection, if any. Re-measures but doesn't play a sample.</summary>
     public void Undo()
     {
         if (!_state.CanUndo)
@@ -276,17 +247,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     /// <summary>Stops this editor's preview; another editor window's preview on the shared output is left playing.</summary>
     public void Stop() => StopInternal(manualStop: true);
 
-    /// <summary>Suggest name button / Ctrl+E: requests a name now. No-op if naming isn't configured or already in flight.</summary>
-    public async Task SuggestNameAsync()
-    {
-        if (_namer is null || _isSuggesting)
-            return;
-
-        IsSuggesting = true;
-        _nameEditedByUser = false; // about to replace the name; typing while this is in flight should still win
-        ApplySuggestion(await _namer.SuggestNowAsync(_session.SelectionAudio(Selection)));
-    }
-
     public async Task SaveAsync()
     {
         if (!CanSave)
@@ -317,11 +277,7 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
         Status = saved.Warning is { } warning
             ? $"Saved “{saved.FileName}” to {folderDisplay}. {warning}"
             : $"Saved “{saved.FileName}” to {folderDisplay}. Select another bite, or click Done.";
-        _namer?.Cancel();
-        IsSuggesting = false;
-        _name = "";
-        _nameEditedByUser = false;
-        OnPropertyChanged(nameof(Name));
+        Name = "";
 
         var next = _session.Constrain(_session.PostSaveSelection(selection), snap: false);
         SetState(_state.Push(next).WithCursor(_session.ClampCursor(next.Start)));
@@ -367,12 +323,11 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
             Status = warning;
     }
 
-    /// <summary>Stops preview and any pending name suggestion; call when the editor closes.</summary>
+    /// <summary>Stops preview; call when the editor closes.</summary>
     public void Dispose()
     {
         _preview.Stopped -= OnPreviewStopped;
         Stop();
-        _namer?.Dispose();
     }
 
     private int OneSecondFrames => _session.Audio.SampleRate;
@@ -499,24 +454,6 @@ public sealed class ClipEditorViewModel : ObservableObject, IDisposable
     {
         _loudness = reading;
         OnPropertyChanged(nameof(LoudnessText));
-    }
-
-    // A null result means a save or Dispose() cancelled it while in flight; nothing to report.
-    private void ApplySuggestion(NameSuggestion? suggestion)
-    {
-        IsSuggesting = _namer?.IsBusy == true; // a request cancelled by a save may finish after a newer one started
-        if (suggestion is null)
-            return;
-
-        if (suggestion.Error is { } error)
-            Status = $"Couldn't suggest a name: {error}";
-        else if (suggestion.Name is null)
-            Status = "No name suggested.";
-        else if (!_nameEditedByUser) // the user may have typed a name of their own while this was in flight
-        {
-            _name = suggestion.Name;
-            OnPropertyChanged(nameof(Name));
-        }
     }
 
     private void SetSaving(bool saving)

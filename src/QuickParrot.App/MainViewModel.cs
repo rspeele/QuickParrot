@@ -11,7 +11,6 @@ public sealed class MainViewModel
         SettingsViewModel general,
         DeviceSettingsViewModel devices,
         HotkeysViewModel hotkeys,
-        LiteLlmSettingsViewModel liteLlm,
         DiagnosticsViewModel diagnostics,
         GrabEditorCoordinator editors)
     {
@@ -22,7 +21,6 @@ public sealed class MainViewModel
         Settings = general;
         Devices = devices;
         Hotkeys = hotkeys;
-        LiteLlm = liteLlm;
         Diagnostics = diagnostics;
         Editors = editors;
         Library.ContentsChanged += Favorites.Refresh; // files changed on disk, so the missing marks may be stale
@@ -42,8 +40,6 @@ public sealed class MainViewModel
     public DeviceSettingsViewModel Devices { get; }
 
     public HotkeysViewModel Hotkeys { get; }
-
-    public LiteLlmSettingsViewModel LiteLlm { get; }
 
     public DiagnosticsViewModel Diagnostics { get; }
 

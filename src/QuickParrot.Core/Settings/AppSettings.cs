@@ -63,16 +63,6 @@ public sealed record AppSettings
 
     public int ReplayBufferSeconds { get; init; } = 30;
 
-    /// <summary>Null disables LiteLLM-based clip naming.</summary>
-    public string? LiteLlmBaseUrl { get; init; }
-
-    /// <summary>Base64 DPAPI ciphertext; never the plaintext key. See <c>Naming.IDpapiProtector</c>.</summary>
-    public string? LiteLlmApiKeyEncrypted { get; init; }
-
-    public string LiteLlmTranscriptionModel { get; init; } = "whisper-1";
-
-    public string LiteLlmChatModel { get; init; } = "gpt-4o-mini";
-
     /// <summary>Whether releasing a clip-editor selection-edge drag plays a 1 s sample of that edge.</summary>
     public bool EditorPlaySampleOnDrag { get; init; } = true;
 
@@ -140,10 +130,6 @@ public sealed record AppSettings
         MicDeviceId = string.IsNullOrEmpty(MicDeviceId) ? null : MicDeviceId,
         LegacyMicMuteEnabled = null,
         ReplayBufferSeconds = Math.Clamp(ReplayBufferSeconds, MinReplayBufferSeconds, MaxReplayBufferSeconds),
-        LiteLlmBaseUrl = string.IsNullOrWhiteSpace(LiteLlmBaseUrl) ? null : LiteLlmBaseUrl.Trim(),
-        LiteLlmApiKeyEncrypted = string.IsNullOrEmpty(LiteLlmApiKeyEncrypted) ? null : LiteLlmApiKeyEncrypted,
-        LiteLlmTranscriptionModel = string.IsNullOrWhiteSpace(LiteLlmTranscriptionModel) ? "whisper-1" : LiteLlmTranscriptionModel.Trim(),
-        LiteLlmChatModel = string.IsNullOrWhiteSpace(LiteLlmChatModel) ? "gpt-4o-mini" : LiteLlmChatModel.Trim(),
         Favorites = Favorites ?? FavoriteSlots.Empty,
     };
 

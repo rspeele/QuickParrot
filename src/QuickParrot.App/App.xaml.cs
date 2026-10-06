@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Net.Http;
 using QuickParrot.App.Editor;
 using QuickParrot.App.Library;
 using QuickParrot.Audio;
@@ -11,7 +10,6 @@ using QuickParrot.Core.Favorites;
 using QuickParrot.Core.Grabs;
 using QuickParrot.Core.Library;
 using QuickParrot.Core.Mic;
-using QuickParrot.Core.Naming;
 using QuickParrot.Core.Replay;
 using QuickParrot.Core.Settings;
 using QuickParrot.Input;
@@ -34,7 +32,6 @@ public partial class App : System.Windows.Application
     private FilePendingGrabStore? _grabStore;
     private LoopbackReplayCapture? _replayCapture;
     private EditorPreview? _editorPreview;
-    private HttpClient? _httpClient;
     private LibraryViewModel? _library;
     private Action<AppSettings>? _applySettings;
     private int _crashCleanupStarted;
@@ -149,9 +146,6 @@ public partial class App : System.Windows.Application
 
         var clipEncoder = new ClipEncoder();
         _editorPreview = new EditorPreview(_devices, () => engine.Settings.ToOutputSettings());
-        var httpClient = new HttpClient();
-        _httpClient = httpClient;
-        var protector = new DpapiProtector();
 
         var status = new StatusViewModel();
         if (warnings.Count > 0)
@@ -192,7 +186,6 @@ public partial class App : System.Windows.Application
             _editorPreview,
             clipEncoder,
             OpenFolderSource,
-            () => LiteLlmNaming.CreateSuggester(() => settings.Current, protector, httpClient, status.Report),
             editor => ClipEditorWindow.Open(editor, MainWindow));
         var viewModel = new MainViewModel(
             status,
@@ -202,7 +195,6 @@ public partial class App : System.Windows.Application
             new SettingsViewModel(settings),
             new DeviceSettingsViewModel(settings, _devices, _devices),
             new HotkeysViewModel(settings, status, hook.CaptureNextKeyAsync),
-            new LiteLlmSettingsViewModel(settings, status, httpClient, protector),
             diagnosticsViewModel,
             new GrabEditorCoordinator(settings, _library, status, editorServices));
 
@@ -297,7 +289,6 @@ public partial class App : System.Windows.Application
         _editorPreview?.Dispose();
         _player?.Dispose();
         _devices?.Dispose();
-        _httpClient?.Dispose();
         base.OnExit(e);
     }
 }

@@ -2,7 +2,7 @@ using System.Text;
 
 namespace QuickParrot.Core.Editing;
 
-/// <summary>Turns a typed or AI-suggested name into a safe Windows file name, and finds one that's free.</summary>
+/// <summary>Turns a typed name into a safe Windows file name, and finds one that's free.</summary>
 public static class ClipFileNames
 {
     public const int MaxStemLength = 80;
@@ -66,7 +66,7 @@ public static class ClipFileNames
     private static string Candidate(string stem, string extension, int n) =>
         n <= 1 ? stem + extension : $"{stem} ({n}){extension}";
 
-    // string.Normalize throws on unpaired surrogates (e.g. from a mangled AI reply), so they're dropped first.
+    // string.Normalize throws on unpaired surrogates (e.g. from a mangled paste), so they're dropped first.
     private static string WithoutLoneSurrogates(string text)
     {
         var builder = new StringBuilder(text.Length);

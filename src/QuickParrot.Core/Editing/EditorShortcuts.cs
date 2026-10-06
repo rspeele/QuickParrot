@@ -10,7 +10,6 @@ public enum EditorKey
     OpenBracket,
     CloseBracket,
     A,
-    E,
     S,
     Y,
     Z,
@@ -41,7 +40,6 @@ public enum EditorShortcut
     SetSelectionStart,
     SetSelectionEnd,
     PlayAndFocusName,
-    SuggestName,
     Undo,
     Redo,
 }
@@ -57,18 +55,17 @@ public static class EditorShortcuts
         var plain = !typing && modifiers == EditorModifiers.None;
         return key switch
         {
-            // Holding a key mustn't toggle play, save, re-edit the selection, replay+refocus, or re-suggest repeatedly.
-            EditorKey.Space or EditorKey.Enter or EditorKey.OpenBracket or EditorKey.CloseBracket or EditorKey.S or EditorKey.E when isRepeat =>
-                !typing || key == EditorKey.Enter || (key is EditorKey.S or EditorKey.E && control) ? EditorShortcut.Swallow : EditorShortcut.None,
+            // Holding a key mustn't toggle play, save, re-edit the selection, or replay+refocus repeatedly.
+            EditorKey.Space or EditorKey.Enter or EditorKey.OpenBracket or EditorKey.CloseBracket or EditorKey.S when isRepeat =>
+                !typing || key == EditorKey.Enter || (key == EditorKey.S && control) ? EditorShortcut.Swallow : EditorShortcut.None,
             EditorKey.Space when plain => EditorShortcut.TogglePlay,
             EditorKey.Enter when !dropDownOpen => EditorShortcut.Save,
             EditorKey.Escape when !dropDownOpen => EditorShortcut.Close,
             EditorKey.A when !typing && control => EditorShortcut.SelectAll,
             EditorKey.OpenBracket when plain => EditorShortcut.SetSelectionStart,
             EditorKey.CloseBracket when plain => EditorShortcut.SetSelectionEnd,
-            // Both work regardless of focus, including from inside the name box itself.
+            // Works regardless of focus, including from inside the name box itself.
             EditorKey.S when control => EditorShortcut.PlayAndFocusName,
-            EditorKey.E when control => EditorShortcut.SuggestName,
             EditorKey.Z when !typing && control => EditorShortcut.Undo,
             EditorKey.Z when !typing && modifiers == (EditorModifiers.Control | EditorModifiers.Shift) => EditorShortcut.Redo,
             EditorKey.Y when !typing && control => EditorShortcut.Redo,

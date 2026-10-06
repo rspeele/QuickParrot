@@ -77,9 +77,6 @@ public partial class ClipEditorWindow : Window, IClipEditorWindow
                 _ = _viewModel.PlaySelectionAsync();
                 Editor.FocusName();
                 break;
-            case EditorShortcut.SuggestName:
-                _ = _viewModel.SuggestNameAsync();
-                break;
             case EditorShortcut.Undo:
                 _viewModel.Undo();
                 break;
@@ -97,7 +94,6 @@ public partial class ClipEditorWindow : Window, IClipEditorWindow
         Key.OemOpenBrackets => EditorKey.OpenBracket,
         Key.OemCloseBrackets => EditorKey.CloseBracket,
         Key.A => EditorKey.A,
-        Key.E => EditorKey.E,
         Key.S => EditorKey.S,
         Key.Y => EditorKey.Y,
         Key.Z => EditorKey.Z,

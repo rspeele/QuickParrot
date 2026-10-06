@@ -89,9 +89,6 @@ name for the file and hitting save.
 I recomment using `Ctrl+S` after you've dragged the boundaries of the clip where you want. That focuses the textbox,
 replays the chosen clip so you can hear it while you type, and enter saves it.
 
-You can hook up an AI via the LiteLLM API in the settings tab. After doing that you can suggest a name for the clip with
-`Ctrl+E`. But it's kind of a waste of time when you could just type it in 2 seconds. This was less cool than I imagined.
-
 # Anticheat
 
 The artificial keypress for push-to-talk *might* get ignored by some games or maybe even flagged by anticheat. Look up
