@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:editor="clr-namespace:QuickParrot.App.Editor"
         Title="{Binding Title}" Width="960" Height="560" MinWidth="680" MinHeight="420"
+        Icon="/QuickParrot.App;component/Assets/quickparrot.ico"
         WindowStartupLocation="CenterOwner" PreviewKeyDown="Window_PreviewKeyDown" Closed="Window_Closed">
     <editor:ClipEditorView x:Name="Editor" CloseRequested="Editor_CloseRequested" />
 </Window>

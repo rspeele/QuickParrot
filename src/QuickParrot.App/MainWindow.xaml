@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:QuickParrot.App"
         Title="QuickParrot" Height="640" Width="760" MinWidth="520" MinHeight="420"
+        Icon="/QuickParrot.App;component/Assets/quickparrot.ico"
         Closing="MainWindow_Closing" Deactivated="MainWindow_Deactivated" Activated="MainWindow_Activated">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
